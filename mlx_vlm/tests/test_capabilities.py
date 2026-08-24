@@ -69,3 +69,96 @@ def test_an_existing_model_can_be_reused_instead_of_rebuilt():
     arch = _require("qwen2")
     model = registry.build_tiny(arch)
     assert capabilities(arch, model=model) == capabilities(arch, model=model)
+
+
+# --- the recorded matrix ---------------------------------------------------
+
+
+def _recorded():
+    import json
+    import os
+
+    from mlx_vlm.tests import generate_capabilities
+
+    if not os.path.exists(generate_capabilities.RECORD):
+        pytest.skip("no recorded capability matrix")
+    return json.load(open(generate_capabilities.RECORD))
+
+
+def test_the_record_is_not_empty():
+    assert _recorded(), "capabilities.json should describe at least one architecture"
+
+
+def test_recorded_capabilities_still_hold():
+    """A change to what an architecture can do has to be recorded deliberately.
+
+    Only architectures resolvable on this machine are compared, so a partial
+    Hugging Face cache narrows the check rather than failing it.
+    """
+    from dataclasses import asdict
+
+    from mlx_vlm.tests.generate_capabilities import architectures
+
+    recorded = _recorded()
+    checked, drifted = 0, {}
+    for arch in architectures():
+        if arch not in recorded:
+            continue
+        try:
+            caps = capabilities(arch)
+        except Exception:
+            continue
+        current = asdict(caps)
+        current.pop("arch")
+        current["cache_kinds"] = sorted(set(current["cache_kinds"]))
+        checked += 1
+        for feature, was in recorded[arch].items():
+            now = current.get(feature)
+            if now != was:
+                drifted[f"{arch}.{feature}"] = {"recorded": was, "now": now}
+
+    if not checked:
+        pytest.skip("no recorded architecture is resolvable here")
+    assert not drifted, (
+        f"capability drift in {len(drifted)} field(s): {drifted}. If intended, "
+        "rerun python -m mlx_vlm.tests.generate_capabilities and commit the result."
+    )
+
+
+# --- representatives -------------------------------------------------------
+
+
+def test_representatives_keep_one_architecture_per_signature():
+    from mlx_vlm.tests.capabilities import representatives
+
+    a = Capabilities(arch="a", batch=True)
+    b = Capabilities(arch="b", batch=True)
+    c = Capabilities(arch="c", batch=True, image_in=True)
+    chosen = representatives([a, b, c])
+    assert len(chosen) == 2
+    assert {r.signature() for r in chosen} == {a.signature(), c.signature()}
+
+
+def test_representatives_are_chosen_deterministically():
+    from mlx_vlm.tests.capabilities import representatives
+
+    rows = [Capabilities(arch=name, batch=True) for name in ("z", "a", "m")]
+    assert representatives(rows)[0].arch == "a"
+    assert representatives(reversed(rows))[0].arch == "a"
+
+
+def test_representatives_cover_every_signature_in_the_record():
+    from mlx_vlm.tests.capabilities import representatives
+    from mlx_vlm.tests.generate_capabilities import architectures
+
+    rows = []
+    for arch in architectures():
+        try:
+            rows.append(capabilities(arch))
+        except Exception:
+            continue
+    if not rows:
+        pytest.skip("no architecture resolvable here")
+    chosen = representatives(rows)
+    assert {r.signature() for r in chosen} == {r.signature() for r in rows}
+    assert len(chosen) <= len(rows)

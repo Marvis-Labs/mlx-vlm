@@ -31,7 +31,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-__all__ = ["Capabilities", "capabilities"]
+__all__ = ["Capabilities", "capabilities", "representatives"]
 
 
 @dataclass(frozen=True)
@@ -162,3 +162,22 @@ def capabilities(arch: str, model=None) -> Capabilities:
         ),
         speculative=_drafter_kind(arch),
     )
+
+
+def representatives(all_caps):
+    """One architecture per distinct signature.
+
+    Architectures sharing a signature exercise the same set of code paths, so a
+    sweep that runs every one of them mostly repeats itself. Forty architectures
+    reduce to twenty signatures, and the reduction grows as more are added.
+
+    Args:
+        all_caps: the capabilities of every architecture under consideration.
+
+    Returns:
+        One representative per signature, in a stable order.
+    """
+    chosen: dict = {}
+    for caps in sorted(all_caps, key=lambda c: c.arch):
+        chosen.setdefault(caps.signature(), caps)
+    return tuple(chosen[key] for key in sorted(chosen))
