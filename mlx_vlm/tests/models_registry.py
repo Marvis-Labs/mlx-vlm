@@ -24,6 +24,7 @@ Usage::
 
 from __future__ import annotations
 
+import dataclasses
 import glob
 import importlib
 import json
@@ -84,41 +85,21 @@ class ArchExample:
 
 
 REGISTRY: Mapping[str, ArchExample] = {
-    # Its config declares 35 layers with the last 20 sharing KV; scaling the
+    # Its config declares the last twenty layers as sharing KV; scaling the
     # stack down without narrowing that window indexes past the new depth.
     "gemma4": ArchExample(
-        default="mlx-community/gemma-4-4b-it-4bit",
-        config_overrides={"num_kv_shared_layers": 2},
+        default="mlx-community/gemma-4-e2b-it-4bit",
+        config_overrides={"num_kv_shared_layers": 0},
     ),
-    # A dense checkpoint (`num_experts: 0`) that the shared expert count would
-    # otherwise turn into a MoE with no expert dimensions. Its layer pattern has
-    # to keep one full-attention layer, and the arrays beside it match depth.
+    # A dense checkpoint (`num_experts: 0`) that a shared expert count would
+    # otherwise turn into a MoE with no expert dimensions.
     "laguna": ArchExample(
-        default="mlx-community/Laguna-8B-4bit",
-        config_overrides={
-            "num_experts": 0,
-            "layer_types": [
-                "sliding_attention",
-                "sliding_attention",
-                "sliding_attention",
-                "full_attention",
-            ],
-            "sliding_windows": [512, 512, 512, 512],
-            "eagle_aux_hidden_state_layer_ids": [0, 1, 2],
-        },
+        default="mlx-community/Laguna-S-2.1-oQ6e",
+        config_overrides={"num_experts": 0},
     ),
-    # LongRoPE carries one scaling factor per rotary dimension, so the factors
-    # have to shrink with the head dimension.
-    "phi3": ArchExample(
-        default="mlx-community/Phi-3-mini-4k-instruct-4bit",
-        config_overrides={
-            "rope_scaling": {
-                "type": "longrope",
-                "long_factor": [1.0] * 6,
-                "short_factor": [1.0] * 6,
-            }
-        },
-    ),
+    # Pinned so the LongRoPE factor trimming is measured against a known head
+    # dimension rather than whichever Phi checkpoint happens to be cached.
+    "phi3": ArchExample(default="mlx-community/Phi-3-mini-4k-instruct-4bit"),
     # `no_rope_layers` is indexed by layer, so it has to match the new depth.
     "smollm3": ArchExample(
         default="mlx-community/SmolLM3-3B-4bit",
@@ -135,7 +116,7 @@ def _cached_configs() -> Mapping[str, dict]:
     pattern = os.path.expanduser(
         "~/.cache/huggingface/hub/models--*/snapshots/*/config.json"
     )
-    for path in glob.glob(pattern):
+    for path in sorted(glob.glob(pattern)):
         try:
             config = json.load(open(path))
         except (OSError, ValueError):
@@ -145,14 +126,109 @@ def _cached_configs() -> Mapping[str, dict]:
     return found
 
 
-def _scaled(config: dict, overrides: Mapping[str, Any]) -> dict:
-    """Scale one config level down, keeping layer-length arrays consistent."""
+def _depth_covering_the_pattern(layer_types, floor: int) -> int:
+    """Enough layers for the shortest prefix holding every attention type.
+
+    Attention patterns repeat with a period of their own -- gemma-class configs
+    alternate four sliding layers with one full-attention layer, a period of
+    five. Scaling below that drops a type entirely, and the model then reports a
+    capability its real checkpoint does have. So the depth follows the pattern
+    rather than a fixed number.
+    """
+    if not isinstance(layer_types, list) or not layer_types:
+        return floor
+    wanted, seen = set(layer_types), set()
+    for index, entry in enumerate(layer_types):
+        seen.add(entry)
+        if seen == wanted:
+            return max(floor, index + 1)
+    return max(floor, len(layer_types))
+
+
+def _trim_rope_factors(scaled: dict) -> None:
+    """LongRoPE carries one factor per rotary dimension, not per layer."""
+    head_dim = scaled.get("head_dim")
+    if not isinstance(head_dim, int):
+        return
+    keep = max(head_dim // 2, 1)
+
+    def trim(mapping):
+        for key in ("long_factor", "short_factor"):
+            factors = mapping.get(key)
+            if isinstance(factors, list) and len(factors) > keep:
+                mapping[key] = factors[:keep]
+
+    trim(scaled)
+    rope = scaled.get("rope_scaling")
+    if isinstance(rope, dict):
+        rope = dict(rope)
+        trim(rope)
+        scaled["rope_scaling"] = rope
+
+
+def _is_period(name: str, value: Any) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and value > 0
+        and (name.endswith("_pattern") or name.endswith("_interval"))
+    )
+
+
+def _declared_period(config: dict, module=None) -> int:
+    """The longest attention period declared for this architecture.
+
+    Some architectures spell the pattern out as a list; others give only its
+    length -- ``sliding_window_pattern``, ``full_attention_interval`` -- and
+    derive each layer's type from the index. Several give it only as a dataclass
+    default, absent from the checkpoint's config, so the config classes have to
+    be read too. Any of them left uncovered loses a layer type when the stack is
+    scaled down, and the model then reports a capability its real checkpoint
+    does have.
+    """
+    periods = [value for key, value in config.items() if _is_period(key, value)]
+    if module is not None:
+        for name in ("ModelConfig", "TextConfig"):
+            config_class = getattr(module, name, None)
+            if config_class is None or not dataclasses.is_dataclass(config_class):
+                continue
+            periods += [
+                field.default
+                for field in dataclasses.fields(config_class)
+                if _is_period(field.name, field.default)
+            ]
+    return max(periods, default=1)
+
+
+def _scaled(config: dict, overrides: Mapping[str, Any], module=None) -> dict:
+    """Scale one config level down, keeping length-derived arrays consistent."""
     scaled = {key: SMALL_CONFIG.get(key, value) for key, value in config.items()}
+
+    floor = max(SMALL_CONFIG["num_hidden_layers"], _declared_period(config, module))
+    layer_types = config.get("layer_types")
+    if isinstance(layer_types, list) and layer_types:
+        depth = _depth_covering_the_pattern(layer_types, floor)
+        scaled["num_hidden_layers"] = depth
+        scaled["layer_types"] = layer_types[:depth]
+    elif floor > SMALL_CONFIG["num_hidden_layers"]:
+        scaled["num_hidden_layers"] = floor
+
+    # Any other list the config sizes by layer count has to follow the depth.
+    # Only length is used to identify them: guessing at meaning from the values
+    # misreads lists that merely happen to hold small integers.
+    original_depth = config.get("num_hidden_layers")
+    depth = scaled.get("num_hidden_layers")
+    if isinstance(original_depth, int) and isinstance(depth, int):
+        for key, value in list(scaled.items()):
+            if (
+                key != "layer_types"
+                and isinstance(value, list)
+                and len(value) == original_depth
+            ):
+                scaled[key] = value[:depth]
+
+    _trim_rope_factors(scaled)
     scaled.update(overrides)
-    layers = scaled.get("num_hidden_layers")
-    layer_types = scaled.get("layer_types")
-    if isinstance(layer_types, list) and isinstance(layers, int):
-        scaled["layer_types"] = (layer_types * 8)[:layers]
     return scaled
 
 
@@ -166,22 +242,45 @@ def load_config(arch: str) -> dict:
     if example is not None and example.skip:
         raise LookupError(f"{arch} cannot be built small: {example.skip}")
 
-    config = _cached_configs().get(arch)
-    if config is None:
-        if example is None:
+    if example is not None:
+        # A declared repository wins over whatever happens to be cached. Many
+        # checkpoints share one model type -- twenty-eight of them for a single
+        # architecture here -- so picking by directory order would make the
+        # answer depend on the machine.
+        config = _config_for_repo(example.default) or _fetch_config(example)
+    else:
+        config = _cached_configs().get(arch)
+        if config is None:
             raise LookupError(
                 f"No cached config for {arch!r} and none registered. Add an "
                 f"ArchExample for it in {__name__}."
             )
-        config = _fetch_config(example)
 
     overrides = example.config_overrides if example else {}
-    scaled = _scaled(config, overrides)
+    try:
+        module = importlib.import_module(f"mlx_vlm.models.{arch}")
+    except ImportError:
+        module = None
+    scaled = _scaled(config, overrides, module)
     for name in ("text_config", "vision_config", "audio_config"):
         scaled.setdefault(name, {})
         if isinstance(scaled[name], dict):
-            scaled[name] = _scaled(scaled[name], overrides)
+            scaled[name] = _scaled(scaled[name], overrides, module)
     return scaled
+
+
+def _config_for_repo(repo: str) -> Optional[dict]:
+    """A specific repository's cached config, found by name not by model type."""
+    directory = "models--" + repo.replace("/", "--")
+    pattern = os.path.expanduser(
+        f"~/.cache/huggingface/hub/{directory}/snapshots/*/config.json"
+    )
+    for path in sorted(glob.glob(pattern)):
+        try:
+            return json.load(open(path))
+        except (OSError, ValueError):
+            continue
+    return None
 
 
 def _fetch_config(example: ArchExample) -> dict:

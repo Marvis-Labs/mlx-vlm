@@ -41,6 +41,10 @@ class Capabilities:
     ``speculative`` carries the drafter kind rather than a flag, since knowing
     a model supports speculation is useless without knowing which drafter to
     pair with it.
+
+    Batch conversion is deliberately absent: every cache class in the tree has a
+    batched counterpart, so the answer was always yes and the column carried no
+    information.
     """
 
     arch: str
@@ -53,7 +57,6 @@ class Capabilities:
     trimmable: bool = False
     apc_exact: bool = False
     apc_block: bool = False
-    batch: bool = False
     chunked_prefill: bool = False
     speculative: Optional[str] = None
 
@@ -68,7 +71,6 @@ class Capabilities:
             "trimmable",
             "apc_exact",
             "apc_block",
-            "batch",
             "chunked_prefill",
         )
         names = [name for name in flags if getattr(self, name)]
@@ -95,17 +97,6 @@ def _honours_a_kv_bound(language_model) -> bool:
     except (TypeError, ValueError):
         return False
     return any(name in parameters for name in ("max_size", "max_kv_size"))
-
-
-def _converts_to_a_batch(language_model) -> bool:
-    """Whether every cache this model builds has a batched counterpart."""
-    from mlx_vlm.generate.ar import _make_cache
-
-    try:
-        _make_cache(language_model, left_padding=[0])
-    except Exception:
-        return False
-    return True
 
 
 def _drafter_kind(arch: str) -> Optional[str]:
@@ -156,7 +147,6 @@ def capabilities(arch: str, model=None) -> Capabilities:
         trimmable=every(lambda c: getattr(c, "is_trimmable", lambda: False)()),
         apc_exact=every(apc.apc_exact_eligible),
         apc_block=every(apc.apc_block_eligible),
-        batch=_converts_to_a_batch(language_model),
         chunked_prefill=any(
             hasattr(obj, "chunked_prefill_policy") for obj in (language_model, model)
         ),

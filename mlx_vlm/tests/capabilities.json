@@ -3,7 +3,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -19,7 +18,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "CacheList",
@@ -36,7 +34,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "CacheList"
@@ -52,7 +49,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -68,13 +64,13 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
+   "KVCache",
    "RotatingKVCache"
   ],
   "chunked_prefill": false,
-  "hybrid_cache": false,
+  "hybrid_cache": true,
   "image_in": true,
   "kv_quant": true,
   "speculative": null,
@@ -84,13 +80,13 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
+   "KVCache",
    "RotatingKVCache"
   ],
   "chunked_prefill": false,
-  "hybrid_cache": false,
+  "hybrid_cache": true,
   "image_in": false,
   "kv_quant": true,
   "speculative": null,
@@ -100,13 +96,13 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": true,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
+   "KVCache",
    "RotatingKVCache"
   ],
   "chunked_prefill": true,
-  "hybrid_cache": false,
+  "hybrid_cache": true,
   "image_in": true,
   "kv_quant": true,
   "speculative": "mtp",
@@ -116,13 +112,13 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
+   "KVCache",
    "RotatingKVCache"
   ],
   "chunked_prefill": true,
-  "hybrid_cache": false,
+  "hybrid_cache": true,
   "image_in": false,
   "kv_quant": true,
   "speculative": "mtp",
@@ -132,7 +128,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -148,7 +143,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache",
@@ -165,7 +159,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -181,7 +174,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -197,7 +189,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": true,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "CacheList"
@@ -213,7 +204,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -229,7 +219,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache",
@@ -246,7 +235,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache",
@@ -263,7 +251,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache",
@@ -280,7 +267,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache",
@@ -297,7 +283,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -313,7 +298,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -329,7 +313,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache"
@@ -345,7 +328,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -361,7 +343,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -377,7 +358,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -393,7 +373,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache",
@@ -410,7 +389,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache",
@@ -427,7 +405,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -443,7 +420,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -459,7 +435,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -475,7 +450,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -491,7 +465,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -507,7 +480,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -523,7 +495,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -539,7 +510,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -555,7 +525,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache",
@@ -572,7 +541,6 @@
   "apc_block": false,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "ArraysCache",
@@ -589,7 +557,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"
@@ -605,7 +572,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -621,7 +587,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
@@ -637,7 +602,6 @@
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
-  "batch": true,
   "bounded_kv": false,
   "cache_kinds": [
    "KVCache"

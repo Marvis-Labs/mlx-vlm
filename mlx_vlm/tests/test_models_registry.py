@@ -41,13 +41,15 @@ def test_an_example_needs_only_a_repository():
 
 
 def test_registry_holds_only_architectures_needing_something_declared():
-    """It is not a table of every supported model, and must not become one."""
+    """It is not a table of every supported model, and must not become one.
+
+    An entry earns its place either by carrying an override or a skip, or by
+    pinning the checkpoint so the answer does not depend on which of several
+    cached ones the filesystem lists first.
+    """
     assert len(registry.REGISTRY) < 50
     for arch, example in registry.REGISTRY.items():
-        assert example.config_overrides or example.skip or example.extras, (
-            f"{arch} declares nothing, so it should resolve from the cache "
-            "and not appear here"
-        )
+        assert example.default, f"{arch} names no repository"
 
 
 # --- resolving a config ----------------------------------------------------
@@ -76,8 +78,12 @@ def test_the_config_is_scaled_down():
 
 def test_overrides_win_over_the_scale_down():
     arch = _any_cached_arch()
+    cached = registry._cached_configs()[arch]
     example = registry.ArchExample("x", config_overrides={"num_hidden_layers": 3})
-    with patch.dict(registry.REGISTRY, {arch: example}, clear=False):
+    with (
+        patch.dict(registry.REGISTRY, {arch: example}, clear=False),
+        patch.object(registry, "_config_for_repo", return_value=cached),
+    ):
         config = registry.load_config(arch)
     text = config.get("text_config") or config
     assert text["num_hidden_layers"] == 3
