@@ -24,12 +24,12 @@ metrics: [token_hit_rate, matched_tokens, rejects_by_reason,
 
 configs:
   - id: "off"
-    env: {MLX_VLM_APC_ENABLED: "0"}
+    env: {APC_ENABLED: "0"}
   - id: exact
-    env: {MLX_VLM_APC_ENABLED: "1", MLX_VLM_APC_EXACT_MIN_TOKENS: "16"}
+    env: {APC_ENABLED: "1", APC_EXACT_MIN_TOKENS: "16"}
   - id: block-16
-    env: {MLX_VLM_APC_ENABLED: "1", MLX_VLM_APC_BLOCK_SIZE: "16"}
+    env: {APC_ENABLED: "1", APC_BLOCK_SIZE: "16"}
   - id: block-256           # block-boundary arithmetic differs at scale
-    env: {MLX_VLM_APC_ENABLED: "1", MLX_VLM_APC_BLOCK_SIZE: "256"}
+    env: {APC_ENABLED: "1", APC_BLOCK_SIZE: "256"}
   - id: guarded
-    env: {MLX_VLM_APC_ENABLED: "1", MLX_VLM_APC_EXACT_PREFIX_GUARD_TOKENS: "8"}
+    env: {APC_ENABLED: "1", APC_EXACT_PREFIX_GUARD_TOKENS: "8"}

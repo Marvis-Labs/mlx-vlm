@@ -20,5 +20,5 @@ configs:
     args: {}
   - id: bounded
     args: {max_kv_size: 512}
-  - id: trimmed
-    args: {max_kv_size: 512, prompt_cache_trim: true}
+  - id: bounded-tight
+    args: {max_kv_size: 128}

@@ -43,6 +43,7 @@ class Cell:
     component: str
     config: str
     repo: str
+    revision: str
     precision: str
     scenario: str
     regime: str
@@ -181,6 +182,7 @@ def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cel
                     component=spec["name"],
                     config=cfg["id"],
                     repo=variant["repo"],
+                    revision=variant.get("sha", ""),
                     precision=variant["precision"],
                     scenario=spec["scenario"],
                     regime=regime,

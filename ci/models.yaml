@@ -1,27 +1,88 @@
-# Concrete models per architecture, one entry per precision.
-# weights_gb is the on-disk safetensors total, read from the Hub.
-# The router picks the largest variant the fleet can actually hold, so a
-# 128 GB device runs bf16 while a 32 GB device runs the same cell at 4-bit.
-gemma3:
-  variants:
-    - {repo: mlx-community/gemma-3-4b-it-4bit, precision: 4bit, weights_gb: 3.17}
-    - {repo: mlx-community/gemma-3-4b-it-8bit, precision: 8bit, weights_gb: 5.29}
-    - {repo: mlx-community/gemma-3-4b-it-bf16, precision: bf16, weights_gb: 9.26}
-qwen3:
-  variants:
-    - {repo: mlx-community/Qwen3-4B-4bit, precision: 4bit, weights_gb: 2.11}
-    - {repo: mlx-community/Qwen3-4B-8bit, precision: 8bit, weights_gb: 3.98}
-    - {repo: mlx-community/Qwen3-4B-bf16, precision: bf16, weights_gb: 7.49}
 gemma2:
   variants:
-    - {repo: mlx-community/gemma-2-2b-it-4bit, precision: 4bit, weights_gb: 1.37}
-    - {repo: mlx-community/gemma-2-2b-it-8bit, precision: 8bit, weights_gb: 2.59}
-    - {repo: mlx-community/gemma-2-2b-it-fp16, precision: fp16, weights_gb: 4.87}
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gemma-2-2b-it-4bit
+    sha: 2c715097ff9c081a6ac1e5cd239e2ac756b5bd99
+    verified: '2026-08-25'
+    weights_gb: 1.37
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-2-2b-it-8bit
+    sha: 021f1f12b13a2dd3d56f75cb830696f2c1fd12ab
+    verified: '2026-08-25'
+    weights_gb: 2.59
+  - gated: false
+    precision: fp16
+    repo: mlx-community/gemma-2-2b-it-fp16
+    sha: a596df5735f02e85b4886db48c3ade255dcae7dd
+    verified: '2026-08-25'
+    weights_gb: 4.87
+gemma3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gemma-3-4b-it-4bit
+    sha: 93724907d4ed1745d2fe50baadf3b0b01a65abf2
+    verified: '2026-08-25'
+    weights_gb: 3.17
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-3-4b-it-8bit
+    sha: 61cfff4de4bc5b975437be840d504f07f0424df2
+    verified: '2026-08-25'
+    weights_gb: 5.29
+  - gated: false
+    precision: bf16
+    repo: mlx-community/gemma-3-4b-it-bf16
+    sha: 665e04d28e93290c77b7832307606f7e87bb7616
+    verified: '2026-08-25'
+    weights_gb: 9.26
 idefics3:
   variants:
-    - {repo: mlx-community/Idefics3-8B-Llama3-4bit, precision: 4bit, weights_gb: 4.99}
-    - {repo: mlx-community/Idefics3-8B-Llama3-bf16, precision: bf16, weights_gb: 15.76}
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Idefics3-8B-Llama3-4bit
+    sha: b9a23281b47a4f6da5b00edf1bcfe09695c3125b
+    verified: '2026-08-25'
+    weights_gb: 4.99
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Idefics3-8B-Llama3-bf16
+    sha: 8c2a30c48864f3251701b7bde40f601d25535098
+    verified: '2026-08-25'
+    weights_gb: 15.76
 mistral3:
   variants:
-    - {repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-4bit, precision: 4bit, weights_gb: 12.35}
-    - {repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-bf16, precision: bf16, weights_gb: 43.91}
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-4bit
+    sha: a7e5f870ea11764696624d73818943fbe281ce50
+    verified: '2026-08-25'
+    weights_gb: 12.35
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-bf16
+    sha: 77d0bda8dd59b6afec099f8b228cd1383f71a1b2
+    verified: '2026-08-25'
+    weights_gb: 43.91
+qwen3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen3-4B-4bit
+    sha: 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25
+    verified: '2026-08-25'
+    weights_gb: 2.11
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3-4B-8bit
+    sha: 0348ad770d2ae658ca47b0579b2d2c37b20bbcac
+    verified: '2026-08-25'
+    weights_gb: 3.98
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Qwen3-4B-bf16
+    sha: 3639b5214e458512debf270c4fc8840ff6adfac6
+    verified: '2026-08-25'
+    weights_gb: 7.49
