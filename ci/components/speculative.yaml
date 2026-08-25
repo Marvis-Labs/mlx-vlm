@@ -1,0 +1,14 @@
+name: speculative
+enabled: false
+# Blocked: generate/ar.py exposes no acceptance-rate counter, so a change
+# here can only be measured as end-to-end throughput, which conflates
+# draft quality with execution speed. Needs a small upstream PR first.
+description: Speculative decoding.
+paths: [mlx_vlm/generate/ar.py]
+columns: [cache_kinds, speculative]
+scenario: single_generation
+regimes: [single]
+metrics: [decode_tps, ttft_ms, peak_mem_gb, output_hash]
+configs:
+  - {id: "off",   args: {num_draft_tokens: 0}}
+  - {id: draft-3, args: {num_draft_tokens: 3}}

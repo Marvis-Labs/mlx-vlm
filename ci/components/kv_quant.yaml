@@ -1,0 +1,31 @@
+name: kv_quant
+enabled: true
+description: Key/value cache quantization, uniform and turboquant.
+
+paths:
+  - mlx_vlm/turboquant.py
+  - mlx_vlm/generate/common.py
+
+columns: [cache_kinds, kv_quant, hybrid_cache]
+
+scenario: single_generation
+regimes: [single]
+
+metrics: [prefill_tps, decode_tps, ttft_ms, peak_mem_gb, output_hash]
+
+# Enumerated, not a cross product. maybe_quantize_kv_cache exposes eight
+# parameters; their full product is several hundred cells for one change.
+# Each entry below is the only config that enters a distinct branch.
+configs:
+  - id: "off"
+    args: {kv_bits: null}
+  - id: uniform-4
+    args: {kv_quant_scheme: uniform, kv_bits: 4, kv_group_size: 64, quantized_kv_start: 0}
+  - id: uniform-3.5           # fractional bits switch on layer selection
+    args: {kv_quant_scheme: uniform, kv_bits: 3.5, kv_group_size: 64, quantized_kv_start: 0}
+  - id: turboquant-4
+    args: {kv_quant_scheme: turboquant, kv_bits: 4, kv_group_size: 64, quantized_kv_start: 0}
+  - id: late-start            # conversion mid-generation, not at prefill
+    args: {kv_quant_scheme: uniform, kv_bits: 4, kv_group_size: 64, quantized_kv_start: 1024}
+  - id: split-kv              # asymmetric key/value widths
+    args: {kv_quant_scheme: uniform, kv_key_bits: 4, kv_value_bits: 8, kv_group_size: 64}

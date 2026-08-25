@@ -1,0 +1,27 @@
+# Concrete models per architecture, one entry per precision.
+# weights_gb is the on-disk safetensors total, read from the Hub.
+# The router picks the largest variant the fleet can actually hold, so a
+# 128 GB device runs bf16 while a 32 GB device runs the same cell at 4-bit.
+gemma3:
+  variants:
+    - {repo: mlx-community/gemma-3-4b-it-4bit, precision: 4bit, weights_gb: 3.17}
+    - {repo: mlx-community/gemma-3-4b-it-8bit, precision: 8bit, weights_gb: 5.29}
+    - {repo: mlx-community/gemma-3-4b-it-bf16, precision: bf16, weights_gb: 9.26}
+qwen3:
+  variants:
+    - {repo: mlx-community/Qwen3-4B-4bit, precision: 4bit, weights_gb: 2.11}
+    - {repo: mlx-community/Qwen3-4B-8bit, precision: 8bit, weights_gb: 3.98}
+    - {repo: mlx-community/Qwen3-4B-bf16, precision: bf16, weights_gb: 7.49}
+gemma2:
+  variants:
+    - {repo: mlx-community/gemma-2-2b-it-4bit, precision: 4bit, weights_gb: 1.37}
+    - {repo: mlx-community/gemma-2-2b-it-8bit, precision: 8bit, weights_gb: 2.59}
+    - {repo: mlx-community/gemma-2-2b-it-fp16, precision: fp16, weights_gb: 4.87}
+idefics3:
+  variants:
+    - {repo: mlx-community/Idefics3-8B-Llama3-4bit, precision: 4bit, weights_gb: 4.99}
+    - {repo: mlx-community/Idefics3-8B-Llama3-bf16, precision: bf16, weights_gb: 15.76}
+mistral3:
+  variants:
+    - {repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-4bit, precision: 4bit, weights_gb: 12.35}
+    - {repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-bf16, precision: bf16, weights_gb: 43.91}
