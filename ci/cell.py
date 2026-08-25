@@ -115,13 +115,17 @@ def summarize(samples: List[dict]) -> Dict[str, Any]:
         if not vals:
             continue
         med = statistics.median(vals)
+        sd = statistics.stdev(vals) if len(vals) > 1 else 0.0
+        # Range grows with sample count and is therefore useless as a noise
+        # floor: measuring more made it look worse. Coefficient of variation
+        # is stable in n, and the standard error of the mean says how well
+        # the centre is known, which is what a threshold must clear.
         out[key] = {
             "median": round(med, 4),
             "min": round(min(vals), 4),
             "max": round(max(vals), 4),
-            # Spread relative to the median is the noise floor for this
-            # metric on this device, and no threshold below it is defensible.
-            "spread_pct": round((max(vals) - min(vals)) / med * 100, 2) if med else 0.0,
+            "cv_pct": round(sd / med * 100, 2) if med else 0.0,
+            "stderr_pct": round(sd / (len(vals) ** 0.5) / med * 100, 2) if med else 0.0,
             "n": len(vals),
         }
     hashes = {s.get("output_hash") for s in samples if s.get("output_hash")}
@@ -148,8 +152,14 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
             "change_pct": round(change, 2),
             # A delta inside the combined spread is indistinguishable from
             # noise on this device, whatever its sign.
-            "noise_pct": round(max(b["spread_pct"], h["spread_pct"]), 2),
-            "significant": abs(change) > max(b["spread_pct"], h["spread_pct"]),
+            "cv_pct": round(max(b["cv_pct"], h["cv_pct"]), 2),
+            # Two standard errors of the difference. A delta inside it is
+            # indistinguishable from noise however large it looks.
+            "noise_pct": round(
+                2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5, 2
+            ),
+            "significant": abs(change)
+            > 2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5,
             "functional": key in FUNCTIONAL,
         }
     bh, hh = base.get("output_hash"), head.get("output_hash")
