@@ -177,27 +177,132 @@ def fingerprint() -> Dict[str, Any]:
     }
 
 
+def worktrees(repo: Path, base: str, head: str, work: Path) -> tuple[Path, Path]:
+    """Two checkouts, one environment.
+
+    mlx-vlm is pure Python, so a revision is a path. Sharing one pinned
+    environment is what makes the comparison a comparison: if dependencies
+    differed between the halves we would be measuring the dependency.
+    """
+    changed = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "diff",
+            "--name-only",
+            base,
+            head,
+            "--",
+            "pyproject.toml",
+            "setup.py",
+            "requirements.txt",
+            "uv.lock",
+        ],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if changed:
+        raise SystemExit(
+            f"dependency files differ between revisions:\n{changed}\n"
+            "this cell needs two environments, not one"
+        )
+    # A worktree deleted from disk stays registered, and a re-add at the
+    # same path then fails. Prune first so a wiped scratch dir recovers.
+    subprocess.run(["git", "-C", str(repo), "worktree", "prune"], capture_output=True)
+    out = []
+    for rev in (base, head):
+        tree = work / f"rev-{rev}"
+        if not tree.exists():
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "worktree",
+                    "add",
+                    "-q",
+                    "--detach",
+                    str(tree),
+                    rev,
+                ],
+                check=True,
+            )
+        out.append(tree)
+    return out[0], out[1]
+
+
+def warm(cell: dict) -> None:
+    """Download the pinned weights once, before anything is timed.
+
+    Both halves read the same warm cache. Clearing between them would make
+    the second half re-download and report network throughput as a
+    regression.
+    """
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(
+        repo_id=cell["repo"],
+        revision=cell["revision"] or None,
+        allow_patterns=[
+            "*.json",
+            "*.safetensors",
+            "*.txt",
+            "*.model",
+            "*.py",
+            "*.jinja",
+        ],
+    )
+
+
+def release(repo: Path, work: Path) -> None:
+    """Always runs. Keeps the weight cache: it is revision-pinned, and
+    re-downloading it is pure cost."""
+    quiesce = Path(__file__).resolve().parent / "runner" / "quiesce.sh"
+    if quiesce.exists():
+        subprocess.run([str(quiesce), "release"], capture_output=True)
+    for tree in work.glob("rev-*"):
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "remove", "--force", str(tree)],
+            capture_output=True,
+        )
+    subprocess.run(["git", "-C", str(repo), "worktree", "prune"], capture_output=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cell", required=True)
-    ap.add_argument("--base-tree", required=True)
-    ap.add_argument("--head-tree", required=True)
+    ap.add_argument("--base", required=True, help="base revision")
+    ap.add_argument("--head", required=True, help="head revision")
+    ap.add_argument("--repo", default=".", help="git checkout to make worktrees from")
+    ap.add_argument("--work", default=None, help="scratch dir for worktrees")
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--warmup", type=int, default=1)
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--keep", action="store_true", help="leave worktrees in place")
     ap.add_argument("--out", default="result.json")
     args = ap.parse_args()
 
-    cell_path = Path(args.cell)
+    cell_path = Path(args.cell).resolve()
     cell = json.loads(cell_path.read_text())
-    gathered = interleave(
-        Path(args.base_tree),
-        Path(args.head_tree),
-        cell_path,
-        repeats=args.repeats,
-        warmup=args.warmup,
-        timeout=args.timeout,
-    )
+    repo = Path(args.repo).resolve()
+    work = Path(args.work or os.environ.get("CI_WORK", Path.home() / "ci-work"))
+    work.mkdir(parents=True, exist_ok=True)
+
+    try:
+        base_tree, head_tree = worktrees(repo, args.base, args.head, work)
+        warm(cell)
+        gathered = interleave(
+            base_tree,
+            head_tree,
+            cell_path,
+            repeats=args.repeats,
+            warmup=args.warmup,
+            timeout=args.timeout,
+        )
+    finally:
+        if not args.keep:
+            release(repo, work)
 
     base = summarize(gathered["runs"]["base"])
     head = summarize(gathered["runs"]["head"])

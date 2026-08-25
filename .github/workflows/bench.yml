@@ -51,14 +51,19 @@ jobs:
       - name: readiness
         run: NEED_GB=${{ matrix.cell.requires_gb }} ci/runner/readiness.sh
 
-      - name: checkout both revisions
-        run: ci/runner/prepare.sh "${{ needs.route.outputs.base }}" "${{ needs.route.outputs.head }}"
+      - name: take the device
+        run: ci/runner/quiesce.sh acquire
 
-      - name: warm model cache            # once, shared by both halves
-        run: ci/runner/warm.sh '${{ toJSON(matrix.cell) }}'
-
-      - name: measure                     # interleaved A/B/A/B, medians compared
-        run: ci/runner/measure.sh '${{ toJSON(matrix.cell) }}'
+      # One command: worktrees, warm cache, interleaved A/B, cleanup.
+      - name: measure
+        run: |
+          echo '${{ toJSON(matrix.cell) }}' > cell.json
+          python3 -m ci.cell --cell cell.json \
+            --base "${{ needs.route.outputs.base }}" \
+            --head "${{ needs.route.outputs.head }}" \
+            --repo . --out result.json
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -68,7 +73,7 @@ jobs:
 
       - name: release
         if: always()
-        run: ci/runner/cleanup.sh
+        run: ci/runner/quiesce.sh release
 
   report:
     needs: [route, cell]
