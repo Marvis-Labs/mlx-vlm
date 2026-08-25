@@ -24,15 +24,20 @@ COMPONENTS = Path(__file__).resolve().parent / "components"
 MATRIX = ROOT / "mlx_vlm" / "tests" / "capabilities.json"
 MODELS = Path(__file__).resolve().parent / "models.yaml"
 
-# Weights are only part of the footprint; activations, the cache and the
-# runtime add to it. This multiplier is a placeholder to be replaced by the
-# peak_mem_gb that measurement actually reports.
-OVERHEAD_FACTOR = 1.3
-OVERHEAD_FIXED_GB = 4.0
+# Peak memory measured against weights on disk, gemma-2-2b-it-4bit:
+#   184 tokens -> 1.39x    730 -> 1.99x    2940 -> 1.90x    11832 -> 2.76x
+# Overhead is a roughly fixed activation cost plus a cache term that grows
+# with context, so the multiplier belongs to the scenario rather than being
+# one constant. The earlier "weights * 1.3 + 4 GB" was wrong in both
+# directions: far too conservative for small models, optimistic for large
+# ones, where the constant stops dominating.
+SCENARIO_MULTIPLIER = {
+    "single_generation": 2.0,
+    "shared_prefix_pair": 2.0,
+    "long_prompt": 2.8,
+}
+DEFAULT_MULTIPLIER = 2.8  # unknown scenario: assume the worst
 
-# Devices reserve memory for the operating system; bootstrap.sh caps the
-# wired limit at the same fraction. Sizing against raw capacity puts a
-# 61 GB cell on a 64 GB device, which swaps or dies rather than measuring.
 USABLE_FRACTION = 0.90
 
 
@@ -143,7 +148,12 @@ def classify(paths: Sequence[str], specs: Sequence[dict]) -> dict:
     return out
 
 
-def pick_variant(arch: str, models: dict, budget_gb: Optional[float]) -> Optional[dict]:
+def pick_variant(
+    arch: str,
+    models: dict,
+    budget_gb: Optional[float],
+    scenario: str = "single_generation",
+) -> Optional[dict]:
     """Largest precision the fleet can hold — devices should be used fully.
 
     Falling back to a smaller precision keeps coverage rather than dropping
@@ -152,8 +162,9 @@ def pick_variant(arch: str, models: dict, budget_gb: Optional[float]) -> Optiona
     """
     variants = (models.get(arch) or {}).get("variants") or []
     ranked = sorted(variants, key=lambda v: v["weights_gb"], reverse=True)
+    mult = SCENARIO_MULTIPLIER.get(scenario, DEFAULT_MULTIPLIER)
     for v in ranked:
-        need = v["weights_gb"] * OVERHEAD_FACTOR + OVERHEAD_FIXED_GB
+        need = v["weights_gb"] * mult
         if budget_gb is None or need <= budget_gb:
             return {**v, "requires_gb": round(need, 1)}
     return None
@@ -166,7 +177,7 @@ def label_for(requires_gb: float, caps: Sequence[int]) -> Optional[List[str]]:
 
 def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cell]:
     budget = max(caps) * USABLE_FRACTION if caps else None
-    variant = pick_variant(arch, models, budget)
+    variant = pick_variant(arch, models, budget, spec["scenario"])
     if variant is None:
         return []
     runs_on = label_for(variant["requires_gb"], caps)
