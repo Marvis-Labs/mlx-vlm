@@ -49,10 +49,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: readiness
-        run: NEED_GB=${{ matrix.cell.requires_gb }} ci/runner/readiness.sh
-
-      - name: take the device
-        run: ci/runner/quiesce.sh acquire
+        run: NEED_GB=${{ matrix.cell.requires_gb }} ~/runner-script/bin/device.sh ready
 
       # One command: worktrees, warm cache, interleaved A/B, cleanup.
       - name: measure
@@ -71,9 +68,6 @@ jobs:
           name: result-${{ matrix.cell.id }}
           path: result.json
 
-      - name: release
-        if: always()
-        run: ci/runner/quiesce.sh release
 
   report:
     needs: [route, cell]

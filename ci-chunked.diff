@@ -1,0 +1,167 @@
+diff --git a/mlx_vlm/generate/ar.py b/mlx_vlm/generate/ar.py
+index 4ebe1442..8a520131 100644
+--- a/mlx_vlm/generate/ar.py
++++ b/mlx_vlm/generate/ar.py
+@@ -33,7 +33,7 @@ from .common import (
+     DEFAULT_KV_GROUP_SIZE,
+     DEFAULT_KV_QUANT_SCHEME,
+     DEFAULT_QUANTIZED_KV_START,
+-    _chunked_prefill_enabled,
++    chunked_prefill_enabled,
+     generation_stream,
+     maybe_quantize_kv_cache,
+     wired_limit,
+@@ -406,7 +406,7 @@ def generate_step(
+         policy_kwargs = kwargs
+         if speculative_prefill_capture_kwargs:
+             policy_kwargs = {**kwargs, **speculative_prefill_capture_kwargs}
+-        if prefill_step_size is not None and not _chunked_prefill_enabled(
++        if prefill_step_size is not None and not chunked_prefill_enabled(
+             model,
+             input_ids=input_ids,
+             inputs_embeds=inputs_embeds,
+@@ -1761,7 +1761,7 @@ class PromptProcessingBatch:
+                 policy_kwargs.update(
+                     speculative_prefill_kwargs(draft_kind, draft_model)
+                 )
+-            if not _chunked_prefill_enabled(
++            if not chunked_prefill_enabled(
+                 self.model,
+                 input_ids=self._input_ids,
+                 inputs_embeds=self._inputs_embeds,
+@@ -3177,7 +3177,7 @@ def _generate_batch(
+         draft_kind = kwargs.get("draft_kind")
+         if draft_model is not None and draft_kind is not None:
+             policy_kwargs.update(speculative_prefill_kwargs(draft_kind, draft_model))
+-        if not _chunked_prefill_enabled(
++        if not chunked_prefill_enabled(
+             model,
+             input_ids=input_ids,
+             inputs_embeds=embedding_output.inputs_embeds,
+diff --git a/mlx_vlm/generate/common.py b/mlx_vlm/generate/common.py
+index bfc7110c..9ce94653 100644
+--- a/mlx_vlm/generate/common.py
++++ b/mlx_vlm/generate/common.py
+@@ -24,7 +24,7 @@ def _policy_enabled(policy) -> bool:
+     return bool(getattr(policy, "enabled", policy))
+ 
+ 
+-def _chunked_prefill_enabled(
++def chunked_prefill_enabled(
+     model,
+     *,
+     input_ids=None,
+@@ -34,6 +34,14 @@ def _chunked_prefill_enabled(
+     draft_kind=None,
+     prefill_kwargs=None,
+ ) -> bool:
++    """Whether prefill will be chunked for this model and this call.
++
++    The answer is not just the step size: a model can decline chunking through
++    ``chunked_prefill_policy`` or ``no_chunked_prefill``, and supplying a draft
++    model turns it off for any model that does not declare a policy, since
++    hidden-state speculative prefill depends on a contract the target may not
++    have. Callers that need to know which path ran have no other way to ask.
++    """
+     prefill_kwargs = prefill_kwargs or {}
+     candidates = [model]
+     language_model = getattr(model, "language_model", None)
+diff --git a/mlx_vlm/generate/diffusion.py b/mlx_vlm/generate/diffusion.py
+index 9a5dd754..dc14fc57 100644
+--- a/mlx_vlm/generate/diffusion.py
++++ b/mlx_vlm/generate/diffusion.py
+@@ -18,7 +18,7 @@ from ..models.diffusion_visualizer import (
+ from ..tokenizer_utils import make_streaming_detokenizer
+ from .common import (
+     GenerationResult,
+-    _chunked_prefill_enabled,
++    chunked_prefill_enabled,
+     generation_stream,
+     wired_limit,
+ )
+@@ -687,7 +687,7 @@ def stream_diffusion_generate(
+     chunk_prefill = (
+         prefill_step_size is not None
+         and prompt_length > prefill_step_size
+-        and _chunked_prefill_enabled(
++        and chunked_prefill_enabled(
+             model,
+             input_ids=input_ids,
+             prompt_cache=kv_cache,
+diff --git a/mlx_vlm/server/generation.py b/mlx_vlm/server/generation.py
+index 61c5933f..5e8a2546 100644
+--- a/mlx_vlm/server/generation.py
++++ b/mlx_vlm/server/generation.py
+@@ -28,9 +28,9 @@ from ..generate import (
+     DEFAULT_THINKING_START_TOKEN,
+     DEFAULT_TOP_P,
+     BatchGenerator,
+-    _chunked_prefill_enabled,
+     _make_cache,
+     _merge_prefill_prompt_kwargs,
++    chunked_prefill_enabled,
+ )
+ from ..generate.diffusion import (
+     is_diffusion_model,
+@@ -2149,7 +2149,7 @@ class ResponseGenerator:
+ 
+                 prefill_step_size = self._effective_prefill_step_size()
+                 policy_kwargs = {**prompt_kwargs, **prefill_kwargs}
+-                if not _chunked_prefill_enabled(
++                if not chunked_prefill_enabled(
+                     self.model,
+                     input_ids=input_mx,
+                     inputs_embeds=inputs_embeds_mx,
+diff --git a/mlx_vlm/tests/test_generate.py b/mlx_vlm/tests/test_generate.py
+index fdca71ff..1a956ce8 100644
+--- a/mlx_vlm/tests/test_generate.py
++++ b/mlx_vlm/tests/test_generate.py
+@@ -2035,8 +2035,8 @@ def test_generate_step_chunks_prefill_when_model_policy_allows_speculation():
+ def test_chunked_prefill_policy_defaults_conservative_for_speculation():
+     model = SimpleNamespace(no_chunked_prefill=False)
+ 
+-    assert ar_module._chunked_prefill_enabled(model)
+-    assert not ar_module._chunked_prefill_enabled(
++    assert ar_module.chunked_prefill_enabled(model)
++    assert not ar_module.chunked_prefill_enabled(
+         model,
+         draft_model=SimpleNamespace(config=SimpleNamespace(target_layer_ids=[])),
+         draft_kind="mtp",
+@@ -3193,3 +3193,24 @@ class TestPrePaddedBatchRows:
+         assert mask.shape == (2, 8)
+         assert mask[0].tolist() == [False] * 5 + [True] * 3
+         assert mask[1].tolist() == [True] * 8
++
++
++def test_chunked_prefill_enabled_is_part_of_the_public_surface():
++    """Three subsystems import it, so it cannot stay private by name."""
++    from mlx_vlm.generate import ar, common, diffusion
++    from mlx_vlm.server import generation
++
++    assert callable(common.chunked_prefill_enabled)
++    for module in (ar, diffusion, generation):
++        assert module.chunked_prefill_enabled is common.chunked_prefill_enabled
++
++
++def test_a_draft_model_turns_chunked_prefill_off():
++    """Hidden-state speculative prefill needs a contract the target may not have."""
++    from unittest.mock import MagicMock
++
++    from mlx_vlm.generate.common import chunked_prefill_enabled
++
++    model = MagicMock(spec=[])
++    assert chunked_prefill_enabled(model, draft_model=None)
++    assert not chunked_prefill_enabled(model, draft_model=MagicMock())
+diff --git a/mlx_vlm/tests/test_server.py b/mlx_vlm/tests/test_server.py
+index da804154..7ec6e099 100644
+--- a/mlx_vlm/tests/test_server.py
++++ b/mlx_vlm/tests/test_server.py
+@@ -1876,7 +1876,7 @@ def test_speculative_server_threads_greedy_flag_to_mtp_loop(monkeypatch):
+ 
+ def test_speculative_server_honors_prefill_step_override(monkeypatch):
+     monkeypatch.setattr(
+-        server_generation, "_chunked_prefill_enabled", lambda *args, **kwargs: True
++        server_generation, "chunked_prefill_enabled", lambda *args, **kwargs: True
+     )
+     call = _run_speculative_prefill_once(
+         monkeypatch,

@@ -10,7 +10,6 @@ own configurations.
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -141,7 +140,7 @@ def classify(paths: Sequence[str], specs: Sequence[dict]) -> dict:
             spec = comp_paths[path]
             if spec not in out["components"]:
                 out["components"].append(spec)
-        elif fnmatch.fnmatch(path, "mlx_vlm/server/*"):
+        elif path.startswith("mlx_vlm/server/"):
             out["system"].append(path)
         else:
             out["unrouted"].append(path)
@@ -207,12 +206,16 @@ def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cel
     return cells
 
 
-def route(paths: Sequence[str], gh_repo: Optional[str] = None) -> dict:
+def route(
+    paths: Sequence[str],
+    gh_repo: Optional[str] = None,
+    caps: Optional[Sequence[int]] = None,
+) -> dict:
     matrix = json.loads(MATRIX.read_text())
     rows = matrix.get("architectures", matrix)
     models = yaml.safe_load(MODELS.read_text())
     specs = load_components()
-    caps = fleet(gh_repo)
+    caps = caps if caps is not None else fleet(gh_repo)
     buckets = classify(paths, specs)
 
     cells: Dict[str, Cell] = {}
@@ -298,11 +301,8 @@ def main() -> None:
     args = ap.parse_args()
 
     paths = args.paths or changed_paths(args.base, args.head)
-    if args.fleet is not None:
-        global fleet
-        caps = sorted(args.fleet, reverse=True)
-        fleet = lambda _r: caps  # noqa: E731
-    result = route(paths, args.gh_repo)
+    caps = sorted(args.fleet, reverse=True) if args.fleet is not None else None
+    result = route(paths, args.gh_repo, caps)
 
     if args.out:
         with open(args.out, "a") as fh:

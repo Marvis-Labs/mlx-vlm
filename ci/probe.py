@@ -23,7 +23,6 @@ os.environ.setdefault("MLX_ENABLE_TF32", "0")
 os.environ.setdefault("PYTHONHASHSEED", "0")
 
 PROMPT_TOKENS_TARGET = 512
-LONG_PROMPT_TOKENS_TARGET = 4096
 
 # A fixed, boring prompt. Content is irrelevant; stability is not.
 _STEM = (
@@ -148,18 +147,6 @@ def single_generation(model, processor, cell) -> Dict[str, Any]:
     return out
 
 
-def long_prompt(model, processor, cell) -> Dict[str, Any]:
-    manager = apc_manager()
-    out = _stream(
-        model,
-        processor,
-        build_prompt(LONG_PROMPT_TOKENS_TARGET),
-        _kwargs(cell, manager),
-    )
-    out.update(apc_stats(manager))
-    return out
-
-
 def shared_prefix_pair(model, processor, cell) -> Dict[str, Any]:
     """Prefix caching does no work on a first request.
 
@@ -178,7 +165,6 @@ def shared_prefix_pair(model, processor, cell) -> Dict[str, Any]:
 
 SCENARIOS = {
     "single_generation": single_generation,
-    "long_prompt": long_prompt,
     "shared_prefix_pair": shared_prefix_pair,
 }
 

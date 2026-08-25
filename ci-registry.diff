@@ -1,0 +1,1543 @@
+diff --git a/mlx_vlm/tests/capabilities.json b/mlx_vlm/tests/capabilities.json
+new file mode 100644
+index 00000000..aa473895
+--- /dev/null
++++ b/mlx_vlm/tests/capabilities.json
+@@ -0,0 +1,616 @@
++{
++ "bert": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "deepseek_v4": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "CacheList",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": "mtp",
++  "trimmable": true
++ },
++ "falcon_h1": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "CacheList"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": false,
++  "speculative": null,
++  "trimmable": false
++ },
++ "gemma2": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "gemma3": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "gemma3_text": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "gemma4": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": true,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": "mtp",
++  "trimmable": true
++ },
++ "gemma4_unified": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": "mtp",
++  "trimmable": true
++ },
++ "glm4_moe_lite": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": "mtp",
++  "trimmable": true
++ },
++ "gpt_oss": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "granite": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "idefics3": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "inkling": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": true,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "CacheList"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": false,
++  "speculative": "mtp",
++  "trimmable": false
++ },
++ "jina_vlm": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "laguna": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": "dflash",
++  "trimmable": true
++ },
++ "lfm2": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache",
++   "KVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": false
++ },
++ "lfm2_moe": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache",
++   "KVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": false
++ },
++ "lfm2_vl": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache",
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": false
++ },
++ "llama": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "llava_bunny": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "mamba2": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": false,
++  "speculative": null,
++  "trimmable": false
++ },
++ "mistral3": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "modernbert": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "molmo": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "muse_glimmer": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache",
++   "RotatingKVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": "dflash",
++  "trimmable": true
++ },
++ "nemotron_h": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache",
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": true,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": false
++ },
++ "olmo": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "olmoe": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "paligemma": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "phi3": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "qwen2": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "qwen2_5_vl": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "qwen2_vl": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "qwen3": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": "mtp",
++  "trimmable": true
++ },
++ "qwen3_5": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache",
++   "KVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": "mtp",
++  "trimmable": false
++ },
++ "qwen3_5_moe": {
++  "apc_block": false,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "ArraysCache",
++   "KVCache"
++  ],
++  "chunked_prefill": true,
++  "hybrid_cache": true,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": false
++ },
++ "qwen3_omni_moe": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "qwen3_vl": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "qwen3_vl_embedding": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": true,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": true,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ },
++ "smollm3": {
++  "apc_block": true,
++  "apc_exact": true,
++  "audio_in": false,
++  "bounded_kv": false,
++  "cache_kinds": [
++   "KVCache"
++  ],
++  "chunked_prefill": false,
++  "hybrid_cache": false,
++  "image_in": false,
++  "kv_quant": true,
++  "speculative": null,
++  "trimmable": true
++ }
++}
+diff --git a/mlx_vlm/tests/capabilities.py b/mlx_vlm/tests/capabilities.py
+new file mode 100644
+index 00000000..3f924163
+--- /dev/null
++++ b/mlx_vlm/tests/capabilities.py
+@@ -0,0 +1,173 @@
++"""What each architecture can be run with.
++
++Not every model supports every way of running one. A text-only model has no
++image path, a recurrent cache cannot be quantized, and a model whose
++``make_cache`` takes no arguments cannot honour a KV bound. Exercising a feature
++against an architecture that does not have it either raises or, worse, silently
++does nothing and looks like a pass.
++
++Some of this is already declared, in three different places -- a drafter table,
++per-model ``chunked_prefill_policy`` hooks, ``make_cache`` signatures -- and the
++rest is structural, decided by the caches a model actually builds. This reads
++whichever is authoritative for each feature and answers in one place.
++
++Structural facts are read from a built model rather than declared, because the
++cache a model constructs is the ground truth and a declaration beside it could
++only drift. Declared facts are read from the declaration, because nothing about
++a model's shape reveals which drafter pairs with it.
++
++Usage::
++
++    from mlx_vlm.tests.capabilities import capabilities
++
++    caps = capabilities("qwen3_5")
++    if caps.bounded_kv:
++        ...
++"""
++
++from __future__ import annotations
++
++import inspect
++from dataclasses import dataclass
++from typing import Optional, Tuple
++
++__all__ = ["Capabilities", "capabilities", "representatives"]
++
++
++@dataclass(frozen=True)
++class Capabilities:
++    """The ways one architecture can be run.
++
++    ``speculative`` carries the drafter kind rather than a flag, since knowing
++    a model supports speculation is useless without knowing which drafter to
++    pair with it.
++
++    Batch conversion is deliberately absent: every cache class in the tree has a
++    batched counterpart, so the answer was always yes and the column carried no
++    information.
++    """
++
++    arch: str
++    cache_kinds: Tuple[str, ...] = ()
++    image_in: bool = False
++    audio_in: bool = False
++    hybrid_cache: bool = False
++    kv_quant: bool = False
++    bounded_kv: bool = False
++    trimmable: bool = False
++    apc_exact: bool = False
++    apc_block: bool = False
++    chunked_prefill: bool = False
++    speculative: Optional[str] = None
++
++    def applicable(self) -> Tuple[str, ...]:
++        """The feature names that apply, for building a sweep or a test plan."""
++        flags = (
++            "image_in",
++            "audio_in",
++            "hybrid_cache",
++            "kv_quant",
++            "bounded_kv",
++            "trimmable",
++            "apc_exact",
++            "apc_block",
++            "chunked_prefill",
++        )
++        names = [name for name in flags if getattr(self, name)]
++        if self.speculative:
++            names.append("speculative")
++        return tuple(names)
++
++    def signature(self) -> str:
++        """Architectures sharing a signature can share one representative."""
++        return ",".join(self.applicable()) or "text-only"
++
++
++def _honours_a_kv_bound(language_model) -> bool:
++    """Whether a KV bound reaches the cache this model builds.
++
++    A model with no ``make_cache`` gets the bounded default, so it qualifies. A
++    model that builds its own only qualifies if it takes the bound.
++    """
++    make_cache = getattr(language_model, "make_cache", None)
++    if make_cache is None:
++        return True
++    try:
++        parameters = inspect.signature(make_cache).parameters
++    except (TypeError, ValueError):
++        return False
++    return any(name in parameters for name in ("max_size", "max_kv_size"))
++
++
++def _drafter_kind(arch: str) -> Optional[str]:
++    """The drafter declared for this architecture, if any."""
++    from mlx_vlm.speculative.drafters import DRAFTER_KIND_BY_MODEL_TYPE
++
++    if arch in DRAFTER_KIND_BY_MODEL_TYPE:
++        return DRAFTER_KIND_BY_MODEL_TYPE[arch]
++    for model_type, kind in DRAFTER_KIND_BY_MODEL_TYPE.items():
++        if model_type.startswith(arch):
++            return kind
++    return None
++
++
++def capabilities(arch: str, model=None) -> Capabilities:
++    """Report what ``arch`` can be run with.
++
++    Args:
++        arch: model directory name, e.g. ``"qwen3_5"``.
++        model: an already-built model, to avoid building a second one.
++    """
++    from mlx_vlm import apc_adapters as apc
++    from mlx_vlm.models.cache import make_prompt_cache
++    from mlx_vlm.tests.models_registry import build_tiny
++
++    if model is None:
++        model = build_tiny(arch)
++    language_model = getattr(model, "language_model", model)
++    cache = make_prompt_cache(language_model)
++    kinds = tuple(type(entry).__name__ for entry in cache)
++
++    def every(predicate) -> bool:
++        return bool(cache) and all(predicate(entry) for entry in cache)
++
++    return Capabilities(
++        arch=arch,
++        cache_kinds=kinds,
++        image_in=any(
++            hasattr(model, name) for name in ("vision_tower", "vision_model", "visual")
++        ),
++        audio_in=any(
++            hasattr(model, name)
++            for name in ("audio_tower", "audio_model", "audio_encoder")
++        ),
++        hybrid_cache=len(set(kinds)) > 1,
++        kv_quant=any(hasattr(entry, "to_quantized") for entry in cache),
++        bounded_kv=_honours_a_kv_bound(language_model),
++        trimmable=every(lambda c: getattr(c, "is_trimmable", lambda: False)()),
++        apc_exact=every(apc.apc_exact_eligible),
++        apc_block=every(apc.apc_block_eligible),
++        chunked_prefill=any(
++            hasattr(obj, "chunked_prefill_policy") for obj in (language_model, model)
++        ),
++        speculative=_drafter_kind(arch),
++    )
++
++
++def representatives(all_caps):
++    """One architecture per distinct signature.
++
++    Architectures sharing a signature exercise the same set of code paths, so a
++    sweep that runs every one of them mostly repeats itself. Forty architectures
++    reduce to twenty signatures, and the reduction grows as more are added.
++
++    Args:
++        all_caps: the capabilities of every architecture under consideration.
++
++    Returns:
++        One representative per signature, in a stable order.
++    """
++    chosen: dict = {}
++    for caps in sorted(all_caps, key=lambda c: c.arch):
++        chosen.setdefault(caps.signature(), caps)
++    return tuple(chosen[key] for key in sorted(chosen))
+diff --git a/mlx_vlm/tests/generate_capabilities.py b/mlx_vlm/tests/generate_capabilities.py
+new file mode 100644
+index 00000000..016e09af
+--- /dev/null
++++ b/mlx_vlm/tests/generate_capabilities.py
+@@ -0,0 +1,65 @@
++"""Regenerate the recorded capability matrix.
++
++Run this when a change is meant to alter what an architecture can be run with,
++and commit the result alongside it:
++
++    python -m mlx_vlm.tests.generate_capabilities
++
++Only architectures resolvable on this machine are rewritten. Rows for
++architectures whose config is not cached here are left as they are, so
++regenerating on one machine does not discard another's coverage.
++"""
++
++import json
++import os
++from dataclasses import asdict
++
++import mlx.core as mx
++
++from mlx_vlm.tests.capabilities import capabilities
++from mlx_vlm.tests.models_registry import _cached_configs
++
++RECORD = os.path.join(os.path.dirname(__file__), "capabilities.json")
++
++
++def architectures():
++    models = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
++    present = {
++        name
++        for name in os.listdir(models)
++        if os.path.isdir(os.path.join(models, name)) and name != "__pycache__"
++    }
++    return sorted(present & set(_cached_configs()))
++
++
++def main() -> int:
++    recorded = {}
++    if os.path.exists(RECORD):
++        recorded = json.load(open(RECORD))
++
++    probed, failed = 0, []
++    for arch in architectures():
++        try:
++            caps = capabilities(arch)
++        except Exception as error:  # unresolvable here; leave any existing row alone
++            failed.append((arch, type(error).__name__))
++            continue
++        row = asdict(caps)
++        row.pop("arch")
++        row["cache_kinds"] = sorted(set(row["cache_kinds"]))
++        recorded[arch] = row
++        probed += 1
++        mx.clear_cache()
++
++    with open(RECORD, "w") as handle:
++        json.dump(dict(sorted(recorded.items())), handle, indent=1, sort_keys=True)
++        handle.write("\n")
++
++    print(f"recorded {probed} architectures, {len(recorded)} rows total -> {RECORD}")
++    for arch, error in failed:
++        print(f"  skipped {arch}: {error}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/mlx_vlm/tests/models_registry.py b/mlx_vlm/tests/models_registry.py
+new file mode 100644
+index 00000000..31eb1e2e
+--- /dev/null
++++ b/mlx_vlm/tests/models_registry.py
+@@ -0,0 +1,315 @@
++"""Small, weight-free instances of every supported architecture.
++
++A test that needs a model of a given architecture has two bad options: download
++a checkpoint, or hand-write a config. The first is slow and needs the network;
++the second is why ``test_models.py`` carries hundreds of copy-pasted configs
++that drift from the real thing.
++
++This builds one instead, from a real ``config.json`` scaled down to a few small
++layers and initialised randomly. The config comes from the local Hugging Face
++cache when a checkpoint of that architecture has been downloaded, and otherwise
++from the repository named here -- ``config.json`` alone, a couple of kilobytes,
++no weights.
++
++Only architectures that need something declared appear below. Everything else
++resolves from the cache, so this is not a table of all supported models and does
++not have to be kept complete.
++
++Usage::
++
++    from mlx_vlm.tests.models_registry import build_tiny
++
++    model = build_tiny("qwen3_5")
++"""
++
++from __future__ import annotations
++
++import dataclasses
++import glob
++import importlib
++import json
++import os
++from dataclasses import dataclass, field
++from typing import Any, Mapping, Optional
++
++__all__ = ["ArchExample", "REGISTRY", "load_config", "build_tiny"]
++
++# Dimensions every architecture is scaled down to. Small enough that random
++# initialisation is instant, large enough to keep head/group divisions valid.
++SMALL_CONFIG: Mapping[str, Any] = {
++    "num_hidden_layers": 4,
++    "hidden_size": 64,
++    "intermediate_size": 64,
++    "num_attention_heads": 4,
++    "num_key_value_heads": 2,
++    "head_dim": 16,
++    "vocab_size": 128,
++    "max_position_embeddings": 256,
++    "moe_intermediate_size": 64,
++    "shared_expert_intermediate_size": 64,
++    "num_experts": 2,
++    "num_local_experts": 2,
++    "n_routed_experts": 2,
++    "num_experts_per_tok": 1,
++}
++
++# Sub-configs that `load_model` fills in before building the model config.
++MODULE_CONFIGS = ("text", "vision", "perceiver", "projector", "audio")
++
++
++@dataclass(frozen=True)
++class ArchExample:
++    """What an architecture needs in order to be built small.
++
++    Args:
++        default: repository whose ``config.json`` describes this architecture.
++        extras: further repositories, by name, for tests that want a specific
++            variant rather than the representative one.
++        trust_remote_code: whether loading this architecture's processor or
++            config executes code from the repository.
++        speculative_model: a drafter paired with ``default``, for tests that
++            need speculative decoding.
++        config_overrides: applied after the generic scale-down. Some configs
++            carry arrays sized by a dimension the scale-down changes, and only
++            the architecture knows which.
++        skip: why this architecture cannot be built small. Set this instead of
++            leaving it silently broken.
++    """
++
++    default: str
++    extras: Mapping[str, str] = field(default_factory=dict)
++    trust_remote_code: bool = False
++    speculative_model: Optional[str] = None
++    config_overrides: Mapping[str, Any] = field(default_factory=dict)
++    skip: Optional[str] = None
++
++
++REGISTRY: Mapping[str, ArchExample] = {
++    # Its config declares the last twenty layers as sharing KV; scaling the
++    # stack down without narrowing that window indexes past the new depth.
++    "gemma4": ArchExample(
++        default="mlx-community/gemma-4-e2b-it-4bit",
++        config_overrides={"num_kv_shared_layers": 0},
++    ),
++    # A dense checkpoint (`num_experts: 0`) that a shared expert count would
++    # otherwise turn into a MoE with no expert dimensions.
++    "laguna": ArchExample(
++        default="mlx-community/Laguna-S-2.1-oQ6e",
++        config_overrides={"num_experts": 0},
++    ),
++    # Pinned so the LongRoPE factor trimming is measured against a known head
++    # dimension rather than whichever Phi checkpoint happens to be cached.
++    "phi3": ArchExample(default="mlx-community/Phi-3-mini-4k-instruct-4bit"),
++    # `no_rope_layers` is indexed by layer, so it has to match the new depth.
++    "smollm3": ArchExample(
++        default="mlx-community/SmolLM3-3B-4bit",
++        config_overrides={"no_rope_layers": [1, 1, 1, 1]},
++    ),
++}
++
++
++def _cached_configs() -> Mapping[str, dict]:
++    """Every architecture with a `config.json` already in the local HF cache."""
++    from mlx_vlm.utils import MODEL_REMAPPING
++
++    found: dict[str, dict] = {}
++    pattern = os.path.expanduser(
++        "~/.cache/huggingface/hub/models--*/snapshots/*/config.json"
++    )
++    for path in sorted(glob.glob(pattern)):
++        try:
++            config = json.load(open(path))
++        except (OSError, ValueError):
++            continue
++        model_type = (config.get("model_type") or "").lower()
++        found.setdefault(MODEL_REMAPPING.get(model_type, model_type), config)
++    return found
++
++
++def _depth_covering_the_pattern(layer_types, floor: int) -> int:
++    """Enough layers for the shortest prefix holding every attention type.
++
++    Attention patterns repeat with a period of their own -- gemma-class configs
++    alternate four sliding layers with one full-attention layer, a period of
++    five. Scaling below that drops a type entirely, and the model then reports a
++    capability its real checkpoint does have. So the depth follows the pattern
++    rather than a fixed number.
++    """
++    if not isinstance(layer_types, list) or not layer_types:
++        return floor
++    wanted, seen = set(layer_types), set()
++    for index, entry in enumerate(layer_types):
++        seen.add(entry)
++        if seen == wanted:
++            return max(floor, index + 1)
++    return max(floor, len(layer_types))
++
++
++def _trim_rope_factors(scaled: dict) -> None:
++    """LongRoPE carries one factor per rotary dimension, not per layer."""
++    head_dim = scaled.get("head_dim")
++    if not isinstance(head_dim, int):
++        return
++    keep = max(head_dim // 2, 1)
++
++    def trim(mapping):
++        for key in ("long_factor", "short_factor"):
++            factors = mapping.get(key)
++            if isinstance(factors, list) and len(factors) > keep:
++                mapping[key] = factors[:keep]
++
++    trim(scaled)
++    rope = scaled.get("rope_scaling")
++    if isinstance(rope, dict):
++        rope = dict(rope)
++        trim(rope)
++        scaled["rope_scaling"] = rope
++
++
++def _is_period(name: str, value: Any) -> bool:
++    return (
++        isinstance(value, int)
++        and not isinstance(value, bool)
++        and value > 0
++        and (name.endswith("_pattern") or name.endswith("_interval"))
++    )
++
++
++def _declared_period(config: dict, module=None) -> int:
++    """The longest attention period declared for this architecture.
++
++    Some architectures spell the pattern out as a list; others give only its
++    length -- ``sliding_window_pattern``, ``full_attention_interval`` -- and
++    derive each layer's type from the index. Several give it only as a dataclass
++    default, absent from the checkpoint's config, so the config classes have to
++    be read too. Any of them left uncovered loses a layer type when the stack is
++    scaled down, and the model then reports a capability its real checkpoint
++    does have.
++    """
++    periods = [value for key, value in config.items() if _is_period(key, value)]
++    if module is not None:
++        for name in ("ModelConfig", "TextConfig"):
++            config_class = getattr(module, name, None)
++            if config_class is None or not dataclasses.is_dataclass(config_class):
++                continue
++            periods += [
++                field.default
++                for field in dataclasses.fields(config_class)
++                if _is_period(field.name, field.default)
++            ]
++    return max(periods, default=1)
++
++
++def _scaled(config: dict, overrides: Mapping[str, Any], module=None) -> dict:
++    """Scale one config level down, keeping length-derived arrays consistent."""
++    scaled = {key: SMALL_CONFIG.get(key, value) for key, value in config.items()}
++
++    floor = max(SMALL_CONFIG["num_hidden_layers"], _declared_period(config, module))
++    layer_types = config.get("layer_types")
++    if isinstance(layer_types, list) and layer_types:
++        depth = _depth_covering_the_pattern(layer_types, floor)
++        scaled["num_hidden_layers"] = depth
++        scaled["layer_types"] = layer_types[:depth]
++    elif floor > SMALL_CONFIG["num_hidden_layers"]:
++        scaled["num_hidden_layers"] = floor
++
++    # Any other list the config sizes by layer count has to follow the depth.
++    # Only length is used to identify them: guessing at meaning from the values
++    # misreads lists that merely happen to hold small integers.
++    original_depth = config.get("num_hidden_layers")
++    depth = scaled.get("num_hidden_layers")
++    if isinstance(original_depth, int) and isinstance(depth, int):
++        for key, value in list(scaled.items()):
++            if (
++                key != "layer_types"
++                and isinstance(value, list)
++                and len(value) == original_depth
++            ):
++                scaled[key] = value[:depth]
++
++    _trim_rope_factors(scaled)
++    scaled.update(overrides)
++    return scaled
++
++
++def load_config(arch: str) -> dict:
++    """Return a scaled-down config for ``arch``.
++
++    Raises:
++        LookupError: if no config is cached and none is registered.
++    """
++    example = REGISTRY.get(arch)
++    if example is not None and example.skip:
++        raise LookupError(f"{arch} cannot be built small: {example.skip}")
++
++    if example is not None:
++        # A declared repository wins over whatever happens to be cached. Many
++        # checkpoints share one model type -- twenty-eight of them for a single
++        # architecture here -- so picking by directory order would make the
++        # answer depend on the machine.
++        config = _config_for_repo(example.default) or _fetch_config(example)
++    else:
++        config = _cached_configs().get(arch)
++        if config is None:
++            raise LookupError(
++                f"No cached config for {arch!r} and none registered. Add an "
++                f"ArchExample for it in {__name__}."
++            )
++
++    overrides = example.config_overrides if example else {}
++    try:
++        module = importlib.import_module(f"mlx_vlm.models.{arch}")
++    except ImportError:
++        module = None
++    scaled = _scaled(config, overrides, module)
++    for name in ("text_config", "vision_config", "audio_config"):
++        scaled.setdefault(name, {})
++        if isinstance(scaled[name], dict):
++            scaled[name] = _scaled(scaled[name], overrides, module)
++    return scaled
++
++
++def _config_for_repo(repo: str) -> Optional[dict]:
++    """A specific repository's cached config, found by name not by model type."""
++    directory = "models--" + repo.replace("/", "--")
++    pattern = os.path.expanduser(
++        f"~/.cache/huggingface/hub/{directory}/snapshots/*/config.json"
++    )
++    for path in sorted(glob.glob(pattern)):
++        try:
++            return json.load(open(path))
++        except (OSError, ValueError):
++            continue
++    return None
++
++
++def _fetch_config(example: ArchExample) -> dict:
++    """Download only `config.json` for a registered repository."""
++    from huggingface_hub import hf_hub_download
++
++    path = hf_hub_download(
++        example.default,
++        "config.json",
++        revision="main",
++    )
++    return json.load(open(path))
++
++
++def build_tiny(arch: str):
++    """Build a randomly initialised, few-layer model of ``arch``.
++
++    Follows the same three-step config construction as ``load_model``: a flat
++    ``from_dict`` leaves sub-configs as plain dicts, so the module configs have
++    to be filled in before the model is built.
++    """
++    from mlx_vlm.utils import apply_generation_config_defaults, update_module_configs
++
++    module = importlib.import_module(f"mlx_vlm.models.{arch}")
++    config = load_config(arch)
++
++    model_config = module.ModelConfig.from_dict(config)
++    model_config = update_module_configs(
++        model_config, module, config, list(MODULE_CONFIGS)
++    )
++    model_config = apply_generation_config_defaults(model_config, config)
++    return module.Model(model_config)
+diff --git a/mlx_vlm/tests/test_capabilities.py b/mlx_vlm/tests/test_capabilities.py
+new file mode 100644
+index 00000000..5e9e085f
+--- /dev/null
++++ b/mlx_vlm/tests/test_capabilities.py
+@@ -0,0 +1,220 @@
++"""Tests for the per-architecture capability report.
++
++Configs come from the local Hugging Face cache and every test skips when the
++architecture it needs is absent, so the suite stays offline.
++"""
++
++from unittest.mock import patch
++
++import pytest
++
++from mlx_vlm.tests import models_registry as registry
++from mlx_vlm.tests.capabilities import Capabilities, capabilities
++
++
++def _require(arch):
++    if arch not in registry._cached_configs():
++        pytest.skip(f"no {arch} config in the local Hugging Face cache")
++    return arch
++
++
++def test_nothing_applies_by_default():
++    empty = Capabilities(arch="stub")
++    assert empty.applicable() == ()
++    assert empty.signature() == "text-only"
++
++
++def test_a_signature_lists_only_what_applies():
++    caps = Capabilities(arch="stub", kv_quant=True)
++    assert "image_in" not in caps.signature()
++
++
++def test_speculative_reports_the_drafter_kind_not_a_flag():
++    caps = Capabilities(arch="stub", speculative="mtp")
++    assert caps.speculative == "mtp"
++    assert "speculative" in caps.applicable()
++
++
++def test_a_recurrent_model_cannot_quantize_or_bound_its_cache():
++    """`ArraysCache` holds recurrent state: no `to_quantized`, no trim."""
++    caps = capabilities(_require("mamba2"))
++    assert not caps.kv_quant
++    assert not caps.trimmable
++    assert caps.apc_exact, "whole-prefix snapshots still work"
++
++
++def test_a_hybrid_reports_more_than_one_cache_class():
++    caps = capabilities(_require("qwen3_5"))
++    assert caps.hybrid_cache
++    assert len(set(caps.cache_kinds)) > 1
++
++
++def test_a_model_that_builds_its_own_cache_cannot_take_a_bound():
++    """qwen3_5 defines a zero-argument `make_cache`, so the bound cannot reach it."""
++    assert not capabilities(_require("qwen3_5")).bounded_kv
++
++
++def test_a_model_without_make_cache_gets_the_bounded_default():
++    assert capabilities(_require("qwen2")).bounded_kv
++
++
++def test_a_vision_model_reports_an_image_path():
++    assert capabilities(_require("gemma3")).image_in
++
++
++def test_a_text_model_reports_no_image_path():
++    assert not capabilities(_require("qwen2")).image_in
++
++
++def test_an_existing_model_can_be_reused_instead_of_rebuilt():
++    arch = _require("qwen2")
++    model = registry.build_tiny(arch)
++    assert capabilities(arch, model=model) == capabilities(arch, model=model)
++
++
++# --- the recorded matrix ---------------------------------------------------
++
++
++def _recorded():
++    import json
++    import os
++
++    from mlx_vlm.tests import generate_capabilities
++
++    if not os.path.exists(generate_capabilities.RECORD):
++        pytest.skip("no recorded capability matrix")
++    return json.load(open(generate_capabilities.RECORD))
++
++
++def test_the_record_is_not_empty():
++    assert _recorded(), "capabilities.json should describe at least one architecture"
++
++
++def test_recorded_capabilities_still_hold():
++    """A change to what an architecture can do has to be recorded deliberately.
++
++    Only architectures resolvable on this machine are compared, so a partial
++    Hugging Face cache narrows the check rather than failing it.
++    """
++    from dataclasses import asdict
++
++    from mlx_vlm.tests.generate_capabilities import architectures
++
++    recorded = _recorded()
++    checked, drifted = 0, {}
++    for arch in architectures():
++        if arch not in recorded:
++            continue
++        try:
++            caps = capabilities(arch)
++        except Exception:
++            continue
++        current = asdict(caps)
++        current.pop("arch")
++        current["cache_kinds"] = sorted(set(current["cache_kinds"]))
++        checked += 1
++        for feature, was in recorded[arch].items():
++            now = current.get(feature)
++            if now != was:
++                drifted[f"{arch}.{feature}"] = {"recorded": was, "now": now}
++
++    if not checked:
++        pytest.skip("no recorded architecture is resolvable here")
++    assert not drifted, (
++        f"capability drift in {len(drifted)} field(s): {drifted}. If intended, "
++        "rerun python -m mlx_vlm.tests.generate_capabilities and commit the result."
++    )
++
++
++# --- representatives -------------------------------------------------------
++
++
++def test_representatives_keep_one_architecture_per_signature():
++    from mlx_vlm.tests.capabilities import representatives
++
++    a = Capabilities(arch="a", kv_quant=True)
++    b = Capabilities(arch="b", kv_quant=True)
++    c = Capabilities(arch="c", image_in=True)
++    chosen = representatives([a, b, c])
++    assert len(chosen) == 2
++    assert {r.signature() for r in chosen} == {a.signature(), c.signature()}
++
++
++def test_representatives_are_chosen_deterministically():
++    from mlx_vlm.tests.capabilities import representatives
++
++    rows = [Capabilities(arch=name, kv_quant=True) for name in ("z", "a", "m")]
++    assert representatives(rows)[0].arch == "a"
++    assert representatives(reversed(rows))[0].arch == "a"
++
++
++def test_representatives_cover_every_signature_in_the_record():
++    from mlx_vlm.tests.capabilities import representatives
++    from mlx_vlm.tests.generate_capabilities import architectures
++
++    rows = []
++    for arch in architectures():
++        try:
++            rows.append(capabilities(arch))
++        except Exception:
++            continue
++    if not rows:
++        pytest.skip("no architecture resolvable here")
++    chosen = representatives(rows)
++    assert {r.signature() for r in chosen} == {r.signature() for r in rows}
++    assert len(chosen) <= len(rows)
++
++
++def test_capability_does_not_depend_on_how_far_the_model_was_scaled_down():
++    """A capability that changes with the scale-down is an artefact, not a fact.
++
++    Attention patterns have a period of their own, and scaling below it drops a
++    layer type: the gemma family reported no hybrid cache at four layers and a
++    hybrid one at twelve.
++    """
++    import mlx.core as mx
++
++    from mlx_vlm.tests.generate_capabilities import architectures
++
++    original = dict(registry.SMALL_CONFIG)
++    archs = architectures()[:12]
++    if not archs:
++        pytest.skip("no architecture resolvable here")
++    try:
++        runs = {}
++        for depth in (4, 9):
++            registry.SMALL_CONFIG = {**original, "num_hidden_layers": depth}
++            runs[depth] = {}
++            for arch in archs:
++                try:
++                    runs[depth][arch] = capabilities(arch).signature()
++                except Exception as error:
++                    runs[depth][arch] = f"failed: {type(error).__name__}"
++                mx.clear_cache()
++    finally:
++        registry.SMALL_CONFIG = original
++
++    differing = {
++        arch: (runs[4][arch], runs[9][arch])
++        for arch in archs
++        if runs[4][arch] != runs[9][arch]
++    }
++    assert not differing, f"capability varies with scale-down depth: {differing}"
++
++
++def test_a_declared_repository_beats_whatever_is_cached():
++    """Twenty model types have several cached checkpoints; the answer must not
++    depend on which one the filesystem lists first."""
++    arch = next(iter(registry.REGISTRY), None)
++    if arch is None:
++        pytest.skip("registry is empty")
++    example = registry.REGISTRY[arch]
++    with (
++        patch.object(
++            registry, "_cached_configs", return_value={arch: {"model_type": "decoy"}}
++        ),
++        patch.object(registry, "_config_for_repo", return_value=None) as by_repo,
++        patch.object(registry, "_fetch_config", return_value={"model_type": arch}),
++    ):
++        registry.load_config(arch)
++    by_repo.assert_called_once_with(example.default)
+diff --git a/mlx_vlm/tests/test_models_registry.py b/mlx_vlm/tests/test_models_registry.py
+new file mode 100644
+index 00000000..7e3bf13f
+--- /dev/null
++++ b/mlx_vlm/tests/test_models_registry.py
+@@ -0,0 +1,118 @@
++"""Tests for building small models from real configs.
++
++Every test that needs a config resolves it from the local Hugging Face cache and
++skips when it is not there, so the suite stays offline. A machine that has
++downloaded a checkpoint of a given architecture gets real coverage; a clean
++runner gets skips rather than downloads.
++"""
++
++from unittest.mock import patch
++
++import pytest
++
++from mlx_vlm.models.cache import make_prompt_cache
++from mlx_vlm.tests import models_registry as registry
++
++
++def _cached(arch):
++    """The arch's cached config, or skip."""
++    config = registry._cached_configs().get(arch)
++    if config is None:
++        pytest.skip(f"no {arch} config in the local Hugging Face cache")
++    return config
++
++
++def _any_cached_arch():
++    for arch in ("qwen2", "qwen3", "llama", "gemma3"):
++        if arch in registry._cached_configs():
++            return arch
++    pytest.skip("no config for a common architecture in the local cache")
++
++
++# --- the record ------------------------------------------------------------
++
++
++def test_an_example_needs_only_a_repository():
++    example = registry.ArchExample("mlx-community/Qwen3-0.6B-4bit")
++    assert example.default == "mlx-community/Qwen3-0.6B-4bit"
++    assert example.extras == {}
++    assert example.config_overrides == {}
++    assert example.skip is None
++
++
++def test_registry_holds_only_architectures_needing_something_declared():
++    """It is not a table of every supported model, and must not become one.
++
++    An entry earns its place either by carrying an override or a skip, or by
++    pinning the checkpoint so the answer does not depend on which of several
++    cached ones the filesystem lists first.
++    """
++    assert len(registry.REGISTRY) < 50
++    for arch, example in registry.REGISTRY.items():
++        assert example.default, f"{arch} names no repository"
++
++
++# --- resolving a config ----------------------------------------------------
++
++
++def test_unknown_architecture_says_how_to_fix_it():
++    with patch.object(registry, "_cached_configs", return_value={}):
++        with pytest.raises(LookupError, match="Add an ArchExample"):
++            registry.load_config("not_a_real_architecture")
++
++
++def test_a_skipped_architecture_reports_its_reason():
++    example = registry.ArchExample("x", skip="needs a real checkpoint")
++    with patch.dict(registry.REGISTRY, {"stub": example}, clear=False):
++        with pytest.raises(LookupError, match="needs a real checkpoint"):
++            registry.load_config("stub")
++
++
++def test_the_config_is_scaled_down():
++    arch = _any_cached_arch()
++    config = registry.load_config(arch)
++    text = config.get("text_config") or config
++    assert text["num_hidden_layers"] == registry.SMALL_CONFIG["num_hidden_layers"]
++    assert text["hidden_size"] == registry.SMALL_CONFIG["hidden_size"]
++
++
++def test_overrides_win_over_the_scale_down():
++    arch = _any_cached_arch()
++    cached = registry._cached_configs()[arch]
++    example = registry.ArchExample("x", config_overrides={"num_hidden_layers": 3})
++    with (
++        patch.dict(registry.REGISTRY, {arch: example}, clear=False),
++        patch.object(registry, "_config_for_repo", return_value=cached),
++    ):
++        config = registry.load_config(arch)
++    text = config.get("text_config") or config
++    assert text["num_hidden_layers"] == 3
++
++
++def test_a_cached_config_is_never_downloaded():
++    arch = _any_cached_arch()
++    with patch.object(registry, "_fetch_config", side_effect=AssertionError("network")):
++        registry.load_config(arch)
++
++
++# --- building --------------------------------------------------------------
++
++
++def test_a_built_model_makes_a_usable_cache():
++    arch = _any_cached_arch()
++    model = registry.build_tiny(arch)
++    language_model = getattr(model, "language_model", model)
++    cache = make_prompt_cache(language_model)
++    assert cache, "a built model should produce cache entries"
++
++
++@pytest.mark.parametrize("arch", sorted(registry.REGISTRY))
++def test_declared_architectures_build(arch):
++    """Each entry exists because the architecture failed without it."""
++    example = registry.REGISTRY[arch]
++    if example.skip:
++        pytest.skip(example.skip)
++    _cached(arch)
++    model = registry.build_tiny(arch)
++    language_model = getattr(model, "language_model", model)
++    assert make_prompt_cache(language_model)
