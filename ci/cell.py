@@ -26,6 +26,19 @@ LOWER_IS_BETTER = {"ttft_ms", "wall_ms", "peak_mem_gb"}
 # functional failure regardless of what the timings say.
 FUNCTIONAL = {"token_hit_rate", "matched_tokens", "exact_hits"}
 
+# A perfectly repeatable metric drives the standard error to zero, and then
+# any nonzero delta clears the bar: peak memory was reported as a significant
+# change at 0.40%. Statistical confidence is not the same as mattering, so a
+# metric also has to move by an amount someone would act on.
+FLOOR_PCT = {
+    "peak_mem_gb": 2.0,
+    "decode_tps": 2.0,
+    "prefill_tps": 3.0,
+    "ttft_ms": 5.0,
+    "wall_ms": 2.0,
+}
+DEFAULT_FLOOR_PCT = 3.0
+
 
 def probe(
     worktree: Path,
@@ -144,6 +157,8 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
         if bm == 0:
             continue
         change = (hm - bm) / bm * 100
+        se = 2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5
+        bar = max(se, FLOOR_PCT.get(key, DEFAULT_FLOOR_PCT))
         if key in LOWER_IS_BETTER:
             change = -change  # normalise so positive always means better
         deltas[key] = {
