@@ -31,6 +31,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The router reads the component configs and model metadata, both YAML.
+      - run: pip install --quiet pyyaml
       - name: resolve the pull request
         id: pr
         run: |
