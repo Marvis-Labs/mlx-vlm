@@ -1,4 +1,65 @@
 {
+ "afmoe": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "apertus": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "bailing_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "bailing_moe_linear": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "bert": {
   "apc_block": true,
   "apc_exact": true,
@@ -11,6 +72,144 @@
   "hybrid_cache": false,
   "image_in": false,
   "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "bitnet": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "cohere": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "cohere2": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "cohere2_moe": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "cohere_compass": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": true,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "dbrx": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "deepseek_v2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "deepseek_v3": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "deepseek_v32": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "CacheList"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": false,
   "speculative": null,
   "trimmable": true
  },
@@ -30,6 +229,174 @@
   "speculative": "mtp",
   "trimmable": true
  },
+ "deepseekocr": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "deepseekocr_2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "diffusion_gemma": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": true,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "dots1": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "dots_ocr": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "ernie4_5": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "ernie4_5_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "ernie4_5_moe_vl": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "exaone": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "exaone4": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "exaone_moe": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "falcon_h1": {
   "apc_block": false,
   "apc_exact": true,
@@ -41,6 +408,51 @@
   "chunked_prefill": false,
   "hybrid_cache": false,
   "image_in": false,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": false
+ },
+ "falcon_ocr": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "falcon_perception": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "florence2": {
+  "apc_block": false,
+  "apc_exact": false,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "(SimpleKVCache,SimpleKVCache)"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
   "kv_quant": false,
   "speculative": null,
   "trimmable": false
@@ -108,6 +520,22 @@
   "speculative": "mtp",
   "trimmable": true
  },
+ "gemma4_text": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "gemma4_unified": {
   "apc_block": false,
   "apc_exact": true,
@@ -119,6 +547,36 @@
   ],
   "chunked_prefill": true,
   "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": "mtp",
+  "trimmable": true
+ },
+ "glm4": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": "mtp",
+  "trimmable": true
+ },
+ "glm4_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
   "image_in": false,
   "kv_quant": true,
   "speculative": "mtp",
@@ -137,6 +595,111 @@
   "image_in": false,
   "kv_quant": true,
   "speculative": "mtp",
+  "trimmable": true
+ },
+ "glm4v": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "glm4v_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "glm_moe_dsa": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "CacheList"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": true
+ },
+ "glm_ocr": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "gpt2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "gpt_bigcode": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "gpt_neox": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
   "trimmable": true
  },
  "gpt_oss": {
@@ -166,6 +729,142 @@
   "chunked_prefill": false,
   "hybrid_cache": false,
   "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "granite4_vision": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "granite_vision": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "granitemoe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "granitemoehybrid": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "helium": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "hrm_text": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "hunyuan_v1_dense": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "hunyuan_vl": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "idefics2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
   "kv_quant": true,
   "speculative": null,
   "trimmable": true
@@ -200,7 +899,115 @@
   "speculative": "mtp",
   "trimmable": false
  },
+ "internlm2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "internlm3": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "iquestloopcoder": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "jina_vlm": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "kimi_k25": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "kimi_k3": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "kimi_linear": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "kimi_vl": {
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
@@ -279,6 +1086,21 @@
   "speculative": null,
   "trimmable": false
  },
+ "llada2_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "llama": {
   "apc_block": true,
   "apc_exact": true,
@@ -290,6 +1112,52 @@
   "chunked_prefill": false,
   "hybrid_cache": false,
   "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "llama4": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ChunkedKVCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "llama_bidirec": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "llava": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
   "kv_quant": true,
   "speculative": null,
   "trimmable": true
@@ -309,6 +1177,97 @@
   "speculative": null,
   "trimmable": true
  },
+ "llava_next": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "llmjpvl": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "locateanything": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "longcat_flash": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "CacheList"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": true
+ },
+ "longcat_flash_ngram": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "CacheList"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": false
+ },
+ "mamba": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": false
+ },
  "mamba2": {
   "apc_block": false,
   "apc_exact": true,
@@ -324,11 +1283,181 @@
   "speculative": null,
   "trimmable": false
  },
+ "mellum": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "mimo": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "mimo_v2_flash": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "minicpm3": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "minicpmo": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": true,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "minicpmv4_6": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": true,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "minimax_m3": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "MiniMaxM3KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "minimax_m3_vl": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "MiniMaxM3KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "ministral3": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "mistral3": {
   "apc_block": true,
   "apc_exact": true,
   "audio_in": false,
   "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "mixtral": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "mllama": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
   "cache_kinds": [
    "KVCache"
   ],
@@ -369,6 +1498,51 @@
   "speculative": null,
   "trimmable": true
  },
+ "molmo2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "molmo_point": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "moondream3": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "muse_glimmer": {
   "apc_block": false,
   "apc_exact": true,
@@ -383,6 +1557,36 @@
   "image_in": true,
   "kv_quant": true,
   "speculative": "dflash",
+  "trimmable": true
+ },
+ "nanochat": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "nemotron": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
   "trimmable": true
  },
  "nemotron_h": {
@@ -401,6 +1605,51 @@
   "speculative": null,
   "trimmable": false
  },
+ "nemotron_labs_diffusion": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "nemotron_parse": {
+  "apc_block": false,
+  "apc_exact": false,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "(SimpleKVCache,SimpleKVCache)"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": false
+ },
+ "nemotron_voicechat": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "olmo": {
   "apc_block": true,
   "apc_exact": true,
@@ -411,6 +1660,37 @@
   ],
   "chunked_prefill": false,
   "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "olmo2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "olmo3": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
   "image_in": false,
   "kv_quant": true,
   "speculative": null,
@@ -431,6 +1711,36 @@
   "speculative": null,
   "trimmable": true
  },
+ "openelm": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "paddleocr_vl": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "paligemma": {
   "apc_block": true,
   "apc_exact": true,
@@ -442,6 +1752,21 @@
   "chunked_prefill": false,
   "hybrid_cache": false,
   "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "phi": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
   "kv_quant": true,
   "speculative": null,
   "trimmable": true
@@ -459,6 +1784,98 @@
   "image_in": false,
   "kv_quant": true,
   "speculative": null,
+  "trimmable": true
+ },
+ "phi3small": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "phixtral": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "plamo": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "plamo2": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "plamo2vl": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "qwen": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": "mtp",
   "trimmable": true
  },
  "qwen2": {
@@ -487,6 +1904,21 @@
   "chunked_prefill": false,
   "hybrid_cache": false,
   "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "qwen2_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
   "kv_quant": true,
   "speculative": null,
   "trimmable": true
@@ -553,6 +1985,37 @@
   "speculative": null,
   "trimmable": false
  },
+ "qwen3_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "qwen3_next": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
  "qwen3_omni_moe": {
   "apc_block": true,
   "apc_exact": true,
@@ -598,6 +2061,67 @@
   "speculative": null,
   "trimmable": true
  },
+ "qwen3_vl_moe": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "recurrent_gemma": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": false
+ },
+ "rwkv7": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "ArraysCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": false
+ },
+ "seed_oss": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
  "smollm3": {
   "apc_block": true,
   "apc_exact": true,
@@ -612,5 +2136,157 @@
   "kv_quant": true,
   "speculative": null,
   "trimmable": true
+ },
+ "smolvlm": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "solar_open": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "stablelm": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "starcoder2": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "step3p5": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "step3p7": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache",
+   "RotatingKVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": true,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "telechat3": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "youtu_llm": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": false,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "youtu_vl": {
+  "apc_block": true,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": true,
+  "cache_kinds": [
+   "KVCache"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": true,
+  "speculative": null,
+  "trimmable": true
+ },
+ "zaya1_vl": {
+  "apc_block": false,
+  "apc_exact": true,
+  "audio_in": false,
+  "bounded_kv": false,
+  "cache_kinds": [
+   "CacheList"
+  ],
+  "chunked_prefill": false,
+  "hybrid_cache": false,
+  "image_in": true,
+  "kv_quant": false,
+  "speculative": null,
+  "trimmable": false
  }
 }

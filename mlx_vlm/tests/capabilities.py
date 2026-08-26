@@ -126,7 +126,16 @@ def capabilities(arch: str, model=None) -> Capabilities:
         model = build_tiny(arch)
     language_model = getattr(model, "language_model", model)
     cache = make_prompt_cache(language_model)
-    kinds = tuple(type(entry).__name__ for entry in cache)
+
+    def kind(entry) -> str:
+        # Encoder-decoder models pair a self-attention and a cross-attention
+        # cache per layer. Recording "tuple" says nothing about which classes
+        # a change would touch, so name what is inside.
+        if isinstance(entry, (tuple, list)):
+            return "(" + ",".join(type(x).__name__ for x in entry) + ")"
+        return type(entry).__name__
+
+    kinds = tuple(kind(entry) for entry in cache)
 
     def every(predicate) -> bool:
         return bool(cache) and all(predicate(entry) for entry in cache)

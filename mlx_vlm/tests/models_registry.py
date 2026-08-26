@@ -105,6 +105,235 @@ REGISTRY: Mapping[str, ArchExample] = {
         default="mlx-community/SmolLM3-3B-4bit",
         config_overrides={"no_rope_layers": [1, 1, 1, 1]},
     ),
+    # Discovered by matching a published config.json whose model_type names
+    # the architecture, so the recorded row does not depend on which
+    # checkpoints happen to be cached on the machine that regenerated it.
+    "afmoe": ArchExample(
+        default="optimum-intel-internal-testing/tiny-random-trinity",
+        trust_remote_code=True,
+    ),
+    "apertus": ArchExample(default="swiss-ai/Apertus-8B-Instruct-2509"),
+    "aya_vision": ArchExample(default="unsloth/aya-vision-32b"),
+    "baichuan_m1": ArchExample(
+        default="baichuan-inc/Baichuan-M1-14B-Instruct", trust_remote_code=True
+    ),
+    "bailing_moe": ArchExample(
+        default="inclusionAI/Ling-mini-2.0", trust_remote_code=True
+    ),
+    "bailing_moe_linear": ArchExample(
+        default="inclusionAI/Ring-mini-linear-2.0", trust_remote_code=True
+    ),
+    "bitnet": ArchExample(
+        default="microsoft/bitnet-b1.58-2B-4T", trust_remote_code=True
+    ),
+    "cohere": ArchExample(default="trl-internal-testing/tiny-CohereForCausalLM"),
+    "cohere2": ArchExample(default="trl-internal-testing/tiny-Cohere2ForCausalLM"),
+    "cohere2_moe": ArchExample(default="CohereLabs/North-Mini-Code-1.0"),
+    "cohere_compass": ArchExample(default="CohereLabs/North-Micro-Vision-Instruct"),
+    "colqwen2_5": ArchExample(default="qnguyen3/colqwen2.5-v0.2-mlx"),
+    "dbrx": ArchExample(default="trl-internal-testing/tiny-DbrxForCausalLM"),
+    "deepseek_v2": ArchExample(
+        default="deepseek-ai/DeepSeek-V2-Lite-Chat", trust_remote_code=True
+    ),
+    "deepseek_v3": ArchExample(
+        default="deepseek-ai/DeepSeek-R1", trust_remote_code=True
+    ),
+    "deepseek_v32": ArchExample(default="deepseek-ai/DeepSeek-V3.2"),
+    "deepseek_vl_v2": ArchExample(
+        default="deepseek-ai/DeepSeek-OCR", trust_remote_code=True
+    ),
+    "deepseekocr": ArchExample(
+        default="mlx-community/DeepSeek-OCR-8bit", trust_remote_code=True
+    ),
+    "deepseekocr_2": ArchExample(
+        default="mlx-community/DeepSeek-OCR-2-6bit", trust_remote_code=True
+    ),
+    "diffusion_gemma": ArchExample(default="google/diffusiongemma-26B-A4B-it"),
+    "dots1": ArchExample(default="dots-studio/dots.llm1.base"),
+    "dots_ocr": ArchExample(default="dots-studio/dots.mocr", trust_remote_code=True),
+    "ernie4_5": ArchExample(default="baidu/ERNIE-4.5-0.3B-PT"),
+    "ernie4_5_moe": ArchExample(default="baidu/ERNIE-4.5-21B-A3B-PT"),
+    "ernie4_5_moe_vl": ArchExample(
+        default="baidu/ERNIE-4.5-VL-28B-A3B-PT", trust_remote_code=True
+    ),
+    "exaone": ArchExample(
+        default="LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-AWQ", trust_remote_code=True
+    ),
+    "exaone4": ArchExample(default="LGAI-EXAONE/EXAONE-4.0-32B"),
+    "exaone_moe": ArchExample(default="LGAI-EXAONE/K-EXAONE-236B-A23B"),
+    "falcon_ocr": ArchExample(default="tiiuae/Falcon-OCR", trust_remote_code=True),
+    "falcon_perception": ArchExample(
+        default="tiiuae/Falcon-Perception", trust_remote_code=True
+    ),
+    "florence2": ArchExample(
+        default="microsoft/Florence-2-base", trust_remote_code=True
+    ),
+    "gemma3n": ArchExample(default="unsloth/gemma-3n-E4B-it"),
+    "gemma4_text": ArchExample(default="farbodtavakkoli/OTel-2.0-LLM-31B-IT"),
+    "glm4": ArchExample(default="zai-org/GLM-4-9B-0414"),
+    "glm4_moe": ArchExample(default="trl-internal-testing/tiny-Glm4MoeForCausalLM"),
+    "glm4v": ArchExample(default="zai-org/GLM-4.1V-9B-Thinking"),
+    "glm4v_moe": ArchExample(default="zai-org/GLM-4.5V"),
+    "glm_moe_dsa": ArchExample(default="zai-org/GLM-5.2"),
+    "glm_ocr": ArchExample(default="zai-org/GLM-OCR"),
+    "gpt2": ArchExample(default="openai-community/gpt2"),
+    "gpt_bigcode": ArchExample(default="bigcode/tiny_starcoder_py"),
+    "gpt_neox": ArchExample(default="EleutherAI/pythia-160m"),
+    "granite4_vision": ArchExample(
+        default="ibm-granite/granite-vision-4.1-4b", trust_remote_code=True
+    ),
+    "granite_vision": ArchExample(default="mlx-community/granite-vision-3.2-2b-nvfp4"),
+    "granitemoe": ArchExample(default="ibm-research/PowerMoE-3b"),
+    "granitemoehybrid": ArchExample(default="ibm-granite/granite-4.0-h-tiny"),
+    "helium": ArchExample(default="kyutai/helium-1-preview-2b"),
+    "hrm_text": ArchExample(default="sapientinc/HRM-Text-1B"),
+    "hunyuan_v1_dense": ArchExample(
+        default="optimum-intel-internal-testing/tiny-random-hunyuan-v1-dense"
+    ),
+    "hunyuan_vl": ArchExample(default="tencent/HunyuanOCR"),
+    "idefics2": ArchExample(default="HuggingFaceM4/idefics2-8b"),
+    "internlm2": ArchExample(
+        default="internlm/internlm2-1_8b-reward", trust_remote_code=True
+    ),
+    "internlm3": ArchExample(
+        default="internlm/internlm3-8b-instruct", trust_remote_code=True
+    ),
+    "internvl_chat": ArchExample(
+        default="OpenGVLab/InternVL2-2B", trust_remote_code=True
+    ),
+    "iquestloopcoder": ArchExample(
+        default="IQuestLab/IQuest-Coder-V1-40B-Loop-Instruct", trust_remote_code=True
+    ),
+    "jamba": ArchExample(default="ai21labs/Jamba-tiny-dev"),
+    "kimi_k25": ArchExample(default="moonshotai/Kimi-K2.6", trust_remote_code=True),
+    "kimi_k3": ArchExample(default="moonshotai/Kimi-K3", trust_remote_code=True),
+    "kimi_linear": ArchExample(
+        default="moonshotai/Kimi-Linear-48B-A3B-Instruct", trust_remote_code=True
+    ),
+    "kimi_vl": ArchExample(
+        default="moonshotai/Kimi-VL-A3B-Instruct", trust_remote_code=True
+    ),
+    "llada2_moe": ArchExample(
+        default="inclusionAI/LLaDA2.0-mini", trust_remote_code=True
+    ),
+    "llama4": ArchExample(default="unsloth/Llama-4-Scout-17B-16E-Instruct-GGUF"),
+    "llama4_text": ArchExample(default="trl-internal-testing/tiny-Llama4ForCausalLM"),
+    "llama_bidirec": ArchExample(
+        default="nvidia/llama-nemotron-rerank-1b-v2", trust_remote_code=True
+    ),
+    "llava": ArchExample(default="llava-hf/llava-1.5-7b-hf"),
+    "llava_next": ArchExample(default="llava-hf/llava-v1.6-mistral-7b-hf"),
+    "llmjpvl": ArchExample(
+        default="llm-jp/llm-jp-4-vl-9b-beta", trust_remote_code=True
+    ),
+    "locateanything": ArchExample(
+        default="nvidia/LocateAnything-3B", trust_remote_code=True
+    ),
+    "longcat_flash": ArchExample(
+        default="yujiepan/longcat-flash-tiny-random", trust_remote_code=True
+    ),
+    "longcat_flash_ngram": ArchExample(
+        default="Intel/LongCat-Flash-Lite-int4-AutoRound", trust_remote_code=True
+    ),
+    "mage_flow": ArchExample(default="ajh-code/Mage-Flow-Turbo-XPO3-NVFP4"),
+    "mage_vl": ArchExample(default="microsoft/Mage-VL", trust_remote_code=True),
+    "mamba": ArchExample(default="state-spaces/mamba-130m-hf"),
+    "mellum": ArchExample(default="JetBrains/Mellum2-12B-A2.5B-Base"),
+    "mimo": ArchExample(default="XiaomiMiMo/MiMo-7B-RL", trust_remote_code=True),
+    "mimo_v2_flash": ArchExample(
+        default="XiaomiMiMo/MiMo-V2-Flash", trust_remote_code=True
+    ),
+    "minicpm": ArchExample(default="openbmb/MiniCPM4.1-8B", trust_remote_code=True),
+    "minicpm3": ArchExample(default="openbmb/MiniCPM3-4B", trust_remote_code=True),
+    "minicpmo": ArchExample(default="openbmb/MiniCPM-o-4_5", trust_remote_code=True),
+    "minicpmv4_6": ArchExample(default="openbmb/MiniCPM-V-4.6"),
+    "minimax_h3": ArchExample(default="ddalcu/MiniMax-H3-FL2VA-MLX-Serve-8bit"),
+    "minimax_m3": ArchExample(default="pipenetwork/MiniMax-M3-MLX-mixed-3_6bit"),
+    "minimax_m3_vl": ArchExample(
+        default="MiniMaxAI/MiniMax-M3-MXFP8", trust_remote_code=True
+    ),
+    "ministral3": ArchExample(default="nvidia/Nemotron-3-Embed-1B-BF16"),
+    "mistral4": ArchExample(
+        default="onnx-internal-testing/tiny-random-Mistral4ForCausalLM"
+    ),
+    "mixtral": ArchExample(default="mistralai/Mixtral-8x7B-Instruct-v0.1"),
+    "mllama": ArchExample(default="unsloth/Llama-3.2-11B-Vision-Instruct"),
+    "molmo2": ArchExample(default="allenai/Molmo2-8B", trust_remote_code=True),
+    "molmo_point": ArchExample(default="allenai/MolmoPoint-8B", trust_remote_code=True),
+    "moondream3": ArchExample(
+        default="moondream/moondream3-preview", trust_remote_code=True
+    ),
+    "multi_modality": ArchExample(default="deepseek-ai/Janus-Pro-1B"),
+    "nanochat": ArchExample(default="nanochat-students/nanochat-d20"),
+    "nemotron": ArchExample(default="thhaus/nemotron3-8b"),
+    "nemotron_labs_diffusion": ArchExample(
+        default="nvidia/Nemotron-Labs-Diffusion-8B", trust_remote_code=True
+    ),
+    "nemotron_nas": ArchExample(
+        default="cyankiwi/Llama-3_3-Nemotron-Super-49B-v1_5-AWQ-4bit",
+        trust_remote_code=True,
+    ),
+    "nemotron_parse": ArchExample(
+        default="nvidia/NVIDIA-Nemotron-Parse-v1.1", trust_remote_code=True
+    ),
+    "nemotron_voicechat": ArchExample(
+        default="mlx-community/NemotronLabs-VoiceChat-11B-8bit"
+    ),
+    "olmo2": ArchExample(default="allenai/OLMo-2-0425-1B"),
+    "olmo3": ArchExample(default="allenai/Olmo-3-7B-Instruct"),
+    "openelm": ArchExample(
+        default="apple/OpenELM-1_1B-Instruct", trust_remote_code=True
+    ),
+    "paddleocr_vl": ArchExample(
+        default="PaddlePaddle/PaddleOCR-VL-1.6", trust_remote_code=True
+    ),
+    "phi": ArchExample(default="microsoft/phi-2"),
+    "phi3_v": ArchExample(
+        default="microsoft/Phi-3.5-vision-instruct", trust_remote_code=True
+    ),
+    "phi3small": ArchExample(
+        default="microsoft/Phi-3-small-8k-instruct", trust_remote_code=True
+    ),
+    "phi4mm": ArchExample(
+        default="nvidia/Phi-4-multimodal-instruct-NVFP4", trust_remote_code=True
+    ),
+    "phimoe": ArchExample(
+        default="microsoft/Phi-tiny-MoE-instruct", trust_remote_code=True
+    ),
+    "phixtral": ArchExample(
+        default="mzbac/phi-2-2x3-hf-4bit-mlx", trust_remote_code=True
+    ),
+    "plamo": ArchExample(default="pfnet/plamo-embedding-1b", trust_remote_code=True),
+    "plamo2": ArchExample(default="pfnet/plamo-2-1b", trust_remote_code=True),
+    "plamo2vl": ArchExample(default="pfnet/plamo-2.1-8b-vl", trust_remote_code=True),
+    "qwen": ArchExample(default="Qwen/Qwen-72B", trust_remote_code=True),
+    "qwen2_moe": ArchExample(default="Qwen/Qwen1.5-MoE-A2.7B"),
+    "qwen3_moe": ArchExample(default="Qwen/Qwen3-30B-A3B"),
+    "qwen3_next": ArchExample(default="Qwen/Qwen3-Coder-Next-FP8"),
+    "qwen3_vl_moe": ArchExample(default="QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ"),
+    "recurrent_gemma": ArchExample(
+        default="RichardErkhov/google_-_recurrentgemma-2b-it-8bits"
+    ),
+    "rt_detr_v2": ArchExample(default="docling-project/docling-layout-heron"),
+    "rwkv7": ArchExample(default="fla-hub/rwkv7-0.4B-g1", trust_remote_code=True),
+    "seed_oss": ArchExample(default="ByteDance-Seed/Seed-OSS-36B-Instruct"),
+    "siglip": ArchExample(default="google/siglip2-giant-opt-patch16-384"),
+    "smolvlm": ArchExample(default="HuggingFaceTB/SmolVLM2-500M-Video-Instruct"),
+    "solar_open": ArchExample(default="upstage/Solar-Open-100B"),
+    "stablelm": ArchExample(default="stabilityai/stablelm-3b-4e1t"),
+    "starcoder2": ArchExample(default="bigcode/starcoder2-3b"),
+    "step3p5": ArchExample(default="stepfun-ai/Step-3.5-Flash", trust_remote_code=True),
+    "step3p7": ArchExample(default="stepfun-ai/Step-3.7-Flash", trust_remote_code=True),
+    "telechat3": ArchExample(
+        default="Tele-AI/TeleChat3-36B-Thinking", trust_remote_code=True
+    ),
+    "youtu_llm": ArchExample(
+        default="mlx-community/Youtu-LLM-2B-mlx-4bit", trust_remote_code=True
+    ),
+    "youtu_vl": ArchExample(
+        default="tencent/Youtu-VL-4B-Instruct", trust_remote_code=True
+    ),
+    "zaya1_vl": ArchExample(default="Zyphra/ZAYA1-VL-8B"),
 }
 
 

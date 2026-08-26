@@ -17,7 +17,7 @@ from dataclasses import asdict
 import mlx.core as mx
 
 from mlx_vlm.tests.capabilities import capabilities
-from mlx_vlm.tests.models_registry import _cached_configs
+from mlx_vlm.tests.models_registry import REGISTRY, _cached_configs
 
 RECORD = os.path.join(os.path.dirname(__file__), "capabilities.json")
 
@@ -29,7 +29,9 @@ def architectures():
         for name in os.listdir(models)
         if os.path.isdir(os.path.join(models, name)) and name != "__pycache__"
     }
-    return sorted(present & set(_cached_configs()))
+    # A registered architecture can have its config fetched, so coverage is
+    # not limited to whatever this machine happens to have downloaded.
+    return sorted(present & (set(_cached_configs()) | set(REGISTRY)))
 
 
 def main() -> int:
