@@ -335,7 +335,7 @@ class QuantizedKVCache(_BaseCache):
 
 
 class KVCache(_BaseCache):
-    step = 256
+    step = 1
 
     def __init__(self):
         self.keys = None
