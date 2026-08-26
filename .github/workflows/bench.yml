@@ -46,7 +46,15 @@ jobs:
           BASE=$(git merge-base up/main pr/head)
           echo "head=$(git rev-parse pr/head)" >> "$GITHUB_OUTPUT"
           python -m ci.route --base "$BASE" --head "$(git rev-parse pr/head)" \
-            --gh-repo ${{ github.repository }} --out "$GITHUB_OUTPUT"
+            --gh-repo ${{ github.repository }} --out "$GITHUB_OUTPUT" > routed.json
+          python -c "import json;d=json.load(open('routed.json'));json.dump(d['cells'],open('cells.json','w'));json.dump([n for n in d['notes'] if 'fits the fleet' in n],open('notes.json','w'))"
+
+      # Published before anything runs, so a cell that never reaches a device
+      # is visibly unrun rather than absent from the report.
+      - name: publish the pending matrix
+        run: python -m ci.report --pr ${{ inputs.pr }} --repo ${{ inputs.upstream }} init --cells cells.json --notes notes.json
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || github.token }}
 
   cell:
     needs: route
@@ -71,21 +79,17 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
+      - name: update this cell's row
+        if: always()
+        run: |
+          test -f "$RUNNER_TEMP/result.json" || \
+            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job did not produce a result"]}' > "$RUNNER_TEMP/result.json"
+          python3 -m ci.report --pr ${{ inputs.pr }} --repo ${{ inputs.upstream }} update --result "$RUNNER_TEMP/result.json"
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || github.token }}
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: result-${{ matrix.cell.id }}
           path: ${{ runner.temp }}/result.json
-
-  report:
-    needs: [route, cell]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: results
-          pattern: result-*
-          merge-multiple: true
-      - run: python -m ci.report --results results --pr ${{ inputs.pr }} --upstream ${{ inputs.upstream }}
