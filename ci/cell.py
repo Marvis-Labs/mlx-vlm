@@ -144,6 +144,12 @@ def summarize(samples: List[dict]) -> Dict[str, Any]:
     hashes = {s.get("output_hash") for s in samples if s.get("output_hash")}
     if hashes:
         out["output_hash"] = sorted(hashes)
+    # Non-numeric values are kept as the last observation rather than dropped.
+    # APC reports its rejection reasons as a mapping, and losing it silently
+    # made a declared metric look like one that never moved.
+    for key, val in samples[-1].items():
+        if key not in out and not isinstance(val, (int, float)):
+            out[key] = val
     return out
 
 
@@ -155,6 +161,17 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
             continue
         bm, hm = b["median"], h["median"]
         if bm == 0:
+            # A counter that starts at zero has no percentage to report, but
+            # dropping it hid the most interesting case: prefix reuse going
+            # from none to some, or a functional path switching on.
+            deltas[key] = {
+                "base": bm,
+                "head": hm,
+                "change_pct": None,
+                "note": "zero baseline" if hm == 0 else f"0 -> {hm}",
+                "significant": hm != 0,
+                "functional": key in FUNCTIONAL,
+            }
             continue
         change = (hm - bm) / bm * 100
         se = 2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5
@@ -165,16 +182,14 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
             "base": bm,
             "head": hm,
             "change_pct": round(change, 2),
-            # A delta inside the combined spread is indistinguishable from
-            # noise on this device, whatever its sign.
             "cv_pct": round(max(b["cv_pct"], h["cv_pct"]), 2),
-            # Two standard errors of the difference. A delta inside it is
-            # indistinguishable from noise however large it looks.
-            "noise_pct": round(
-                2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5, 2
-            ),
-            "significant": abs(change)
-            > 2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5,
+            # The bar a delta must clear: two standard errors of the
+            # difference, or the smallest change worth acting on, whichever
+            # is larger. Peak memory is perfectly repeatable, so its standard
+            # error is zero and without the floor any nonzero delta passes.
+            "noise_pct": round(bar, 2),
+            "stderr_pct": round(se, 2),
+            "significant": abs(change) > bar,
             "functional": key in FUNCTIONAL,
         }
     bh, hh = base.get("output_hash"), head.get("output_hash")

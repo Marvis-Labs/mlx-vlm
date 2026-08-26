@@ -19,6 +19,12 @@ from typing import Optional
 
 SHOWN = ["decode_tps", "prefill_tps", "ttft_ms", "peak_mem_gb"]
 
+# Behavioural counters, reported beside the timings when a cell produces
+# them. A change that holds throughput flat while prefix reuse collapses is a
+# regression no speed column can show, so these are never merely informational.
+FUNCTIONAL = ["token_hit_rate", "matched_tokens", "exact_hits"]
+COLUMNS = SHOWN + FUNCTIONAL
+
 # A metric has to clear both statistical confidence and an amount worth
 # acting on. Peak memory is perfectly repeatable, so its standard error is
 # zero and without a floor any nonzero delta reads as significant.
@@ -50,6 +56,15 @@ def marker(pr: str) -> str:
 def verdict(metric: str, delta: dict) -> str:
     floor = FLOOR_PCT.get(metric, DEFAULT_FLOOR_PCT)
     noise = delta.get("noise_pct", 0)
+    if delta.get("change_pct") is None:
+        # A counter with a zero baseline has no percentage. Switching on is
+        # only a regression when the counter describes behaviour, since a
+        # functional path appearing or vanishing is the whole signal.
+        return (
+            "regressed"
+            if delta.get("significant") and delta.get("functional")
+            else "noise"
+        )
     if noise > floor * INCONCLUSIVE_RATIO:
         return "inconclusive"
     # Judged here rather than read from the result: a run measured under an
@@ -66,11 +81,15 @@ def row(
     deltas: Optional[dict] = None,
     note: str = "",
 ) -> str:
+    deltas = deltas or {}
     cols = [f"`{cell_id}`", device, STATUS.get(state, state)]
-    for k in SHOWN:
-        v = (deltas or {}).get(k)
+    for k in COLUMNS:
+        v = deltas.get(k)
         if not isinstance(v, dict):
             cols.append("")
+            continue
+        if v.get("change_pct") is None:  # counter with a zero baseline
+            cols.append(v.get("note", "—"))
             continue
         state_k = verdict(k, v)
         mark = {"regressed": "🔴", "improved": "🟢", "noise": "", "inconclusive": "⚠️"}[
@@ -86,8 +105,8 @@ def header(pr: str, cells: int) -> list[str]:
         marker(pr),
         f"**mlx-vlm benchmark** — {cells} cells",
         "",
-        "| cell | device | status | " + " | ".join(SHOWN) + " | note |",
-        "|" + "---|" * (len(SHOWN) + 4),
+        "| cell | device | status | " + " | ".join(COLUMNS) + " | note |",
+        "|" + "---|" * (len(COLUMNS) + 4),
     ]
 
 
