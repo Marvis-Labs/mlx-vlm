@@ -6,6 +6,10 @@ paths:
   - mlx_vlm/turboquant.py
   - mlx_vlm/generate/common.py
 
+# Nothing to measure if the cache cannot be quantized.
+requires:
+  - kv_quant
+
 columns: [cache_kinds, kv_quant, hybrid_cache]
 
 scenario: single_generation

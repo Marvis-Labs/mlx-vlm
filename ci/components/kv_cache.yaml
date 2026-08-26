@@ -8,6 +8,9 @@ paths:
 # Columns that decide reachability AND scope the dedup signature.
 # Modality is deliberately absent: it says nothing about how an
 # architecture exercises the cache implementation.
+# Every architecture builds a cache, so there is nothing to require.
+requires: []
+
 columns: [cache_kinds, hybrid_cache, kv_quant, bounded_kv, trimmable]
 
 scenario: single_generation

@@ -9,6 +9,12 @@ paths:
 
 # image_in IS in scope here, unlike kv_cache: APC hashes media payloads
 # (hash_image_payload, media_token_spans), so modality changes its behaviour.
+# Supported if either form of reuse is available. Distinct from
+# `columns`, which scopes deduplication and includes modality.
+requires:
+  - apc_exact
+  - apc_block
+
 columns: [cache_kinds, apc_exact, apc_block, image_in]
 
 # Prefix caching does no work on a first request. A single-request cell

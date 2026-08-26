@@ -114,14 +114,18 @@ def signature(row: dict, columns: Sequence[str]) -> tuple:
 
 
 def reaches(row: dict, spec: dict) -> bool:
-    """Whether an architecture exercises this component at all."""
-    for col in spec["columns"]:
-        val = row.get(col)
-        if col == "cache_kinds":
-            continue  # every architecture has some cache
-        if val:
-            return True
-    return False
+    """Whether an architecture supports this component at all.
+
+    Separate from the signature scope: a column can distinguish how an
+    architecture exercises a component without determining whether it can
+    reach it. Prefix caching hashes media payloads, so modality belongs in
+    its signature, but a model with neither form of reuse does not support
+    prefix caching however many images it accepts.
+    """
+    required = spec.get("requires")
+    if required is None:
+        raise KeyError(f"{spec['name']}: declare `requires`, even if empty")
+    return not required or any(row.get(col) for col in required)
 
 
 def classify(paths: Sequence[str], specs: Sequence[dict]) -> dict:
