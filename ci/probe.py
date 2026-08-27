@@ -23,6 +23,7 @@ os.environ.setdefault("MLX_ENABLE_TF32", "0")
 os.environ.setdefault("PYTHONHASHSEED", "0")
 
 PROMPT_TOKENS_TARGET = 512
+LONG_PROMPT_TOKENS_TARGET = 4096
 
 # A fixed, boring prompt. Content is irrelevant; stability is not.
 _STEM = (
@@ -163,9 +164,27 @@ def shared_prefix_pair(model, processor, cell) -> Dict[str, Any]:
     return measured
 
 
+def long_prompt(model, processor, cell) -> Dict[str, Any]:
+    """Chunked prefill only does work on a prompt long enough to chunk.
+
+    A short prompt fits in one prefill step and the chunk size never bites,
+    so this scenario feeds a long prompt where prefill_step_size matters.
+    """
+    manager = apc_manager()
+    out = _stream(
+        model,
+        processor,
+        build_prompt(LONG_PROMPT_TOKENS_TARGET),
+        _kwargs(cell, manager),
+    )
+    out.update(apc_stats(manager))
+    return out
+
+
 SCENARIOS = {
     "single_generation": single_generation,
     "shared_prefix_pair": shared_prefix_pair,
+    "long_prompt": long_prompt,
 }
 
 BASE_KWARGS: Dict[str, Any] = {"max_tokens": 128, "temperature": 0.0, "verbose": False}
