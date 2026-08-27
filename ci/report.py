@@ -111,7 +111,16 @@ def _graph(cells: list, results: list) -> list:
             continue
         med = statistics.median([c for c, _ in pts])
         sig = sum(s for _, s in pts) > len(pts) / 2
-        lines.append(f"{m:<13}{_diverge(med, sig)} {med:+6.1f}%")
+        # A median past the metric's floor, in the majority of configs, is a
+        # real regression; mark it so the headline can count it.
+        from ci.verdict import floor_for
+
+        mark = (
+            " 🔴"
+            if sig and med < -floor_for(m)
+            else (" 🟢" if sig and med > floor_for(m) else "")
+        )
+        lines.append(f"{m:<13}{_diverge(med, sig)} {med:+6.1f}%{mark}")
     lines += ["```", ""]
     return lines
 
@@ -167,6 +176,14 @@ def render(
     graph = []
     if results and len({c["arch"] for c in cells}) == 1:
         graph = _graph(cells, results)
+
+    # For a single-architecture change, headline the shape of the change, not
+    # a single cell. A real model regression moves a metric across most of its
+    # configs; one config moving alone on a noisy device is noise the graph
+    # already shows as flat, so the headline should agree with the graph
+    # rather than counting a lone cell as a regression.
+    if graph:
+        regressed = sum(1 for line in graph if line.strip().endswith("🔴"))
 
     if pending:
         head = f"running — {len(cells) - pending} of {len(cells)} done"
