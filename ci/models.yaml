@@ -1,22 +1,94 @@
+deepseek_v32:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-V3.2-Speciale-4bit
+    sha: 0f9e4abee22caf0ee37d3a3d5e4694885e041afa
+    verified: '2026-08-26'
+    weights_gb: 352.12
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/DeepSeek-V3.2-8bit
+    sha: 999056d2845aeffee54f6df148f94d6fdf229f52
+    verified: '2026-08-26'
+    weights_gb: 704.04
+  - gated: false
+    precision: bf16
+    repo: mlx-community/DeepSeek-V3.2-Speciale-bf16
+    sha: 80b7ce60c255d5b5545bc125053a864d22f61ec3
+    verified: '2026-08-26'
+    weights_gb: 0.0
+diffusion_gemma:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/diffusiongemma-26B-A4B-it-4bit
+    sha: a7a81407613811e8ba63af92ac0d852b809e191f
+    verified: '2026-08-26'
+    weights_gb: 15.41
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/diffusiongemma-26B-A4B-it-6bit
+    sha: 2e7f71aeb20896698fc4ad3ff61ad64feb00a42e
+    verified: '2026-08-26'
+    weights_gb: 20.73
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/diffusiongemma-26B-A4B-it-8bit
+    sha: 7b95e3887078ba56283c24f2578d6e5a06b9d7e8
+    verified: '2026-08-26'
+    weights_gb: 26.05
+  - gated: false
+    precision: bf16
+    repo: mlx-community/diffusiongemma-26B-A4B-it-bf16
+    sha: 2cd36f950eb065c96c80810fb6b859b114cd052d
+    verified: '2026-08-26'
+    weights_gb: 48.1
+florence2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Florence-2-base-ft-4bit
+    sha: cfed5ed3e86826b6aa2902abf6cf2e406fd94504
+    verified: '2026-08-26'
+    weights_gb: 0.15
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Florence-2-base-ft-6bit
+    sha: 2591f02eca3655d8be7fabf0af249586dabe8877
+    verified: '2026-08-26'
+    weights_gb: 0.21
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Florence-2-base-ft-8bit
+    sha: e51b320327086ae32373d899b812584db11836cd
+    verified: '2026-08-26'
+    weights_gb: 0.27
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Florence-2-base-ft-bf16
+    sha: b5c52ec71e1375a09c47050354e8dc7761e0a473
+    verified: '2026-08-26'
+    weights_gb: 0.5
 gemma2:
   variants:
   - gated: false
     precision: 4bit
     repo: mlx-community/gemma-2-2b-it-4bit
     sha: 2c715097ff9c081a6ac1e5cd239e2ac756b5bd99
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 1.37
   - gated: false
     precision: 8bit
     repo: mlx-community/gemma-2-2b-it-8bit
     sha: 021f1f12b13a2dd3d56f75cb830696f2c1fd12ab
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.59
   - gated: false
     precision: fp16
     repo: mlx-community/gemma-2-2b-it-fp16
     sha: a596df5735f02e85b4886db48c3ade255dcae7dd
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 4.87
 gemma3:
   variants:
@@ -24,19 +96,19 @@ gemma3:
     precision: 4bit
     repo: mlx-community/gemma-3-4b-it-4bit
     sha: 93724907d4ed1745d2fe50baadf3b0b01a65abf2
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.17
   - gated: false
     precision: 8bit
     repo: mlx-community/gemma-3-4b-it-8bit
     sha: 61cfff4de4bc5b975437be840d504f07f0424df2
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 5.29
   - gated: false
     precision: bf16
     repo: mlx-community/gemma-3-4b-it-bf16
     sha: 665e04d28e93290c77b7832307606f7e87bb7616
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 9.26
 gemma3_text:
   variants:
@@ -44,25 +116,25 @@ gemma3_text:
     precision: 4bit
     repo: mlx-community/gemma-3-1b-it-4bit
     sha: 2d44e83dc9e80843d22fb941d3d699a0b1351aa6
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 0.68
   - gated: false
     precision: 6bit
     repo: mlx-community/gemma-3-1b-it-6bit
     sha: f07297300de7d945b89e5cd1fff5d667f58c2677
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 0.99
   - gated: false
     precision: 8bit
     repo: mlx-community/gemma-3-1b-it-8bit
     sha: 7b963136f21d05ca8b367c93a9c47a7944ad281a
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 1.29
   - gated: false
     precision: bf16
     repo: mlx-community/gemma-3-1b-it-bf16
     sha: 60444cd9d4be58ce6995614c6551b4d8db047483
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.42
 idefics3:
   variants:
@@ -70,13 +142,13 @@ idefics3:
     precision: 4bit
     repo: mlx-community/Idefics3-8B-Llama3-4bit
     sha: b9a23281b47a4f6da5b00edf1bcfe09695c3125b
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 4.99
   - gated: false
     precision: bf16
     repo: mlx-community/Idefics3-8B-Llama3-bf16
     sha: 8c2a30c48864f3251701b7bde40f601d25535098
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 15.76
 llama:
   variants:
@@ -84,39 +156,47 @@ llama:
     precision: 4bit
     repo: mlx-community/Llama-3.2-3B-Instruct-4bit
     sha: 7f0dc925e0d0afb0322d96f9255cfddf2ba5636e
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 1.68
   - gated: false
     precision: 6bit
     repo: mlx-community/Llama-3.2-3B-Instruct-uncensored-6bit
     sha: 3aba7aeea6314641a6110edd1ef40e49ad941033
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.43
   - gated: false
     precision: 8bit
     repo: mlx-community/Llama-3.2-3B-Instruct-8bit
     sha: ff054899609078569493def2823f9acd2780c0c9
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.18
   - gated: false
     precision: bf16
     repo: mlx-community/Llama-3.2-3B-Instruct-bf16
     sha: 6d88ba43024fef71b10e52e101c7cd4598322601
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 5.98
+mamba:
+  variants:
+  - gated: false
+    precision: bf16
+    repo: mlx-community/mamba-130m-hf-bf16
+    sha: c316871ed060ac4f223b226239c89ad785d37e94
+    verified: '2026-08-26'
+    weights_gb: 0.24
 mistral3:
   variants:
   - gated: false
     precision: 4bit
     repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-4bit
     sha: a7e5f870ea11764696624d73818943fbe281ce50
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 12.35
   - gated: false
     precision: bf16
     repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-bf16
     sha: 77d0bda8dd59b6afec099f8b228cd1383f71a1b2
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 43.91
 molmo:
   variants:
@@ -124,25 +204,25 @@ molmo:
     precision: 4bit
     repo: mlx-community/Molmo-7B-D-0924-4bit
     sha: 5c04b3a418979597b1968e41414ad799c87533e8
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 4.93
   - gated: false
     precision: 6bit
     repo: mlx-community/Molmo-7B-D-0924-6bit
     sha: e4cd7210beaf7b731188345246d0b06b1434b8d3
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 6.67
   - gated: false
     precision: 8bit
     repo: mlx-community/Molmo-7B-D-0924-8bit
     sha: 90a14ed7a230088904c7556fbe6d67b295c33f5f
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 8.42
   - gated: false
     precision: bf16
     repo: mlx-community/Molmo-7B-D-0924-bf16
     sha: d871cbdb87a49b8071003098d6dbfd2a0f5a5b84
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 14.94
 paligemma:
   variants:
@@ -150,7 +230,7 @@ paligemma:
     precision: 8bit
     repo: mlx-community/paligemma-3b-mix-224-8bit
     sha: 83bcde76f63d46fe67819944241b33d6458398df
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.91
 phi3:
   variants:
@@ -158,13 +238,13 @@ phi3:
     precision: 4bit
     repo: mlx-community/Phi-3-mini-4k-instruct-4bit
     sha: 5b3819ed6317784fb20eddeae9bed984f778d0d0
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.0
   - gated: false
     precision: 8bit
     repo: mlx-community/Phi-3-mini-4k-instruct-8bit
     sha: ea4c5f218bb046d5d3b4491cce4ccc5c7ad7efc0
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.78
 qwen2_5_vl:
   variants:
@@ -172,25 +252,25 @@ qwen2_5_vl:
     precision: 4bit
     repo: mlx-community/Qwen2.5-VL-3B-Instruct-4bit
     sha: 46d4cf06a06ffc1a766c214174f9cbed2f45bcab
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.86
   - gated: false
     precision: 6bit
     repo: mlx-community/Qwen2.5-VL-3B-Instruct-6bit
     sha: d10dd99f29e53a503dbafa1fc8bf3009aced7d47
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.0
   - gated: false
     precision: 8bit
     repo: mlx-community/Qwen2.5-VL-3B-Instruct-8bit
     sha: e84150044012b0306fd260706aa336b8d9aff945
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.84
   - gated: false
     precision: bf16
     repo: mlx-community/Qwen2.5-VL-3B-Instruct-bf16
     sha: 33765717028a7f0514ea1d213035cddf4b32c500
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 6.99
 qwen2_vl:
   variants:
@@ -198,19 +278,19 @@ qwen2_vl:
     precision: 4bit
     repo: mlx-community/Qwen2-VL-2B-Instruct-4bit
     sha: 01af461cdb9574acc09084a0ef94e216e142b085
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 1.16
   - gated: false
     precision: 8bit
     repo: mlx-community/Qwen2-VL-2B-Instruct-8bit
     sha: 3829dcc79e0234d7988284618ef996fd4ce7193b
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.19
   - gated: false
     precision: bf16
     repo: mlx-community/Qwen2-VL-2B-Instruct-bf16
     sha: cee7a9498fb037205c026a79bf81b1e57229b451
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 4.11
 qwen3:
   variants:
@@ -218,19 +298,19 @@ qwen3:
     precision: 4bit
     repo: mlx-community/Qwen3-4B-4bit
     sha: 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.11
   - gated: false
     precision: 8bit
     repo: mlx-community/Qwen3-4B-8bit
     sha: 0348ad770d2ae658ca47b0579b2d2c37b20bbcac
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.98
   - gated: false
     precision: bf16
     repo: mlx-community/Qwen3-4B-bf16
     sha: 3639b5214e458512debf270c4fc8840ff6adfac6
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 7.49
 qwen3_5:
   variants:
@@ -238,25 +318,25 @@ qwen3_5:
     precision: 4bit
     repo: mlx-community/Qwen3.5-4B-MLX-4bit
     sha: 32f3e8ecf65426fc3306969496342d504bfa13f3
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.83
   - gated: false
     precision: 6bit
     repo: mlx-community/Qwen3.5-4B-6bit
     sha: fbb1092aa9daef007603ea9273cd24c225a409f1
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.8
   - gated: false
     precision: 8bit
     repo: mlx-community/Qwen3.5-4B-MLX-8bit
     sha: 5319bbbe4f1cbe6c0b3c80f4f7de4f0338c3906d
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 4.78
   - gated: false
     precision: bf16
     repo: mlx-community/Qwen3.5-4B-MLX-bf16
     sha: 475632ded9a95863da4e4b235ab9ccbc5d3cc6bf
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 8.46
 smollm3:
   variants:
@@ -264,23 +344,23 @@ smollm3:
     precision: 4bit
     repo: mlx-community/SmolLM3-3B-4bit
     sha: d3a7e0594d6642dbcfb7d149bed8b0bdf49f95ce
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 1.61
   - gated: false
     precision: 6bit
     repo: mlx-community/SmolLM3-3B-6bit
     sha: d91b32977fb8f523374447c86a1253ddcca31f51
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 2.33
   - gated: false
     precision: 8bit
     repo: mlx-community/SmolLM3-3B-8bit
     sha: 316f091e34982bc6eaf7f6cc1db82bdb77ac2103
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 3.04
   - gated: false
     precision: bf16
     repo: mlx-community/SmolLM3-3B-bf16
     sha: 7bd243308ac4462f1250777fac5c39fd85ab943a
-    verified: '2026-08-25'
+    verified: '2026-08-26'
     weights_gb: 5.73
