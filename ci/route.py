@@ -132,8 +132,21 @@ def classify(paths: Sequence[str], specs: Sequence[dict]) -> dict:
         "unrouted": [],
     }
     comp_paths = {p: s for s in specs for p in s["paths"]}
+
+    def behavioural(path: str) -> bool:
+        # A test or a document inside a model directory does not change what
+        # the model does, so it should not trigger a benchmark of it.
+        name = path.rsplit("/", 1)[-1]
+        return not (
+            name.startswith("test_") or name.endswith(("_test.py", ".md", ".txt"))
+        )
+
     for path in paths:
-        if path.startswith("mlx_vlm/models/") and path.count("/") >= 3:
+        if (
+            path.startswith("mlx_vlm/models/")
+            and path.count("/") >= 3
+            and behavioural(path)
+        ):
             out["models"].add(path.split("/")[2])
         elif path in comp_paths:
             spec = comp_paths[path]
