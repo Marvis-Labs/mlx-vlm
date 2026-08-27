@@ -13,8 +13,8 @@ on:
         required: true
 
 permissions:
-  contents: read
-  pull-requests: write
+  contents: write # push accumulated results to the results-data branch
+  pull-requests: write # upsert the single benchmark comment
 
 concurrency:
   group: bench-${{ github.event.issue.number || inputs.pr }}
