@@ -75,3 +75,24 @@ def test_new_model_undeclared_asks_for_declaration():
     r = R.route(["mlx_vlm/models/gliner2_5/language.py"])
     assert any("parity_models.yaml" in n for n in r["notes"])
     assert r["cells"] == []
+
+
+def test_declared_new_model_routes_to_the_parity_gate(tmp_path, monkeypatch):
+    # A model absent from the matrix has no previous revision to compare, so if
+    # it is declared in parity_models.yaml it must go to the correctness gate:
+    # exactly one parity cell, never the performance path. This guards the
+    # second gate from silently going dead -- which is what happens once every
+    # declared model has been sized into the matrix and reads as "known".
+    decl = tmp_path / "parity_models.yaml"
+    decl.write_text(
+        "zzparitytest:\n  mlx: org/zzparitytest-bf16\n  ref: org/zzparitytest\n"
+    )
+    monkeypatch.setattr(R, "PARITY_MODELS", decl)
+    r = R.route(["mlx_vlm/models/zzparitytest/language.py"])
+    ids = [c["id"] for c in r["cells"]]
+    assert ids == ["zzparitytest.parity"], ids
+    cell = r["cells"][0]
+    assert cell["runs_on"][-1] == "parity", cell["runs_on"]
+    assert cell["component"] == "parity"
+    assert "greedy_agreement" in cell["metrics"]
+    assert not any(c["component"] != "parity" for c in r["cells"])
