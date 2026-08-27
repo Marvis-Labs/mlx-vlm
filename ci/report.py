@@ -78,17 +78,19 @@ def _diverge(
     return "·" * half + "┃" + "█" * n + "·" * (half - n)
 
 
-def _graph(cells: list, results: list) -> list:
-    """A compact before/after graph, shown when one architecture is changed.
+def _graph(cells: list, results: list) -> tuple:
+    """The before/after graph, always drawn so the comment keeps one shape.
 
-    A model-path change touches a single architecture across many configs, so
-    the median change per metric is the headline; the diverging bar makes a
-    regression visible at a glance without reading the table.
+    Bars are flat with a pending marker until a metric has results, then fill
+    with the median change across configs. Returns the lines and the count of
+    metrics whose median is a real regression, so the headline can agree with
+    the graph.
     """
     import statistics
 
+    from ci.verdict import floor_for
+
     by_id = {r["cell"]["id"]: r for r in results}
-    arch = cells[0]["arch"]
     per_metric: dict = {}
     for c in cells:
         r = by_id.get(c["id"])
@@ -97,32 +99,30 @@ def _graph(cells: list, results: list) -> list:
         for m, v in r["delta"].items():
             if isinstance(v, dict) and m in SPEED and v.get("change_pct") is not None:
                 per_metric.setdefault(m, []).append((v["change_pct"], v["significant"]))
-    if not per_metric:
-        return []
+
+    arch = cells[0]["arch"]
     lines = [
         f"### `{arch}` — median change across configs",
         "",
         "```",
         f"{'':<13}worse ◄──────────┃──────────► better",
     ]
+    regressions = 0
     for m in SPEED:
         pts = per_metric.get(m)
         if not pts:
+            lines.append(f"{m:<13}{'·' * 10}┃{'·' * 10}   pending")
             continue
         med = statistics.median([c for c, _ in pts])
         sig = sum(s for _, s in pts) > len(pts) / 2
-        # A median past the metric's floor, in the majority of configs, is a
-        # real regression; mark it so the headline can count it.
-        from ci.verdict import floor_for
-
-        mark = (
-            " 🔴"
-            if sig and med < -floor_for(m)
-            else (" 🟢" if sig and med > floor_for(m) else "")
-        )
+        mark = ""
+        if sig and med < -floor_for(m):
+            mark, regressions = " 🔴", regressions + 1
+        elif sig and med > floor_for(m):
+            mark = " 🟢"
         lines.append(f"{m:<13}{_diverge(med, sig)} {med:+6.1f}%{mark}")
     lines += ["```", ""]
-    return lines
+    return lines, regressions
 
 
 def _tier(cell: dict) -> str:
@@ -133,10 +133,11 @@ def _tier(cell: dict) -> str:
 def render(
     pr: str, cells: list, results: Optional[list] = None, notes: Optional[list] = None
 ) -> str:
+    """One layout, identical from pending to done. A model-path change leads
+    with the graph (bars pending until results arrive); a component change
+    leads with the table. Failures always appear the same way: a red cross in
+    the status column with the reason in the note column."""
     if not cells:
-        # A change that reaches no runnable cell must say why -- an unsized
-        # model, a disabled component, a path nothing maps to -- rather than
-        # leaving a comment stuck at zero of zero.
         why = "; ".join(notes or []) or "no benchmarkable change detected"
         return "\n".join(
             [
@@ -146,8 +147,13 @@ def render(
                 f"<sub>{why}</sub>",
             ]
         )
-    by_id = {r["cell"]["id"]: r for r in (results or [])}
-    rows, regressed, pending = [], 0, 0
+
+    results = results or []
+    by_id = {r["cell"]["id"]: r for r in results}
+    one_arch = len({c["arch"] for c in cells}) == 1
+
+    ok = failed = pending = regressed = 0
+    rows = []
     for c in sorted(cells, key=lambda c: c["id"]):
         r = by_id.get(c["id"])
         if r is None:
@@ -157,12 +163,11 @@ def render(
         d = r.get("device") or {}
         dev = f"{d.get('chip', '?')} {d.get('memory_gb', 0)}GB"
         if not r.get("ok"):
-            rows.append(
-                _row(c["id"], "failed", dev, {}, (r.get("errors") or [""])[0][:48])
-            )
+            reason = (r.get("errors") or ["unknown error"])[0]
+            rows.append(_row(c["id"], "failed", dev, {}, reason[:48]))
+            failed += 1
             continue
         state = _cell_state(r["delta"])
-        regressed += state == "regressed"
         rows.append(
             _row(
                 c["id"],
@@ -172,41 +177,41 @@ def render(
                 "re-run on an idle device" if state == "inconclusive" else "",
             )
         )
+        ok += 1
 
+    # The graph, for a single-architecture change, is the headline and always
+    # drawn. Its regression count drives the status so headline and graph agree.
     graph = []
-    if results and len({c["arch"] for c in cells}) == 1:
-        graph = _graph(cells, results)
+    if one_arch:
+        graph, regressed = _graph(cells, results)
 
-    # For a single-architecture change, headline the shape of the change, not
-    # a single cell. A real model regression moves a metric across most of its
-    # configs; one config moving alone on a noisy device is noise the graph
-    # already shows as flat, so the headline should agree with the graph
-    # rather than counting a lone cell as a regression.
-    if graph:
-        regressed = sum(1 for line in graph if line.strip().endswith("🔴"))
-
+    done = ok + failed
     if pending:
-        head = f"running — {len(cells) - pending} of {len(cells)} done"
+        head = f"running — {done} of {len(cells)} done"
     elif regressed:
         head = f"{regressed} regression(s)"
+    elif failed and not ok:
+        head = "all cells failed"
     else:
         head = "no regression"
 
     lines = [marker(pr), f"**mlx-vlm benchmark** — {head}", ""]
     lines += graph
+    summary = f"{ok} ok · {failed} failed · {pending} pending"
     lines += [
-        "<details><summary>per-cell detail</summary>",
+        f"<details><summary>per-cell detail ({summary})</summary>",
         "",
         "| cell | device | " + " | ".join(["status"] + COLUMNS) + " | note |",
         "|" + "---|" * (len(COLUMNS) + 4),
     ]
     lines += rows
-    lines += ["", "</details>"]
     lines += [
         "",
-        "<sub>Positive is better. 🔴/🟢 mark changes past both two standard "
-        "errors and a floor worth acting on; ⚠️ means the device was too noisy "
-        "to decide.</sub>",
+        "</details>",
+        "",
+        "<sub>Positive is better. 🔴/🟢 mark a change past both two standard "
+        "errors and a floor worth acting on; ⚠️ the device was too noisy to "
+        "decide; ❌ the cell failed (reason in the note).</sub>",
     ]
     return "\n".join(lines)
 
