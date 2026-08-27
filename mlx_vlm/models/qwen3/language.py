@@ -1,3 +1,4 @@
+# benchmark CI dogfood: harmless marker to trigger a model-path run
 from typing import Any, Optional
 
 import mlx.core as mx
