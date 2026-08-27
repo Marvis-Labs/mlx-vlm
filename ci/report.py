@@ -104,8 +104,14 @@ def summarise(body: str) -> str:
     )
 
 
-def find_comment(pr: str, repo: str) -> Optional[str]:
-    out = subprocess.run(
+def comment(pr: str, repo: str, body: Optional[str] = None) -> Optional[str]:
+    """Find our comment, and write it when a body is given.
+
+    One helper rather than three: locating, reading and writing were separate
+    calls that were never used apart, and the split made the retry in an
+    update read like more than a second attempt at the same thing.
+    """
+    ids = subprocess.run(
         [
             "gh",
             "api",
@@ -117,20 +123,17 @@ def find_comment(pr: str, repo: str) -> Optional[str]:
         capture_output=True,
         text=True,
     ).stdout.split()
-    return out[0] if out else None
-
-
-def read_comment(cid: str, repo: str) -> str:
-    return json.loads(
-        subprocess.run(
-            ["gh", "api", f"repos/{repo}/issues/comments/{cid}"],
-            capture_output=True,
-            text=True,
-        ).stdout
-    )["body"]
-
-
-def write_comment(cid: Optional[str], pr: str, repo: str, body: str) -> None:
+    cid = ids[0] if ids else None
+    if body is None:
+        if cid is None:
+            return None
+        return json.loads(
+            subprocess.run(
+                ["gh", "api", f"repos/{repo}/issues/comments/{cid}"],
+                capture_output=True,
+                text=True,
+            ).stdout
+        )["body"]
     if cid:
         subprocess.run(
             [
@@ -151,6 +154,7 @@ def write_comment(cid: Optional[str], pr: str, repo: str, body: str) -> None:
             check=True,
             capture_output=True,
         )
+    return cid
 
 
 def cmd_init(args) -> int:
@@ -168,7 +172,7 @@ def cmd_init(args) -> int:
         "device stays marked, because not tested is not the same as passed.</sub>",
     ]
     body = summarise("\n".join(lines))
-    write_comment(find_comment(args.pr, args.repo), args.pr, args.repo, body)
+    comment(args.pr, args.repo, body)
     return 0
 
 
@@ -195,10 +199,9 @@ def cmd_update(args) -> int:
 
     new = row(cell_id, state, device, result["delta"], note)
     for attempt in range(5):
-        cid = find_comment(args.pr, args.repo)
-        if cid is None:
+        body = comment(args.pr, args.repo)
+        if body is None:
             return 1
-        body = read_comment(cid, args.repo)
         patched = re.sub(
             rf"^\| `{re.escape(cell_id)}` \|.*$",
             new.replace("\\", "\\\\"),
@@ -209,7 +212,7 @@ def cmd_update(args) -> int:
         if patched == body:  # our row was not there
             patched = body.rstrip() + "\n" + new
         try:
-            write_comment(cid, args.pr, args.repo, summarise(patched))
+            comment(args.pr, args.repo, summarise(patched))
             return 0
         except subprocess.CalledProcessError:
             time.sleep(2 * (attempt + 1))  # another device wrote first

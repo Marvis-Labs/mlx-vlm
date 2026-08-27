@@ -326,7 +326,6 @@ def main() -> int:
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--warmup", type=int, default=1)
     ap.add_argument("--timeout", type=int, default=1800)
-    ap.add_argument("--keep", action="store_true", help="leave worktrees in place")
     ap.add_argument("--out", default="result.json")
     args = ap.parse_args()
 
@@ -348,8 +347,7 @@ def main() -> int:
             timeout=args.timeout,
         )
     finally:
-        if not args.keep:
-            release(repo, work)
+        release(repo, work)
 
     base = summarize(gathered["runs"]["base"])
     head = summarize(gathered["runs"]["head"])
