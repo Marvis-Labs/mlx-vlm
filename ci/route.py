@@ -160,15 +160,29 @@ def variants_for(arch: str, models: dict, scenario: str) -> List[Dict[str, Any]]
     for v in sorted(
         entry.get("variants") or [], key=lambda v: v["weights_gb"], reverse=True
     ):
+        # Prefer a size hardware actually measured over the estimate.
+        measured = _measured_peak(arch, v["precision"])
         out.append(
             {
                 "repo": v["repo"],
                 "revision": v.get("sha", ""),
                 "precision": v["precision"],
-                "requires_gb": round(v["weights_gb"] * mult, 1),
+                "requires_gb": measured or round(v["weights_gb"] * mult, 1),
             }
         )
     return out
+
+
+def _measured_peak(arch: str, precision: str):
+    """The measured peak for (arch, precision), if the store has one.
+
+    Best-effort: a missing database just falls back to the estimate."""
+    try:
+        from ci.store import measured_peak
+
+        return measured_peak(arch, precision)
+    except Exception:
+        return None
 
 
 # The ladder a runner advertises in device.sh. A cell is labelled with the tier
