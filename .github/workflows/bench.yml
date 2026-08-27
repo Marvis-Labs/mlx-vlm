@@ -98,7 +98,7 @@ jobs:
         run: |
           test -f "$RUNNER_TEMP/result.json" || \
             echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job produced no result"]}' > "$RUNNER_TEMP/result.json"
-          cd "$HOME/ci-src" && "$HOME/ci-venv/bin/python" -m ci.report \
+          cd "$HOME/ci-harness" && "$HOME/ci-venv/bin/python" -m ci.report \
             --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
             update --result "$RUNNER_TEMP/result.json"
         env:

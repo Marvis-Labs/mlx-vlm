@@ -175,9 +175,18 @@ def pick_variant(
     return None
 
 
+# Must match the ladder a runner advertises in device.sh. A cell asks for the
+# smallest tier that holds it, and every runner at or above that tier carries
+# the matching label, so the cell is not pinned to one machine size.
+TIERS = [16, 32, 48, 64, 96, 128, 192, 256, 512]
+
+
 def label_for(requires_gb: float, caps: Sequence[int]) -> Optional[List[str]]:
-    fits = [c for c in sorted(caps) if c * USABLE_FRACTION >= requires_gb]
-    return ["self-hosted", "macos", "arm64", f"mem-{fits[0]}"] if fits else None
+    biggest = max(caps) * USABLE_FRACTION if caps else 0
+    if requires_gb > biggest:
+        return None
+    tier = next((t for t in TIERS if t * USABLE_FRACTION >= requires_gb), None)
+    return ["self-hosted", "macos", "arm64", f"mem-{tier}"] if tier else None
 
 
 def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cell]:

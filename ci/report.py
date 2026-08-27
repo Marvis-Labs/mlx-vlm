@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
-import subprocess
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -104,56 +106,37 @@ def summarise(body: str) -> str:
     )
 
 
-def comment(pr: str, repo: str, body: Optional[str] = None) -> Optional[str]:
-    """Find our comment, and write it when a body is given.
+def _api(method: str, path: str, body: Optional[dict] = None) -> Any:
+    """A GitHub API call with the token from the environment.
 
-    One helper rather than three: locating, reading and writing were separate
-    calls that were never used apart, and the split made the retry in an
-    update read like more than a second attempt at the same thing.
+    Direct HTTP rather than the gh CLI: gh is not installed on every runner,
+    and one urllib call removes a dependency the reporter should not need.
     """
-    ids = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{repo}/issues/{pr}/comments",
-            "--paginate",
-            "--jq",
-            f'.[] | select(.body | contains("{marker(pr)}")) | .id',
-        ],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
-    cid = ids[0] if ids else None
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
+    req = urllib.request.Request(
+        "https://api.github.com" + path,
+        method=method,
+        data=json.dumps(body).encode() if body else None,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req) as r:
+        return json.load(r) if r.length != 0 else None
+
+
+def comment(pr: str, repo: str, body: Optional[str] = None) -> Optional[str]:
+    """Find our comment by its marker, and write it when a body is given."""
+    found = _api("GET", f"/repos/{repo}/issues/{pr}/comments?per_page=100")
+    cid = next((c["id"] for c in (found or []) if marker(pr) in c["body"]), None)
     if body is None:
-        if cid is None:
-            return None
-        return json.loads(
-            subprocess.run(
-                ["gh", "api", f"repos/{repo}/issues/comments/{cid}"],
-                capture_output=True,
-                text=True,
-            ).stdout
-        )["body"]
+        return next((c["body"] for c in (found or []) if c["id"] == cid), None)
     if cid:
-        subprocess.run(
-            [
-                "gh",
-                "api",
-                "--method",
-                "PATCH",
-                f"repos/{repo}/issues/comments/{cid}",
-                "-f",
-                f"body={body}",
-            ],
-            check=True,
-            capture_output=True,
-        )
+        _api("PATCH", f"/repos/{repo}/issues/comments/{cid}", {"body": body})
     else:
-        subprocess.run(
-            ["gh", "pr", "comment", pr, "--repo", repo, "--body", body],
-            check=True,
-            capture_output=True,
-        )
+        _api("POST", f"/repos/{repo}/issues/{pr}/comments", {"body": body})
     return cid
 
 
@@ -214,8 +197,8 @@ def cmd_update(args) -> int:
         try:
             comment(args.pr, args.repo, summarise(patched))
             return 0
-        except subprocess.CalledProcessError:
-            time.sleep(2 * (attempt + 1))  # another device wrote first
+        except urllib.error.HTTPError:
+            time.sleep(2 * (attempt + 1))  # another device wrote first, retry
     return 1
 
 
