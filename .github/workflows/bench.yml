@@ -61,9 +61,7 @@ jobs:
         id: r
         run: |
           python -m ci.route --base "${{ steps.pr.outputs.base }}" --head "${{ steps.pr.outputs.head }}" \
-            --gh-repo ${{ github.repository }} --out "$GITHUB_OUTPUT" --write . > /dev/null
-        env:
-          GH_TOKEN: ${{ github.token }}
+            --out "$GITHUB_OUTPUT" --write . > /dev/null
 
       # Posted before anything runs: a cell that never reaches a device stays
       # visibly pending rather than absent.

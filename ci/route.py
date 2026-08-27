@@ -76,32 +76,19 @@ def load_components(*, enabled_only: bool = True) -> List[dict]:
     return out
 
 
-def fleet(repo: Optional[str]) -> List[int]:
-    """Memory capacities advertised by registered runners, largest first.
+def fleet(repo: Optional[str] = None) -> List[int]:
+    """Runner memory sizes, largest first, read from a committed file.
 
-    The router needs to know what hardware exists before it can decide which
-    precision to emit. With no fleet reachable it returns nothing, and every
-    cell is reported as unschedulable rather than silently dropped.
+    Not discovered from the API: listing self-hosted runners needs an admin
+    token the workflow has no way to hold, and the fleet changes rarely. A
+    committed list is simpler, needs no credentials, and shows up in review.
     """
-    if not repo:
-        return []
-    try:
-        raw = subprocess.run(
-            [
-                "gh",
-                "api",
-                f"repos/{repo}/actions/runners",
-                "--jq",
-                '.runners[] | select(.status=="online") | .labels[].name',
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=True,
-        ).stdout
-    except Exception:
-        return []
-    caps = {int(l[4:]) for l in raw.split() if l.startswith("mem-") and l[4:].isdigit()}
+    path = Path(__file__).resolve().parent / "fleet.txt"
+    caps = []
+    for line in path.read_text().splitlines():
+        line = line.split("#")[0].strip()
+        if line.isdigit():
+            caps.append(int(line))
     return sorted(caps, reverse=True)
 
 
@@ -227,23 +214,13 @@ def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cel
 
 def route(
     paths: Sequence[str],
-    gh_repo: Optional[str] = None,
     caps: Optional[Sequence[int]] = None,
 ) -> dict:
     matrix = json.loads(MATRIX.read_text())
     rows = matrix.get("architectures", matrix)
     models = yaml.safe_load(MODELS.read_text())
     specs = load_components()
-    caps = caps if caps is not None else fleet(gh_repo)
-    if not caps:
-        # No reachable fleet means every cell would be dropped for want of a
-        # matching runner label, which reads as "nothing to test" when the
-        # truth is "could not ask what runs here". Say so loudly.
-        return {
-            "cells": [],
-            "fleet_gb": [],
-            "notes": ["no runners found: set GH_TOKEN or register a runner"],
-        }
+    caps = caps if caps is not None else fleet()
     buckets = classify(paths, specs)
 
     cells: Dict[str, Cell] = {}
@@ -320,9 +297,6 @@ def main() -> None:
     ap.add_argument("--head")
     ap.add_argument("--paths", nargs="*", help="explicit paths instead of a diff")
     ap.add_argument(
-        "--gh-repo", default=None, help="query this repo's runners for the fleet"
-    )
-    ap.add_argument(
         "--fleet", type=int, nargs="*", help="override fleet capacities in GB"
     )
     ap.add_argument("--out", help="append cells=<json> for GITHUB_OUTPUT")
@@ -331,7 +305,7 @@ def main() -> None:
 
     paths = args.paths or changed_paths(args.base, args.head)
     caps = sorted(args.fleet, reverse=True) if args.fleet is not None else None
-    result = route(paths, args.gh_repo, caps)
+    result = route(paths, caps=caps)
 
     if args.out:
         with open(args.out, "a") as fh:
