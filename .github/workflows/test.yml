@@ -1,0 +1,20 @@
+name: ci-tests
+
+# The harness's own tests, on the cloud. Pure and offline: no runner, no model
+# weights. Guards the router, the verdict and the report from silent drift.
+on:
+  push:
+    paths: ["ci/**"]
+  pull_request:
+    paths: ["ci/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pytest pyyaml
+      - run: python -m pytest ci/tests -q

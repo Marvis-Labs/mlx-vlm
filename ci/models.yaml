@@ -1,0 +1,1686 @@
+apertus:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Apertus-8B-Instruct-2509-4bit
+    sha: c5e6ae2e52c4149f36cb8e47b7ab1489ef885fed
+    verified: '2026-08-27'
+    weights_gb: 4.22
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Apertus-8B-Instruct-2509-6bit
+    sha: a2bfd2b25c841b6fc6e920e883a88619be3d6012
+    verified: '2026-08-27'
+    weights_gb: 6.09
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Apertus-8B-Instruct-2509-8bit
+    sha: fa890d8c0f9a9e35630116daa2cebe72a453c882
+    verified: '2026-08-27'
+    weights_gb: 7.97
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Apertus-8B-Instruct-2509-bf16
+    sha: e4fb47cbea550af82a356bf3bcfade53ea4c06a1
+    verified: '2026-08-27'
+    weights_gb: 15.0
+bitnet:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/bitnet-b1.58-2B-4T-4bit
+    sha: f4c3737ce9cd34ffe48a01647e779a68f97f08b1
+    verified: '2026-08-27'
+    weights_gb: 0.66
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/bitnet-b1.58-2B-4T-6bit
+    sha: 9684c55a642c4ff3fbd7c87c99f66456aca11422
+    verified: '2026-08-27'
+    weights_gb: 0.73
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/bitnet-b1.58-2B-4T-8bit
+    sha: 32ad2caa1b6206f6b1896c7e7c6ba58612fa84f0
+    verified: '2026-08-27'
+    weights_gb: 0.81
+cohere:
+  variants:
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/cohere-transcribe-03-2026-mlx-8bit
+    sha: a0acb7f93cd32d82c4fbf801b6d8fb39d20c509f
+    verified: '2026-08-27'
+    weights_gb: 3.85
+dbrx:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/dbrx-instruct-4bit
+    sha: f28fc558fb473c9439263098c245a08a8f580761
+    verified: '2026-08-27'
+    weights_gb: 69.77
+deepseek_v2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-V2.5-1210-4bit
+    sha: 3b6ce93c9c4cb6d390377d183f66aaf5e3b4f507
+    verified: '2026-08-27'
+    weights_gb: 123.56
+deepseek_v3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-V3.1-4bit
+    sha: 1634da2179770a14024405afa6d1e0ce70a71ff4
+    verified: '2026-08-27'
+    weights_gb: 351.67
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/DeepSeek-V3.1-8bit
+    sha: cd6c63546a6d33a8cc75158dc60d1746787306ac
+    verified: '2026-08-27'
+    weights_gb: 664.1
+  - gated: false
+    precision: bf16
+    repo: mlx-community/DeepSeek-V3.2_bf16
+    sha: 038e65a642e1a258d68bda4dc845091f32f97273
+    verified: '2026-08-27'
+    weights_gb: 1251.47
+deepseek_v32:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-V3.2-Speciale-4bit
+    sha: 0f9e4abee22caf0ee37d3a3d5e4694885e041afa
+    verified: '2026-08-27'
+    weights_gb: 352.12
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/DeepSeek-V3.2-8bit
+    sha: 999056d2845aeffee54f6df148f94d6fdf229f52
+    verified: '2026-08-27'
+    weights_gb: 704.04
+deepseek_v4:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-V4-Flash-4bit
+    sha: 38c0bd20a6fba70f22c5ee2940ec0092b36ab936
+    verified: '2026-08-27'
+    weights_gb: 141.08
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/DeepSeek-V4-Pro-Qwen3.5-9B-6bit
+    sha: abaad272548e4a51fdd9d4bbccd46effe4d60c3e
+    verified: '2026-08-27'
+    weights_gb: 7.63
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/DeepSeek-V4-Pro-8bit
+    sha: 798dce46fbb52f3248e73cc9ff20eb4a9a4f9f37
+    verified: '2026-08-27'
+    weights_gb: 791.33
+  - gated: false
+    precision: bf16
+    repo: mlx-community/DeepSeek-V4-Pro-Qwen3.5-9B-bf16
+    sha: d260920b984a466a72dc811c5238747dc4cf1cfb
+    verified: '2026-08-27'
+    weights_gb: 17.53
+deepseekocr:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-OCR-4bit
+    sha: 4958b6b0d46d7dc3cf27556989dab659996ea426
+    verified: '2026-08-27'
+    weights_gb: 2.28
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/DeepSeek-OCR-2-6bit
+    sha: 5b4b299802816d7e3173f3d970fb413471aff82a
+    verified: '2026-08-27'
+    weights_gb: 3.07
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/DeepSeek-OCR-8bit
+    sha: 0e2b0e49226b5d9efc4799f4c5b1a5f423a90178
+    verified: '2026-08-27'
+    weights_gb: 3.65
+  - gated: false
+    precision: bf16
+    repo: mlx-community/DeepSeek-OCR-2-bf16
+    sha: 9946f9ac306378a3e6a86cad7d7f8be8e536f092
+    verified: '2026-08-27'
+    weights_gb: 6.31
+deepseekocr_2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/DeepSeek-OCR-2-4bit
+    sha: 378131e9d1a6fb1fa2e130d2e81e46ada0a2c10d
+    verified: '2026-08-27'
+    weights_gb: 2.38
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/DeepSeek-OCR-2-6bit
+    sha: 5b4b299802816d7e3173f3d970fb413471aff82a
+    verified: '2026-08-27'
+    weights_gb: 3.07
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/DeepSeek-OCR-2-8bit
+    sha: 17e005594620469a9aca994d21834f9886cc0b69
+    verified: '2026-08-27'
+    weights_gb: 3.75
+  - gated: false
+    precision: bf16
+    repo: mlx-community/DeepSeek-OCR-2-bf16
+    sha: 9946f9ac306378a3e6a86cad7d7f8be8e536f092
+    verified: '2026-08-27'
+    weights_gb: 6.31
+diffusion_gemma:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/diffusiongemma-26B-A4B-it-4bit
+    sha: a7a81407613811e8ba63af92ac0d852b809e191f
+    verified: '2026-08-27'
+    weights_gb: 15.41
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/diffusiongemma-26B-A4B-it-6bit
+    sha: 2e7f71aeb20896698fc4ad3ff61ad64feb00a42e
+    verified: '2026-08-27'
+    weights_gb: 20.73
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/diffusiongemma-26B-A4B-it-8bit
+    sha: 7b95e3887078ba56283c24f2578d6e5a06b9d7e8
+    verified: '2026-08-27'
+    weights_gb: 26.05
+  - gated: false
+    precision: bf16
+    repo: mlx-community/diffusiongemma-26B-A4B-it-bf16
+    sha: 2cd36f950eb065c96c80810fb6b859b114cd052d
+    verified: '2026-08-27'
+    weights_gb: 48.1
+dots_ocr:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/dots.ocr-4bit
+    sha: 4ab989e403d4f8cafa5fdeede5b2290a706c2405
+    verified: '2026-08-27'
+    weights_gb: 3.28
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/dots.ocr-6bit
+    sha: ebc8af9d1da37c267567debc052e2d10ca930a18
+    verified: '2026-08-27'
+    weights_gb: 3.7
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/dots.ocr-8bit
+    sha: 40801dad7b2a24e5fe4f8fd8f4541708885d0454
+    verified: '2026-08-27'
+    weights_gb: 4.11
+  - gated: false
+    precision: bf16
+    repo: mlx-community/dots.ocr-bf16
+    sha: 98b9cda3930eb69d2b887781685f3f393d6f141e
+    verified: '2026-08-27'
+    weights_gb: 5.66
+exaone:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/EXAONE-3.5-2.4B-Instruct-4bit
+    sha: 670d9b91a10462a7983b1f59d31b7b546ae52e25
+    verified: '2026-08-27'
+    weights_gb: 1.26
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/exaone-4.0-1.2b-8bit
+    sha: 12dc746fd5cb22bbbefb6d2b9e446ddf0f853622
+    verified: '2026-08-27'
+    weights_gb: 1.27
+  - gated: false
+    precision: bf16
+    repo: mlx-community/EXAONE-3.5-32B-Instruct-bf16
+    sha: 6c22b7e09db0d49da7dc9a6d55e0673ef99c603a
+    verified: '2026-08-27'
+    weights_gb: 59.61
+exaone4:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/exaone-4.0-1.2b-4bit
+    sha: 6dbf5f06dcb9526a7c328f692b1e08d35e17bff2
+    verified: '2026-08-27'
+    weights_gb: 0.67
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/exaone-4.0-1.2b-8bit
+    sha: 12dc746fd5cb22bbbefb6d2b9e446ddf0f853622
+    verified: '2026-08-27'
+    weights_gb: 1.27
+  - gated: false
+    precision: bf16
+    repo: mlx-community/EXAONE-4.0-32B-bf16
+    sha: f8014cc4585827eebb4bb72c197de1ce0907a3ed
+    verified: '2026-08-27'
+    weights_gb: 59.61
+falcon_h1:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Falcon-H1R-7B-4bit
+    sha: 0e3ed6b0e4de5581f22500d2cfdc58e6f37568c6
+    verified: '2026-08-27'
+    weights_gb: 3.98
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Falcon-H1-Tiny-Coder-90M-8bit
+    sha: 6bbc98008e536df1c07cbbf976fb7cb473c95486
+    verified: '2026-08-27'
+    weights_gb: 0.09
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Falcon-H1R-7B-bf16
+    sha: c5c930b7ba83cc080f2ca22ef250ea24c441abec
+    verified: '2026-08-27'
+    weights_gb: 14.13
+falcon_ocr:
+  variants:
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Falcon-OCR-bf16
+    sha: 28ccccd3f7cf68a266547ae035b3e0af544cf153
+    verified: '2026-08-27'
+    weights_gb: 0.5
+florence2:
+  needs:
+  - torch
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Florence-2-base-ft-4bit
+    sha: cfed5ed3e86826b6aa2902abf6cf2e406fd94504
+    verified: '2026-08-27'
+    weights_gb: 0.15
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Florence-2-base-ft-6bit
+    sha: 2591f02eca3655d8be7fabf0af249586dabe8877
+    verified: '2026-08-27'
+    weights_gb: 0.21
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Florence-2-base-ft-8bit
+    sha: e51b320327086ae32373d899b812584db11836cd
+    verified: '2026-08-27'
+    weights_gb: 0.27
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Florence-2-base-ft-bf16
+    sha: b5c52ec71e1375a09c47050354e8dc7761e0a473
+    verified: '2026-08-27'
+    weights_gb: 0.5
+gemma2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gemma-2-2b-it-4bit
+    sha: 2c715097ff9c081a6ac1e5cd239e2ac756b5bd99
+    verified: '2026-08-27'
+    weights_gb: 1.37
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-2-2b-it-8bit
+    sha: 021f1f12b13a2dd3d56f75cb830696f2c1fd12ab
+    verified: '2026-08-27'
+    weights_gb: 2.59
+  - gated: false
+    precision: fp16
+    repo: mlx-community/gemma-2-2b-it-fp16
+    sha: a596df5735f02e85b4886db48c3ade255dcae7dd
+    verified: '2026-08-27'
+    weights_gb: 4.87
+gemma3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gemma-3-4b-it-4bit
+    sha: 93724907d4ed1745d2fe50baadf3b0b01a65abf2
+    verified: '2026-08-27'
+    weights_gb: 3.17
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-3-4b-it-8bit
+    sha: 61cfff4de4bc5b975437be840d504f07f0424df2
+    verified: '2026-08-27'
+    weights_gb: 5.29
+  - gated: false
+    precision: bf16
+    repo: mlx-community/gemma-3-4b-it-bf16
+    sha: 665e04d28e93290c77b7832307606f7e87bb7616
+    verified: '2026-08-27'
+    weights_gb: 9.26
+gemma3_text:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gemma-3-1b-it-4bit
+    sha: 2d44e83dc9e80843d22fb941d3d699a0b1351aa6
+    verified: '2026-08-27'
+    weights_gb: 0.68
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/gemma-3-1b-it-6bit
+    sha: f07297300de7d945b89e5cd1fff5d667f58c2677
+    verified: '2026-08-27'
+    weights_gb: 0.99
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-3-1b-it-8bit
+    sha: 7b963136f21d05ca8b367c93a9c47a7944ad281a
+    verified: '2026-08-27'
+    weights_gb: 1.29
+  - gated: false
+    precision: bf16
+    repo: mlx-community/gemma-3-1b-it-bf16
+    sha: 60444cd9d4be58ce6995614c6551b4d8db047483
+    verified: '2026-08-27'
+    weights_gb: 2.42
+gemma4:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gemma-4-e2b-it-4bit
+    sha: 238767527555cb75a05732a84dff5d6ba0dd6809
+    verified: '2026-08-27'
+    weights_gb: 3.31
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-4-12B-it-8bit
+    sha: 200bb6db075e137a4deb08838865ac4ddb86292e
+    verified: '2026-08-27'
+    weights_gb: 11.84
+gemma4_text:
+  variants:
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gemma-4-text-26b-a4b-it-8bit
+    sha: b78a5672015c1b8e0a5b9372fa76a4c18e8e38ac
+    verified: '2026-08-27'
+    weights_gb: 24.97
+glm4:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/GLM-4.7-Flash-4bit
+    sha: 1454cffb1a21737e162f508e5bc70be9def89276
+    verified: '2026-08-27'
+    weights_gb: 15.7
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/GLM-4.7-Flash-6bit
+    sha: 6a4b4e620a3a7c7759227d8905cf8293ab28bc54
+    verified: '2026-08-27'
+    weights_gb: 22.67
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/GLM-4.7-Flash-8bit
+    sha: b3a202c6df57f7297fb351486938952352dcd25a
+    verified: '2026-08-27'
+    weights_gb: 29.64
+  - gated: false
+    precision: bf16
+    repo: mlx-community/GLM-4.5-Air-bf16
+    sha: 1753b3269c9e3cb62ba3cbaf0ab6433d69784592
+    verified: '2026-08-27'
+    weights_gb: 199.03
+glm_ocr:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/GLM-OCR-4bit
+    sha: 97f587506984cc92fa69b2694b4128e53db6b081
+    verified: '2026-08-27'
+    weights_gb: 1.16
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/GLM-OCR-6bit
+    sha: ec246daa6a3346de39b60e59a4932f913ca82ae8
+    verified: '2026-08-27'
+    weights_gb: 1.32
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/GLM-OCR-8bit
+    sha: 350a346bea43468bcd202abb833f7d32e9a17237
+    verified: '2026-08-27'
+    weights_gb: 1.48
+  - gated: false
+    precision: bf16
+    repo: mlx-community/GLM-OCR-bf16
+    sha: 24f15402e83baa0a80eeeaecf5480e172abc6f2e
+    verified: '2026-08-27'
+    weights_gb: 2.06
+gpt_oss:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/gpt-oss-20b-OptiQ-4bit
+    sha: 7f962b6de641701a4403ccc910055ac54ae7e72e
+    verified: '2026-08-27'
+    weights_gb: 10.83
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/gpt-oss-20b-Ja-Fin-Thinking-MLX-8bit
+    sha: 2df562b326a661e88bc002eff0a119b58b536a85
+    verified: '2026-08-27'
+    weights_gb: 20.7
+  - gated: false
+    precision: bf16
+    repo: mlx-community/gpt-oss-120b-mxfp4-bf16
+    sha: a0ed0ff7a7000de59ae4af80cd23bb23a9614fbe
+    verified: '2026-08-27'
+    weights_gb: 60.77
+granite:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/granite-4.0-h-tiny-4bit
+    sha: 02c8783da0cb171942e30a7dde8acce11fe82e0d
+    verified: '2026-08-27'
+    weights_gb: 3.64
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/granite-4.0-h-1b-6bit
+    sha: 88ab6804712f78305ef36ed93d73ab5065591fbf
+    verified: '2026-08-27'
+    weights_gb: 1.11
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/granite-4.1-8b-8bit
+    sha: d1969afe7eafafefb9e50b259d20a07ba4e8d7d4
+    verified: '2026-08-27'
+    weights_gb: 8.78
+  - gated: false
+    precision: bf16
+    repo: mlx-community/granite-4.1-3b-bf16
+    sha: dda2bf221f763232e1135349533dddb3464c00d6
+    verified: '2026-08-27'
+    weights_gb: 6.34
+granite_vision:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/granite-vision-3.2-2b-4bit
+    sha: 351831ab5218b1f66bbfdfd57bd8f20d81ce8baf
+    verified: '2026-08-27'
+    weights_gb: 2.19
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/granite-vision-3.2-2b-6bit
+    sha: 4c4248aa3ef9eec19a0d71c7087f6ca3cd689075
+    verified: '2026-08-27'
+    weights_gb: 2.8
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/granite-vision-3.2-2b-8bit
+    sha: d82238994992abb4445ca5339adcea33f8aa9bd0
+    verified: '2026-08-27'
+    weights_gb: 3.42
+  - gated: false
+    precision: bf16
+    repo: mlx-community/granite-vision-3.2-2b-bf16
+    sha: 93ae556e539a3889fe83b2198084256ea35b2a2d
+    verified: '2026-08-27'
+    weights_gb: 5.73
+helium:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/helium-1-preview-2b-4bit
+    sha: a5f23ff236857e7bea6442dd4c089a91cbbad3e9
+    verified: '2026-08-27'
+    weights_gb: 1.14
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/helium-1-preview-2b-8bit
+    sha: b2672f9e30b6158fd769616d1f7876b503fddab1
+    verified: '2026-08-27'
+    weights_gb: 2.15
+idefics2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/idefics2-8b-chatty-4bit
+    sha: 6a69aad7576f976ffb5015dde0ed3f68f336c623
+    verified: '2026-08-27'
+    weights_gb: 4.42
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/idefics2-8b-chatty-8bit
+    sha: 862279a64c18276e0b4f0e2cb97cd917604de32a
+    verified: '2026-08-27'
+    weights_gb: 8.34
+idefics3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Idefics3-8B-Llama3-4bit
+    sha: b9a23281b47a4f6da5b00edf1bcfe09695c3125b
+    verified: '2026-08-27'
+    weights_gb: 4.99
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Idefics3-8B-Llama3-bf16
+    sha: 8c2a30c48864f3251701b7bde40f601d25535098
+    verified: '2026-08-27'
+    weights_gb: 15.76
+inkling:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Inkling-mlx-4bit
+    sha: 1f2ad6fef3b19956d162c7995b4e63abfeaad565
+    verified: '2026-08-27'
+    weights_gb: 1033.08
+internlm2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/internlm2_5-7b-chat-4bit
+    sha: d12097a867721978142a6048399f470a3d18beee
+    verified: '2026-08-27'
+    weights_gb: 4.05
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/internlm2_5-7b-chat-8bit
+    sha: 0ec94d61d30ab161b49c69f9bf92ec2b9986d234
+    verified: '2026-08-27'
+    weights_gb: 7.66
+internlm3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/internlm3-8b-instruct-4bit
+    sha: 66da2a5dfae1ede3e02d1de071b9238c15dbaa0f
+    verified: '2026-08-27'
+    weights_gb: 4.61
+kimi_linear:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit
+    sha: 919175d75427f1c10cfc17e7254b53295edddf72
+    verified: '2026-08-27'
+    weights_gb: 25.74
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Kimi-Linear-48B-A3B-Instruct-6bit
+    sha: 9df747a373cdc436838009cc0d77ab3ae1d165bf
+    verified: '2026-08-27'
+    weights_gb: 37.18
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Kimi-Linear-48B-A3B-Instruct-8bit
+    sha: 553a7a5673491df2b2d38f7380188a9d8e9f9a66
+    verified: '2026-08-27'
+    weights_gb: 48.61
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Kimi-Linear-48B-A3B-Instruct-mlx-bf16
+    sha: c318f0205e0ccfe7d1c509283052e6286d683aaf
+    verified: '2026-08-27'
+    weights_gb: 91.5
+kimi_vl:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Kimi-VL-A3B-Thinking-4bit
+    sha: c4f541be1b20f835366dab8304f37ef6a8a65e7b
+    verified: '2026-08-27'
+    weights_gb: 9.16
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Kimi-VL-A3B-Thinking-2506-6bit
+    sha: 4b3b11ce0874c36a99e13e17e355049042f8620a
+    verified: '2026-08-27'
+    weights_gb: 12.88
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Kimi-VL-A3B-Thinking-8bit
+    sha: 85daf3dc2490c0f824143338f08ba45f475c9ce4
+    verified: '2026-08-27'
+    weights_gb: 16.6
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Kimi-VL-A3B-Thinking-2506-bf16
+    sha: fb254434d4026bee7aa840dea1c5d59feea8fd48
+    verified: '2026-08-27'
+    weights_gb: 30.56
+laguna:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Laguna-XS-2.1-4bit
+    sha: c42e0a8f8d504ceacde015a535dcb286d65c8799
+    verified: '2026-08-27'
+    weights_gb: 17.53
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Laguna-XS-2.1-8bit
+    sha: b4d85d00f3aaf9f91364e9773548776fcf3885ad
+    verified: '2026-08-27'
+    weights_gb: 33.09
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Laguna-XS-2.1-bf16
+    sha: 72d2560f462e10b032c90076cd08197e134fd7db
+    verified: '2026-08-27'
+    weights_gb: 62.29
+lfm2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/LFM2.5-1.2B-Instruct-4bit
+    sha: dee2f8a2786e6648bb644a7ca40652842490034b
+    verified: '2026-08-27'
+    weights_gb: 0.61
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/LFM2.5-VL-450M-6bit
+    sha: 9da6e34d06691a7c53943f4a21dc044b48c38cec
+    verified: '2026-08-27'
+    weights_gb: 0.43
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/LFM2.5-2.6B-8bit
+    sha: 1f4efae857731d7fe8bfd8da58d12d8509e6ff30
+    verified: '2026-08-27'
+    weights_gb: 2.67
+  - gated: false
+    precision: bf16
+    repo: mlx-community/LFM2.5-2.6B-bf16
+    sha: 1842540dee9ea1de605a70bd9d7a5e532c064113
+    verified: '2026-08-27'
+    weights_gb: 5.02
+lfm2_vl:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/LFM2-VL-1.6B-4bit
+    sha: be587c055231b0905e846f2c99803dd6d7f33a7a
+    verified: '2026-08-27'
+    weights_gb: 1.36
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/LFM2-VL-1.6B-6bit
+    sha: 39b9604d92d68bde9719371ac35ecaf77fb74904
+    verified: '2026-08-27'
+    weights_gb: 1.64
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/LFM2-VL-450M-8bit
+    sha: 2422c0686f1f1c6267640bc1f069ff4e8b06b8d0
+    verified: '2026-08-27'
+    weights_gb: 0.52
+  - gated: false
+    precision: bf16
+    repo: mlx-community/LFM2-VL-450M-bf16
+    sha: d548b2abeeb2d97bbc1f254421b35eafa0283eda
+    verified: '2026-08-27'
+    weights_gb: 0.84
+llama:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Llama-3.2-3B-Instruct-4bit
+    sha: 7f0dc925e0d0afb0322d96f9255cfddf2ba5636e
+    verified: '2026-08-27'
+    weights_gb: 1.68
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Llama-3.2-3B-Instruct-uncensored-6bit
+    sha: 3aba7aeea6314641a6110edd1ef40e49ad941033
+    verified: '2026-08-27'
+    weights_gb: 2.43
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Llama-3.2-3B-Instruct-8bit
+    sha: ff054899609078569493def2823f9acd2780c0c9
+    verified: '2026-08-27'
+    weights_gb: 3.18
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Llama-3.2-3B-Instruct-bf16
+    sha: 6d88ba43024fef71b10e52e101c7cd4598322601
+    verified: '2026-08-27'
+    weights_gb: 5.98
+llama4:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Llama-4-Scout-17B-16E-Instruct-4bit
+    sha: f89d3ebf0bb8f9b512d6c732aff83937deb55c3e
+    verified: '2026-08-27'
+    weights_gb: 56.92
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Llama-4-Scout-17B-16E-Instruct-6bit
+    sha: affc8fa28105edb203d219ff98f5737aef43cd35
+    verified: '2026-08-27'
+    weights_gb: 82.21
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Llama-4-Scout-17B-16E-Instruct-8bit
+    sha: 71083c312662cf2c4665cc72702e0d7f59dc1a35
+    verified: '2026-08-27'
+    weights_gb: 107.51
+llava:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/llava-1.5-7b-4bit
+    sha: 9c5dd50281d1abcf34ed128b5bf0013997f2af3f
+    verified: '2026-08-27'
+    weights_gb: 3.7
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/llava-interleave-qwen-7b-6bit
+    sha: e64291c49d91a63e7accb9eb318e5caf2d81915d
+    verified: '2026-08-27'
+    weights_gb: 6.6
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/llava-v1.6-mistral-7b-8bit
+    sha: b8df5f329d95a7abe6429ed46093f9b84e8e6396
+    verified: '2026-08-27'
+    weights_gb: 7.49
+  - gated: false
+    precision: bf16
+    repo: mlx-community/llava-interleave-qwen-7b-bf16
+    sha: 941145894f4d5ffe9ba7402cc7082553458c1405
+    verified: '2026-08-27'
+    weights_gb: 15.16
+locateanything:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/LocateAnything-3B-4bit
+    sha: e4517cd171dfa6c5a376a50c5ef8b73949aea0b7
+    verified: '2026-08-27'
+    weights_gb: 2.76
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/LocateAnything-3B-8bit
+    sha: 9c437452663a16da5056755fb44790f1e1a0d815
+    verified: '2026-08-27'
+    weights_gb: 3.86
+  - gated: false
+    precision: bf16
+    repo: mlx-community/LocateAnything-3B-bf16
+    sha: b409aade8f6aae828a0c8e0f4190bf28eb8f0244
+    verified: '2026-08-27'
+    weights_gb: 6.55
+longcat_flash:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/LongCat-Flash-Lite-4bit
+    sha: 0435b3bca4418830335d784317fe7f67f8383253
+    verified: '2026-08-27'
+    weights_gb: 35.93
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/LongCat-Flash-Lite-6bit
+    sha: 697fa5c907fec13938d8573317ea388576dc1266
+    verified: '2026-08-27'
+    weights_gb: 51.89
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/LongCat-Flash-Lite-8bit
+    sha: ad91ece142e56d126cbadbd1c93eb5dd31bafcae
+    verified: '2026-08-27'
+    weights_gb: 67.84
+  - gated: false
+    precision: bf16
+    repo: mlx-community/LongCat-Flash-Chat-bf16
+    sha: 15a4861b928c106ea9cbb501d2d6ffad92221e91
+    verified: '2026-08-27'
+    weights_gb: 1044.57
+mamba:
+  variants:
+  - gated: false
+    precision: bf16
+    repo: mlx-community/mamba-130m-hf-bf16
+    sha: c316871ed060ac4f223b226239c89ad785d37e94
+    verified: '2026-08-27'
+    weights_gb: 0.24
+mamba2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/mamba2-130m-4bit
+    sha: 2e35197716f5b380494b2223831129d220b370a7
+    verified: '2026-08-27'
+    weights_gb: 0.07
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/mamba2-370m-8bit
+    sha: 90314fb9c5316caafd9d5ac082329dbd6cc9b5f3
+    verified: '2026-08-27'
+    weights_gb: 0.37
+mellum:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Mellum2-12B-A2.5B-Instruct-4bit
+    sha: 714f4fdf47a46832e41cc80f446eb56541666ee9
+    verified: '2026-08-27'
+    weights_gb: 6.37
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Mellum2-12B-A2.5B-Thinking-6bit
+    sha: ea8ef666444d5d9f8e835c4242e0ca3ddadb0ec1
+    verified: '2026-08-27'
+    weights_gb: 9.2
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Mellum2-12B-A2.5B-Thinking-8bit
+    sha: 9f7ad1338d0e528e63068e8e8e4631a0a368489a
+    verified: '2026-08-27'
+    weights_gb: 12.02
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Mellum2-12B-A2.5B-Thinking-bf16
+    sha: 335e490b563fd3a3d5cc57ebf841e677004926df
+    verified: '2026-08-27'
+    weights_gb: 22.63
+mimo:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/MiMo-V2-Flash-4bit
+    sha: 65d2673628480cc377aaeefc1b409f1d750bc9df
+    verified: '2026-08-27'
+    weights_gb: 161.83
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/MiMo-V2.5-ASR-MLX-8bit
+    sha: 11d0973e989d1a1965dccef2823bed31a34492d3
+    verified: '2026-08-27'
+    weights_gb: 7.94
+  - gated: false
+    precision: bf16
+    repo: mlx-community/MiMo-V2.5-ASR-MLX-bf16
+    sha: 8e3bb147c8ee4e4039e2aac6d6e6d6a50a282e8d
+    verified: '2026-08-27'
+    weights_gb: 14.94
+mimo_v2_flash:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/MiMo-V2-Flash-4bit
+    sha: 65d2673628480cc377aaeefc1b409f1d750bc9df
+    verified: '2026-08-27'
+    weights_gb: 161.83
+minicpm3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/MiniCPM3-4B-4bit
+    sha: 7a5f80ff3161be21f0a90e9be7137495633b2b99
+    verified: '2026-08-27'
+    weights_gb: 2.23
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/MiniCPM3-4B-6bit
+    sha: ac51511ea464a61de411c564acf0a28da62b599b
+    verified: '2026-08-27'
+    weights_gb: 3.23
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/MiniCPM3-4B-8bit
+    sha: 7f5741f6d5c7b68debd439724b24f84dc9d6c713
+    verified: '2026-08-27'
+    weights_gb: 4.22
+minicpmo:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/MiniCPM-o-4_5-4bit
+    sha: 592c09d85e7bffbc8f8e45a417aa8e9a96119814
+    verified: '2026-08-27'
+    weights_gb: 5.72
+minimax_m3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/MiniMax-M3-4bit
+    sha: 29909f4575501289881466f3b3bd910fdc95bc7c
+    verified: '2026-08-27'
+    weights_gb: 224.9
+ministral3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Ministral-3-3B-Instruct-2512-4bit
+    sha: a962dcb09eee4169c890e544c9eb938f1113fdee
+    verified: '2026-08-27'
+    weights_gb: 2.56
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Ministral-3-14B-Reasoning-2512-8bit
+    sha: 93d987862e8f504518c0f56d40ef96bf34a0d6c8
+    verified: '2026-08-27'
+    weights_gb: 14.15
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Ministral-3-3B-Reasoning-2512-bf16
+    sha: 397f90009b5869733c811903336c37b52d07ea62
+    verified: '2026-08-27'
+    weights_gb: 7.17
+mistral3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-4bit
+    sha: a7e5f870ea11764696624d73818943fbe281ce50
+    verified: '2026-08-27'
+    weights_gb: 12.35
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Mistral-Small-3.1-Text-24B-Instruct-2503-bf16
+    sha: 77d0bda8dd59b6afec099f8b228cd1383f71a1b2
+    verified: '2026-08-27'
+    weights_gb: 43.91
+mixtral:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Mixtral-8x22B-4bit
+    sha: 1a80f4b6c8b4bd67e1588271186aacff8920f7e7
+    verified: '2026-08-27'
+    weights_gb: 73.94
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Mixtral-8x22B-Instruct-v0.1-8bit
+    sha: 90c3afe6ceec0ff1311f8abf0ed8b8e775ee70f5
+    verified: '2026-08-27'
+    weights_gb: 139.34
+molmo:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Molmo-7B-D-0924-4bit
+    sha: 5c04b3a418979597b1968e41414ad799c87533e8
+    verified: '2026-08-27'
+    weights_gb: 4.93
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Molmo-7B-D-0924-6bit
+    sha: e4cd7210beaf7b731188345246d0b06b1434b8d3
+    verified: '2026-08-27'
+    weights_gb: 6.67
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Molmo-7B-D-0924-8bit
+    sha: 90a14ed7a230088904c7556fbe6d67b295c33f5f
+    verified: '2026-08-27'
+    weights_gb: 8.42
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Molmo-7B-D-0924-bf16
+    sha: d871cbdb87a49b8071003098d6dbfd2a0f5a5b84
+    verified: '2026-08-27'
+    weights_gb: 14.94
+molmo2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Molmo2-8B-4bit
+    sha: 4fcbe926577641af12aa5086cf5c292db9dd9730
+    verified: '2026-08-27'
+    weights_gb: 6.0
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Molmo2-8B-6bit
+    sha: 945ca9fed162453133ce023e3a833d942402c6c3
+    verified: '2026-08-27'
+    weights_gb: 7.76
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Molmo2-8B-8bit
+    sha: 49a5238f931ba928d8c1de9b7ce86cee271245ad
+    verified: '2026-08-27'
+    weights_gb: 9.53
+molmo_point:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/MolmoPoint-8B-4bit
+    sha: 9bab196f867ceedecdb1eab071395bfedcd62538
+    verified: '2026-08-27'
+    weights_gb: 6.73
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/MolmoPoint-8B-6bit
+    sha: 52b27064f2f23098f0b101d7d40d7702feedb4a7
+    verified: '2026-08-27'
+    weights_gb: 8.37
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/MolmoPoint-8B-8bit
+    sha: e295e68b2ee56c2d9a912453b5130633bd35aa4b
+    verified: '2026-08-27'
+    weights_gb: 10.01
+muse_glimmer:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Muse-Glimmer-30B-4bit
+    sha: 3e7677d7a40d348a3daba263a2b1c0aa41910710
+    verified: '2026-08-27'
+    weights_gb: 18.08
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Muse-Glimmer-30B-6bit
+    sha: 1fb08fb48cb2bf4861650efa55c739f3f7277cbe
+    verified: '2026-08-27'
+    weights_gb: 24.58
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Muse-Glimmer-30B-8bit
+    sha: 679c45e1b331a6514a6e38076a353cc5fed21bf6
+    verified: '2026-08-27'
+    weights_gb: 31.08
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Muse-Glimmer-30B-bf16
+    sha: 904079a1a494209b7b3bbd5f9eff1f36228398df
+    verified: '2026-08-27'
+    weights_gb: 55.46
+nemotron:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Nemotron-Cascade-2-30B-A3B-4bit
+    sha: cf40185ae9f11417eef7f9af6f6d5e11740e52a6
+    verified: '2026-08-27'
+    weights_gb: 16.55
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Nemotron-3-Super-120B-A12B-MLX-6bit
+    sha: 2405499bc926219a99a5a8d92dfe4bbed40b4649
+    verified: '2026-08-27'
+    weights_gb: 91.41
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/NemotronLabs-VoiceChat-11B-8bit
+    sha: 446fc83f6cde720e7fd9ad7e29d7acb3adbb8967
+    verified: '2026-08-27'
+    weights_gb: 12.95
+  - gated: false
+    precision: bf16
+    repo: mlx-community/NemotronLabs-VoiceChat-11B-mlx-bf16
+    sha: 01ddb6ce996cb65f1aed463a86bf4f5b7278e925
+    verified: '2026-08-27'
+    weights_gb: 20.67
+nemotron_labs_diffusion:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Nemotron-Labs-Diffusion-3B-4bit
+    sha: 5fd1ad4bcbd02a3fd489ec6e87059e072118548c
+    verified: '2026-08-27'
+    weights_gb: 2.1
+nemotron_parse:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Nemotron-Parse-2.0-4bit
+    sha: 23ffc1ddf0f12af03ebe5e1cebd4d271ad4fb542
+    verified: '2026-08-27'
+    weights_gb: 1.4
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Nemotron-Parse-2.0-8bit
+    sha: e7e89479657fb3631028ac12b6bc0d5a59ceafe4
+    verified: '2026-08-27'
+    weights_gb: 1.54
+olmo:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/OLMoE-1B-7B-0125-Instruct-4bit
+    sha: e23844197887b031e7ddddbb0b8959c5a6853a7b
+    verified: '2026-08-27'
+    weights_gb: 3.63
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/olmOCR-2-7B-1025-6bit
+    sha: e7854390b0a3f90c1ef8ff10c04779ab550e73a2
+    verified: '2026-08-27'
+    weights_gb: 7.02
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/olmOCR-2-7B-1025-mlx-8bit
+    sha: b0f72c9dfdb5488691e3c00d2afa2613c16c3bb3
+    verified: '2026-08-27'
+    weights_gb: 8.8
+  - gated: false
+    precision: bf16
+    repo: mlx-community/olmOCR-2-7B-1025-bf16
+    sha: 15dd56606fd97fa988baaba929886e46df58fa7e
+    verified: '2026-08-27'
+    weights_gb: 15.45
+olmo2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/OLMo-2-1124-7B-Instruct-4bit
+    sha: d755f57773674e695b9eaca1a565160ff10099d4
+    verified: '2026-08-27'
+    weights_gb: 3.82
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/OLMo-2-1124-7B-Instruct-6bit
+    sha: 9b7df22292c2084c4f23cc07ce97c9b74511d9dd
+    verified: '2026-08-27'
+    weights_gb: 5.52
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/OLMo-2-1124-13B-Instruct-8bit
+    sha: fa30532fb000395e1e4a70fa86e23af52a681fce
+    verified: '2026-08-27'
+    weights_gb: 13.57
+olmo3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Olmo-3-7B-Instruct-4bit
+    sha: d732c91ae02e90cd5d86e810fbeb9741794b4dd9
+    verified: '2026-08-27'
+    weights_gb: 3.82
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Olmo-3-1125-32B-6bit
+    sha: 243152984308ce4b7ed34871c3e65a65bf2e5045
+    verified: '2026-08-27'
+    weights_gb: 24.39
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Olmo-3.1-32B-Think-8bit
+    sha: 306e81d6b03e9b58b1cef88a2bff5ed6b6c27442
+    verified: '2026-08-27'
+    weights_gb: 31.9
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Olmo-3.1-32B-Think-bf16
+    sha: 25781daddc2e0976d8832873c236a6aa4677bb80
+    verified: '2026-08-27'
+    weights_gb: 60.04
+olmoe:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/OLMoE-1B-7B-0125-Instruct-4bit
+    sha: e23844197887b031e7ddddbb0b8959c5a6853a7b
+    verified: '2026-08-27'
+    weights_gb: 3.63
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/OLMoE-1B-7B-0125-6bit
+    sha: a782a03b75b0347de78a646dbac981ff9ea4f56e
+    verified: '2026-08-27'
+    weights_gb: 5.24
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/OLMoE-1B-7B-0125-Instruct-8bit
+    sha: 7055a795fc029a51108f881d4a118c6f17deb59f
+    verified: '2026-08-27'
+    weights_gb: 6.85
+openelm:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/OpenELM-1_1B-Instruct-4bit
+    sha: 284a4545ec39f28e6e2dea56d05503404c0c8099
+    verified: '2026-08-27'
+    weights_gb: 0.57
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/OpenELM-1_1B-Instruct-8bit
+    sha: 8fdf42384626f953c2b31d2ef9947c84ed3869d6
+    verified: '2026-08-27'
+    weights_gb: 1.07
+paddleocr_vl:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/PaddleOCR-VL-1.6-4bit
+    sha: c8987b277bdd8aaec8bd265d154f391bd03ad165
+    verified: '2026-08-27'
+    weights_gb: 0.66
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/PaddleOCR-VL-1.5-6bit
+    sha: d9621853fa4f4b0093e5f658ba5cbb1e7c5a7ec7
+    verified: '2026-08-27'
+    weights_gb: 0.83
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/PaddleOCR-VL-8bit
+    sha: db79a0a65cef276ae7303019b54d75c1a7b86017
+    verified: '2026-08-27'
+    weights_gb: 1.01
+  - gated: false
+    precision: bf16
+    repo: mlx-community/PaddleOCR-VL-1.5-bf16
+    sha: fdf1e7eb1cd61b7b61f506a348c4c6da3b15f2f6
+    verified: '2026-08-27'
+    weights_gb: 1.69
+paligemma:
+  variants:
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/paligemma-3b-mix-224-8bit
+    sha: 83bcde76f63d46fe67819944241b33d6458398df
+    verified: '2026-08-27'
+    weights_gb: 2.91
+phi:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Phi-4-mini-instruct-4bit
+    sha: ac1c269cb4222a4e136a3d09edad301056c1f36a
+    verified: '2026-08-27'
+    weights_gb: 2.01
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Phi-4-mini-instruct-8bit
+    sha: 93b273a5497a4fcdcfb7ac00143565506b4f72e4
+    verified: '2026-08-27'
+    weights_gb: 3.8
+phi3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Phi-3-mini-4k-instruct-4bit
+    sha: 5b3819ed6317784fb20eddeae9bed984f778d0d0
+    verified: '2026-08-27'
+    weights_gb: 2.0
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Phi-3-mini-4k-instruct-8bit
+    sha: ea4c5f218bb046d5d3b4491cce4ccc5c7ad7efc0
+    verified: '2026-08-27'
+    weights_gb: 3.78
+plamo:
+  variants:
+  - gated: true
+    precision: 4bit
+    repo: mlx-community/plamo-2-8b-4bit
+    sha: 48f86ca54ff69f98dc9412ca18280995da707ebc
+    verified: '2026-08-27'
+    weights_gb: 5.31
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/plamo-2-translate-8bit
+    sha: 84f3a775383c115fa91d82c36fc813de85b755d7
+    verified: '2026-08-27'
+    weights_gb: 9.99
+  - gated: false
+    precision: bf16
+    repo: mlx-community/plamo-2-1b-bf16
+    sha: 9f73fda5eed13afb67a36f22671f6f445c0d496a
+    verified: '2026-08-27'
+    weights_gb: 2.41
+plamo2:
+  variants:
+  - gated: true
+    precision: 4bit
+    repo: mlx-community/plamo-2-8b-4bit
+    sha: 48f86ca54ff69f98dc9412ca18280995da707ebc
+    verified: '2026-08-27'
+    weights_gb: 5.31
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/plamo-2-translate-8bit
+    sha: 84f3a775383c115fa91d82c36fc813de85b755d7
+    verified: '2026-08-27'
+    weights_gb: 9.99
+  - gated: false
+    precision: bf16
+    repo: mlx-community/plamo-2-1b-bf16
+    sha: 9f73fda5eed13afb67a36f22671f6f445c0d496a
+    verified: '2026-08-27'
+    weights_gb: 2.41
+qwen:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
+    sha: 019cc73c45c770444708a6dd8690c66243cc5c80
+    verified: '2026-08-27'
+    weights_gb: 3.99
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3-ASR-0.6B-8bit
+    sha: 89e96d92ba34aca20b3e29fb10cc284097d1219f
+    verified: '2026-08-27'
+    weights_gb: 0.94
+qwen2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
+    sha: 019cc73c45c770444708a6dd8690c66243cc5c80
+    verified: '2026-08-27'
+    weights_gb: 3.99
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen2.5-VL-7B-Instruct-8bit
+    sha: cb8e0fbe4aa086c19a3d8aaa43e79919594611f9
+    verified: '2026-08-27'
+    weights_gb: 8.33
+qwen2_5_vl:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen2.5-VL-3B-Instruct-4bit
+    sha: 46d4cf06a06ffc1a766c214174f9cbed2f45bcab
+    verified: '2026-08-27'
+    weights_gb: 2.86
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Qwen2.5-VL-3B-Instruct-6bit
+    sha: d10dd99f29e53a503dbafa1fc8bf3009aced7d47
+    verified: '2026-08-27'
+    weights_gb: 3.0
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen2.5-VL-3B-Instruct-8bit
+    sha: e84150044012b0306fd260706aa336b8d9aff945
+    verified: '2026-08-27'
+    weights_gb: 3.84
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Qwen2.5-VL-3B-Instruct-bf16
+    sha: 33765717028a7f0514ea1d213035cddf4b32c500
+    verified: '2026-08-27'
+    weights_gb: 6.99
+qwen2_vl:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen2-VL-2B-Instruct-4bit
+    sha: 01af461cdb9574acc09084a0ef94e216e142b085
+    verified: '2026-08-27'
+    weights_gb: 1.16
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen2-VL-2B-Instruct-8bit
+    sha: 3829dcc79e0234d7988284618ef996fd4ce7193b
+    verified: '2026-08-27'
+    weights_gb: 2.19
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Qwen2-VL-2B-Instruct-bf16
+    sha: cee7a9498fb037205c026a79bf81b1e57229b451
+    verified: '2026-08-27'
+    weights_gb: 4.11
+qwen3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen3-4B-4bit
+    sha: 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25
+    verified: '2026-08-27'
+    weights_gb: 2.11
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3-4B-8bit
+    sha: 0348ad770d2ae658ca47b0579b2d2c37b20bbcac
+    verified: '2026-08-27'
+    weights_gb: 3.98
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Qwen3-4B-bf16
+    sha: 3639b5214e458512debf270c4fc8840ff6adfac6
+    verified: '2026-08-27'
+    weights_gb: 7.49
+qwen3_5:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen3.5-4B-MLX-4bit
+    sha: 32f3e8ecf65426fc3306969496342d504bfa13f3
+    verified: '2026-08-27'
+    weights_gb: 2.83
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Qwen3.5-4B-6bit
+    sha: fbb1092aa9daef007603ea9273cd24c225a409f1
+    verified: '2026-08-27'
+    weights_gb: 3.8
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3.5-4B-MLX-8bit
+    sha: 5319bbbe4f1cbe6c0b3c80f4f7de4f0338c3906d
+    verified: '2026-08-27'
+    weights_gb: 4.78
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Qwen3.5-4B-MLX-bf16
+    sha: 475632ded9a95863da4e4b235ab9ccbc5d3cc6bf
+    verified: '2026-08-27'
+    weights_gb: 8.46
+qwen3_next:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen3-Next-80B-A3B-Instruct-4bit
+    sha: d8a069bfa8ae87d3d468412e1034acae19b5892b
+    verified: '2026-08-27'
+    weights_gb: 41.76
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Qwen3-Next-80B-A3B-Instruct-6bit
+    sha: 1e99e59337410b1bd4620d1a056a05871f953b45
+    verified: '2026-08-27'
+    weights_gb: 60.3
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3-Next-80B-A3B-Thinking-8bit
+    sha: d093dbe8233828ca0cc420f75466133c542a1e96
+    verified: '2026-08-27'
+    weights_gb: 78.84
+qwen3_vl:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen3-VL-4B-Instruct-4bit
+    sha: 2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b
+    verified: '2026-08-27'
+    weights_gb: 2.88
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3-VL-32B-Instruct-8bit
+    sha: 14fd4c76af6bd02d1f3dbe5ea7b03da5a1ae25cf
+    verified: '2026-08-27'
+    weights_gb: 33.53
+qwen3_vl_embedding:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Qwen3-VL-Embedding-2B-4bit
+    sha: c713a965783416b9467b419f2d14ca6445847455
+    verified: '2026-08-27'
+    weights_gb: 1.66
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Qwen3-VL-Embedding-2B-6bit
+    sha: 008fb7666d66aebeb3134aaec1d28f9806f81b6c
+    verified: '2026-08-27'
+    weights_gb: 2.06
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Qwen3-VL-Embedding-2B-8bit
+    sha: b4c9add3544248e763e515c6dd1d1de3ac7d032d
+    verified: '2026-08-27'
+    weights_gb: 2.46
+  - gated: false
+    precision: bf16
+    repo: mlx-community/Qwen3-VL-Embedding-2B-bf16
+    sha: 7f88314422e2fec5920ecb2005ad5d0576e9d09b
+    verified: '2026-08-27'
+    weights_gb: 3.96
+seed_oss:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Seed-OSS-36B-Instruct-4bit
+    sha: ae959dfb7aaa98154fdfe18dd46a003c46112bc2
+    verified: '2026-08-27'
+    weights_gb: 18.94
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Seed-OSS-36B-Instruct-8bit
+    sha: 5925cee898813efbc95a5ed8986e0cbefafd88bc
+    verified: '2026-08-27'
+    weights_gb: 35.77
+smollm3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/SmolLM3-3B-4bit
+    sha: d3a7e0594d6642dbcfb7d149bed8b0bdf49f95ce
+    verified: '2026-08-27'
+    weights_gb: 1.61
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/SmolLM3-3B-6bit
+    sha: d91b32977fb8f523374447c86a1253ddcca31f51
+    verified: '2026-08-27'
+    weights_gb: 2.33
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/SmolLM3-3B-8bit
+    sha: 316f091e34982bc6eaf7f6cc1db82bdb77ac2103
+    verified: '2026-08-27'
+    weights_gb: 3.04
+  - gated: false
+    precision: bf16
+    repo: mlx-community/SmolLM3-3B-bf16
+    sha: 7bd243308ac4462f1250777fac5c39fd85ab943a
+    verified: '2026-08-27'
+    weights_gb: 5.73
+smolvlm:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/SmolVLM-Instruct-4bit
+    sha: 1cefe9ed9d1971a6ea803dd367db858e0a7cd0d6
+    verified: '2026-08-27'
+    weights_gb: 1.36
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/SmolVLM-Instruct-6bit
+    sha: 2f2f497ec094487e9d8417cde0f6eb05d3d14833
+    verified: '2026-08-27'
+    weights_gb: 1.85
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/SmolVLM-Instruct-8bit
+    sha: c74cb70d1be1a2692469f2aaca2d8cc41dbbd5eb
+    verified: '2026-08-27'
+    weights_gb: 2.34
+  - gated: false
+    precision: bf16
+    repo: mlx-community/SmolVLM-256M-Instruct-bf16
+    sha: cfe17933371986666073f450510d9e40d6157b13
+    verified: '2026-08-27'
+    weights_gb: 0.48
+solar_open:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Solar-Open-100B-4bit
+    sha: 3a1944e955dc1dc8e03354929189e5ad9ee9f895
+    verified: '2026-08-27'
+    weights_gb: 53.81
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/Solar-Open-100B-6bit
+    sha: ded564b0f7670ee3ade9b884854afb1630f84072
+    verified: '2026-08-27'
+    weights_gb: 77.71
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/Solar-Open-100B-8bit
+    sha: 424a6f1f421ffef66221b5705c22d59e967149ac
+    verified: '2026-08-27'
+    weights_gb: 101.6
+stablelm:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/stablelm-2-zephyr-1_6b-4bit
+    sha: 3fb50cde912c2a6469c2aed51efee67b728fb0e4
+    verified: '2026-08-27'
+    weights_gb: 1.14
+starcoder2:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/starcoder2-7b-4bit
+    sha: 1da6e99505fc3d78a917c84674e16cbf3121046f
+    verified: '2026-08-27'
+    weights_gb: 4.06
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/starcoder2-15b-instruct-v0.1-8bit
+    sha: 0773268d762c95a70e57c36d8b5c66335aa16ef3
+    verified: '2026-08-27'
+    weights_gb: 15.79
+telechat3:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/TeleChat3-36B-Thinking-4bit
+    sha: 76dfe88282c9a95da542f4b62f6dc49328a64ccf
+    verified: '2026-08-27'
+    weights_gb: 18.99
+  - gated: false
+    precision: 6bit
+    repo: mlx-community/TeleChat3-36B-Thinking-6bit
+    sha: 8679629202c7a1b0db024b518dcd739d0c1bc952
+    verified: '2026-08-27'
+    weights_gb: 27.42
+  - gated: false
+    precision: 8bit
+    repo: mlx-community/TeleChat3-36B-Thinking-8bit
+    sha: a5fb994511fc82bc5f11bc23bff6310159bda8da
+    verified: '2026-08-27'
+    weights_gb: 35.86
+  - gated: false
+    precision: bf16
+    repo: mlx-community/TeleChat3-36B-Thinking-bf16
+    sha: 27f70884de5e27d93cfffcd461d528c5fb2eb993
+    verified: '2026-08-27'
+    weights_gb: 67.5
+youtu_llm:
+  variants:
+  - gated: false
+    precision: 4bit
+    repo: mlx-community/Youtu-LLM-2B-4bit
+    sha: de407cc1fa08c4a9d7d128ad35bc2fd78e38d055
+    verified: '2026-08-27'
+    weights_gb: 1.17

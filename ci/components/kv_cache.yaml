@@ -1,0 +1,27 @@
+name: kv_cache
+enabled: true
+description: Cache construction and lifecycle in models/cache.py.
+
+paths:
+  - mlx_vlm/models/cache.py
+
+# Columns that decide reachability AND scope the dedup signature.
+# Modality is deliberately absent: it says nothing about how an
+# architecture exercises the cache implementation.
+# Every architecture builds a cache, so there is nothing to require.
+requires: []
+
+columns: [cache_kinds, hybrid_cache, kv_quant, bounded_kv, trimmable]
+
+scenario: single_generation
+regimes: [single]
+
+metrics: [prefill_tps, decode_tps, ttft_ms, peak_mem_gb, output_hash]
+
+configs:
+  - id: plain
+    args: {}
+  - id: bounded
+    args: {max_kv_size: 512}
+  - id: bounded-tight
+    args: {max_kv_size: 128}

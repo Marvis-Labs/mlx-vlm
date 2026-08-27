@@ -1,0 +1,41 @@
+name: apc
+enabled: true
+description: Automatic prefix caching.
+
+paths:
+  - mlx_vlm/apc.py
+  - mlx_vlm/apc_adapters.py
+  - mlx_vlm/apc_storage.py
+
+# image_in IS in scope here, unlike kv_cache: APC hashes media payloads
+# (hash_image_payload, media_token_spans), so modality changes its behaviour.
+# Supported if either form of reuse is available. Distinct from
+# `columns`, which scopes deduplication and includes modality.
+requires:
+  - apc_exact
+  - apc_block
+
+columns: [cache_kinds, apc_exact, apc_block, image_in]
+
+# Prefix caching does no work on a first request. A single-request cell
+# would report zero change regardless of the diff.
+scenario: shared_prefix_pair
+regimes: [single]
+
+# APCStats.snapshot() exposes real functional counters. These are the
+# primary signal: a change that holds throughput flat while token_hit_rate
+# collapses is a regression timing cannot see.
+metrics: [token_hit_rate, matched_tokens, rejects_by_reason,
+          prefill_tps, decode_tps, ttft_ms, peak_mem_gb]
+
+configs:
+  - id: "off"
+    env: {APC_ENABLED: "0"}
+  - id: exact
+    env: {APC_ENABLED: "1", APC_EXACT_MIN_TOKENS: "16"}
+  - id: block-16
+    env: {APC_ENABLED: "1", APC_BLOCK_SIZE: "16"}
+  - id: block-256           # block-boundary arithmetic differs at scale
+    env: {APC_ENABLED: "1", APC_BLOCK_SIZE: "256"}
+  - id: guarded
+    env: {APC_ENABLED: "1", APC_EXACT_PREFIX_GUARD_TOKENS: "8"}

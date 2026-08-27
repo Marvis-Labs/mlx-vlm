@@ -1,0 +1,8 @@
+# Committed expected values for the parity gate, per architecture. Established
+# when a model is added and treated as a baseline thereafter: a later change
+# that moves them beyond tolerance is a reported drift, not a silent pass.
+# greedy: minimum agreement; kl_mean/kl_max: maximum divergence in nats.
+default:
+  greedy: 0.98
+  kl_mean: 0.02
+  kl_max: 0.20

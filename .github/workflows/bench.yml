@@ -1,0 +1,170 @@
+name: benchmark
+
+# Runs when someone with write access comments "/ci run" on a pull request.
+# Self-hosted runners execute the pull request's code on our own hardware, so
+# the trigger is a maintainer action, never an automatic one.
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number"
+        required: true
+
+permissions:
+  contents: write # push accumulated results to the results-data branch
+  pull-requests: write # upsert the single benchmark comment
+
+concurrency:
+  group: bench-${{ github.event.issue.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    # Only a "/ci run" comment on a pull request, or a manual dispatch.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/ci run'))
+    runs-on: ubuntu-latest
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      base: ${{ steps.pr.outputs.base }}
+      head: ${{ steps.pr.outputs.head }}
+      cells: ${{ steps.r.outputs.cells }}
+    steps:
+      - name: acknowledge the comment
+        if: github.event_name == 'issue_comment'
+        run: gh api -X POST repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: resolve base and head
+        id: pr
+        run: |
+          PR=${{ github.event.issue.number || inputs.pr }}
+          gh api repos/${{ github.repository }}/pulls/$PR \
+            --jq '"pr='$PR'\nbase=\(.base.sha)\nhead=\(.head.sha)"' >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pyyaml
+
+      # Pull the measurements from the results-data branch so the router can
+      # size cells from a measured peak instead of an estimate.
+      - name: fetch the results database
+        run: |
+          mkdir -p "$HOME/.mlx-vlm-ci"
+          git fetch origin results-data 2>/dev/null \
+            && git show results-data:.mlx-vlm-ci/results.db > "$HOME/.mlx-vlm-ci/results.db" 2>/dev/null \
+            || echo "no results database yet"
+
+      - name: select cells
+        id: r
+        run: |
+          python -m ci.route --base "${{ steps.pr.outputs.base }}" --head "${{ steps.pr.outputs.head }}" \
+            --out "$GITHUB_OUTPUT" --write . > /dev/null
+
+      # Posted before anything runs: a cell that never reaches a device stays
+      # visibly pending rather than absent.
+      - name: post the pending comment
+        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json --notes notes.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cells
+          path: cells.json
+
+  cell:
+    needs: route
+    if: needs.route.outputs.cells != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 4          # one cell per device; devices are single tenant
+      matrix:
+        cell: ${{ fromJSON(needs.route.outputs.cells) }}
+    runs-on: ${{ matrix.cell.runs_on }}
+    timeout-minutes: 90
+    steps:
+      # No checkout: the device fetches both refs and resolves the merge-base
+      # itself, so the harness is never shadowed by the revision under test.
+      - name: measure
+        run: |
+          echo '${{ toJSON(matrix.cell) }}' > "$RUNNER_TEMP/cell.json"
+          # Fetch the runner script fresh from its repo each run, so a machine
+          # never needs a manual update: it supplies only uv, a venv, and the
+          # runner. Use the API contents endpoint, which always reflects the
+          # latest commit -- raw.githubusercontent is served from CDN edges that
+          # cached stale copies, so different runners disagreed on the script
+          # and ran logic that no longer matched the branch.
+          curl -fsSL -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/Marvis-Labs/runner-script/contents/bin/device.sh?ref=main" \
+            -o "$RUNNER_TEMP/device.sh"
+          chmod +x "$RUNNER_TEMP/device.sh"
+          CI_REPO=${{ github.repository }} \
+          CI_UPSTREAM=https://github.com/${{ github.repository }}.git \
+          CI_RESULT="$RUNNER_TEMP/result.json" \
+            "$RUNNER_TEMP/device.sh" run "$RUNNER_TEMP/cell.json" \
+              "${{ needs.route.outputs.base }}" "${{ needs.route.outputs.head }}"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: hand back the result
+        if: always()
+        run: |
+          test -f "$RUNNER_TEMP/result.json" || \
+            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["not ready: device declined or the job failed before measuring"]}' > "$RUNNER_TEMP/result.json"
+          cp "$RUNNER_TEMP/result.json" "result.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-${{ strategy.job-index }}
+          path: result.json
+
+  report:
+    needs: [route, cell]
+    if: always() && needs.route.outputs.cells != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pyyaml
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: render the final comment
+        run: |
+          python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
+            --cells artifacts/cells/cells.json --results artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # Persist the measurements so they survive this ephemeral job: fetch the
+      # results database from the results-data branch, record this run's
+      # results into it, and push it back. Observational data cannot live on
+      # the code branch, so it gets its own.
+      - name: persist results to the results-data branch
+        if: always()
+        run: |
+          git config user.name ci-bot
+          git config user.email ci-bot@users.noreply.github.com
+          git fetch origin results-data 2>/dev/null && git checkout results-data \
+            || git checkout --orphan results-data
+          mkdir -p .mlx-vlm-ci
+          python -m ci.store --ingest artifacts --head "${{ needs.route.outputs.head }}" \
+            --db .mlx-vlm-ci/results.db
+          git add .mlx-vlm-ci/results.db
+          git commit -q -m "results for ${{ needs.route.outputs.head }}" || exit 0
+          git push origin results-data
+        env:
+          GH_TOKEN: ${{ github.token }}
