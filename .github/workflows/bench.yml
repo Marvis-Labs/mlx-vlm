@@ -66,7 +66,7 @@ jobs:
       # Posted before anything runs: a cell that never reaches a device stays
       # visibly pending rather than absent.
       - name: post the pending comment
-        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json
+        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json --notes notes.json
         env:
           GH_TOKEN: ${{ github.token }}
       - uses: actions/upload-artifact@v4

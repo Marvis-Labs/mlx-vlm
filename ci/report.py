@@ -116,7 +116,22 @@ def _graph(cells: list, results: list) -> list:
     return lines
 
 
-def render(pr: str, cells: list, results: Optional[list] = None) -> str:
+def render(
+    pr: str, cells: list, results: Optional[list] = None, notes: Optional[list] = None
+) -> str:
+    if not cells:
+        # A change that reaches no runnable cell must say why -- an unsized
+        # model, a disabled component, a path nothing maps to -- rather than
+        # leaving a comment stuck at zero of zero.
+        why = "; ".join(notes or []) or "no benchmarkable change detected"
+        return "\n".join(
+            [
+                marker(pr),
+                "**mlx-vlm benchmark** — nothing to run",
+                "",
+                f"<sub>{why}</sub>",
+            ]
+        )
     by_id = {r["cell"]["id"]: r for r in (results or [])}
     rows, regressed, pending = [], 0, 0
     for c in sorted(cells, key=lambda c: c["id"]):
@@ -204,6 +219,7 @@ def main() -> int:
     ap.add_argument("--pr", required=True)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--cells", required=True, help="the routed cell list")
+    ap.add_argument("--notes", help="routing notes, for the empty case")
     ap.add_argument("--results", help="directory of result json; omit for pending")
     args = ap.parse_args()
 

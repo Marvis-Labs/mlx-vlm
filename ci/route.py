@@ -323,9 +323,7 @@ def main() -> None:
         # The reporter needs these as files. Writing them here keeps the
         # workflow from unpacking the router's own output with a one-liner.
         Path(args.write, "cells.json").write_text(json.dumps(result["cells"]))
-        Path(args.write, "notes.json").write_text(
-            json.dumps([n for n in result["notes"] if "fits the fleet" in n])
-        )
+        Path(args.write, "notes.json").write_text(json.dumps(result["notes"]))
     print(json.dumps(result, indent=1))
 
 
