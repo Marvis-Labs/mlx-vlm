@@ -12,11 +12,11 @@ import json
 import sys
 import urllib.request
 from datetime import date
-from pathlib import Path
 
 import yaml
 
-MODELS = Path(__file__).resolve().parent / "models.yaml"
+# One definition of where the metadata lives: the module that routes on it.
+from ci.route import MODELS
 
 
 def hub(repo: str) -> dict:
