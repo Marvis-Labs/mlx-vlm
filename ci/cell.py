@@ -110,7 +110,15 @@ def summarize(samples: List[dict]) -> Dict[str, Any]:
         if not vals:
             continue
         med = statistics.median(vals)
-        sd = statistics.stdev(vals) if len(vals) > 1 else 0.0
+        # Median absolute deviation, not standard deviation. With three or
+        # four samples one slow iteration -- a background task, a first-touch
+        # page fault -- inflates the standard deviation enough to make every
+        # result inconclusive. Observed spread across identical cells ran
+        # from two to sixty-five percent on the same device for that reason.
+        # The scale factor makes it comparable to a standard deviation for
+        # well-behaved data, while a single outlier cannot dominate it.
+        mad = statistics.median([abs(v - med) for v in vals])
+        sd = mad * 1.4826 if len(vals) > 1 else 0.0
         # Range grows with sample count and is therefore useless as a noise
         # floor: measuring more made it look worse. Coefficient of variation
         # is stable in n, and the standard error of the mean says how well
@@ -339,6 +347,10 @@ def main() -> int:
     result = {
         "cell": cell,
         "device": fingerprint(),
+        # The raw iterations, so a statistic can be reconsidered without
+        # re-running on hardware. Recomputing the dispersion after changing
+        # how it is measured was impossible from summaries alone.
+        "samples": gathered["runs"],
         "base": base,
         "head": head,
         "delta": compare(base, head),
