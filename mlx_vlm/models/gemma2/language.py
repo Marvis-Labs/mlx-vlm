@@ -34,6 +34,7 @@ class Attention(nn.Module):
         self.v_proj = nn.Linear(dim, n_kv_heads * head_dim, bias=False)
         self.o_proj = nn.Linear(n_heads * head_dim, dim, bias=False)
         self.attn_logit_softcapping = args.attn_logit_softcapping
+        self._inv_softcapping = 1.0 / args.attn_logit_softcapping
         self.rope = nn.RoPE(
             head_dim,
             traditional=args.rope_traditional,
@@ -70,7 +71,9 @@ class Attention(nn.Module):
             values = mx.expand_dims(values, 2)
 
         scores = queries @ keys.swapaxes(-1, -2)
-        scores = mx.tanh(scores / self.attn_logit_softcapping)
+        # One multiply instead of a divide over the full score matrix, which
+        # is the largest intermediate in the layer.
+        scores = mx.tanh(scores * self._inv_softcapping)
         scores *= self.attn_logit_softcapping
 
         if mask is not None:
