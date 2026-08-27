@@ -245,59 +245,44 @@ def fingerprint() -> Dict[str, Any]:
     }
 
 
-def worktrees(repo: Path, base: str, head: str, work: Path) -> tuple[Path, Path]:
-    """Two checkouts, one environment.
+def fetch_revisions(
+    repo_url: str, base: str, head: str, work: Path
+) -> tuple[Path, Path]:
+    """Two revisions of the source, fetched as tarballs -- no git, no CLT.
 
-    mlx-vlm is pure Python, so a revision is a path. Sharing one pinned
-    environment is what makes the comparison a comparison: if dependencies
-    differed between the halves we would be measuring the dependency.
+    A revision of pure-Python mlx-vlm is just a directory of files, so each is
+    downloaded from GitHub's archive endpoint and extracted once. This runs on
+    a bare Mac that has only uv and Python, with no Command Line Tools, which
+    is what lets any Apple Silicon machine be a runner out of the box.
+
+    Both revisions share the one pinned environment; if their dependency files
+    differ we would be measuring the dependency, so that is refused.
     """
-    changed = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo),
-            "diff",
-            "--name-only",
-            base,
-            head,
-            "--",
-            "pyproject.toml",
-            "setup.py",
-            "requirements.txt",
-            "uv.lock",
-        ],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if changed:
-        raise SystemExit(
-            f"dependency files differ between revisions:\n{changed}\n"
-            "this cell needs two environments, not one"
-        )
-    # A worktree deleted from disk stays registered, and a re-add at the
-    # same path then fails. Prune first so a wiped scratch dir recovers.
-    subprocess.run(["git", "-C", str(repo), "worktree", "prune"], capture_output=True)
-    out = []
+    import tarfile
+    import urllib.request
+
+    work.mkdir(parents=True, exist_ok=True)
+    trees = []
     for rev in (base, head):
         tree = work / f"rev-{rev}"
-        if not tree.exists():
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(repo),
-                    "worktree",
-                    "add",
-                    "-q",
-                    "--detach",
-                    str(tree),
-                    rev,
-                ],
-                check=True,
-            )
-        out.append(tree)
-    return out[0], out[1]
+        if not (tree / "mlx_vlm").exists():
+            tgz = work / f"{rev}.tar.gz"
+            urllib.request.urlretrieve(f"{repo_url}/archive/{rev}.tar.gz", tgz)
+            tmp = work / f"x-{rev}"
+            with tarfile.open(tgz) as t:
+                t.extractall(tmp)
+            inner = next(tmp.iterdir())  # the archive wraps one top dir
+            tree.exists() or inner.rename(tree)
+            tgz.unlink(missing_ok=True)
+        trees.append(tree)
+
+    # One environment for both: a dependency change would make the comparison
+    # measure the dependency, not the diff.
+    for f in ("pyproject.toml", "requirements.txt", "uv.lock"):
+        a, b = trees[0] / f, trees[1] / f
+        if a.exists() and b.exists() and a.read_bytes() != b.read_bytes():
+            raise SystemExit(f"{f} differs between revisions; needs two environments")
+    return trees[0], trees[1]
 
 
 def choose_variant(cell: dict) -> dict:
@@ -363,18 +348,13 @@ def warm(cell: dict) -> None:
     )
 
 
-def release(repo: Path, work: Path) -> None:
-    """Always runs. Keeps the weight cache: it is revision-pinned, and
-    re-downloading it is pure cost."""
-    quiesce = Path(__file__).resolve().parent / "runner" / "quiesce.sh"
-    if quiesce.exists():
-        subprocess.run([str(quiesce), "release"], capture_output=True)
-    for tree in work.glob("rev-*"):
-        subprocess.run(
-            ["git", "-C", str(repo), "worktree", "remove", "--force", str(tree)],
-            capture_output=True,
-        )
-    subprocess.run(["git", "-C", str(repo), "worktree", "prune"], capture_output=True)
+def release(work: Path) -> None:
+    """Always runs. Removes the extracted revisions; keeps the weight cache,
+    which is revision-pinned and costly to re-download."""
+    import shutil
+
+    for tree in list(work.glob("rev-*")) + list(work.glob("x-*")):
+        shutil.rmtree(tree, ignore_errors=True)
 
 
 def main() -> int:
@@ -382,7 +362,11 @@ def main() -> int:
     ap.add_argument("--cell", required=True)
     ap.add_argument("--base", required=True, help="base revision")
     ap.add_argument("--head", required=True, help="head revision")
-    ap.add_argument("--repo", default=".", help="git checkout to make worktrees from")
+    ap.add_argument(
+        "--repo-url",
+        default="https://github.com/Marvis-Labs/mlx-vlm-ci",
+        help="source repo to fetch revision tarballs from",
+    )
     ap.add_argument("--work", default=None, help="scratch dir for worktrees")
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--warmup", type=int, default=1)
@@ -393,12 +377,13 @@ def main() -> int:
     cell_path = Path(args.cell).resolve()
     cell = choose_variant(json.loads(cell_path.read_text()))
     cell_path.write_text(json.dumps(cell))  # the probe reads the resolved cell
-    repo = Path(args.repo).resolve()
     work = Path(args.work or os.environ.get("CI_WORK", Path.home() / "ci-work"))
     work.mkdir(parents=True, exist_ok=True)
 
     try:
-        base_tree, head_tree = worktrees(repo, args.base, args.head, work)
+        base_tree, head_tree = fetch_revisions(
+            args.repo_url, args.base, args.head, work
+        )
         warm(cell)
         gathered = interleave(
             base_tree,
@@ -409,7 +394,7 @@ def main() -> int:
             timeout=args.timeout,
         )
     finally:
-        release(repo, work)
+        release(work)
 
     base = summarize(gathered["runs"]["base"])
     head = summarize(gathered["runs"]["head"])
