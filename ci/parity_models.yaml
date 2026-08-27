@@ -1,0 +1,6 @@
+apertus:
+  mlx: mlx-community/Apertus-8B-Instruct-2509-bf16
+  ref: swiss-ai/Apertus-8B-Instruct-2509
+smollm3:
+  mlx: mlx-community/SmolLM3-3B-bf16
+  ref: HuggingFaceTB/SmolLM3-3B

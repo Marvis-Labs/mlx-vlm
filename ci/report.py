@@ -19,6 +19,7 @@ from typing import Any, Optional
 from ci.verdict import FUNCTIONAL, verdict
 
 SPEED = ["decode_tps", "prefill_tps", "ttft_ms", "peak_mem_gb"]
+PARITY = ["greedy_agreement", "kl_mean", "kl_max"]
 COLUMNS = SPEED + sorted(FUNCTIONAL)
 
 STATUS = {
@@ -125,6 +126,20 @@ def _graph(cells: list, results: list) -> tuple:
     return lines, regressions
 
 
+def _parity_row(cell_id: str, device: str, res: dict) -> str:
+    g = res.get("greedy_agreement")
+    mark = "✅" if g is not None and g >= 0.98 else "🔴"
+    cols = [
+        f"`{cell_id}`",
+        device,
+        mark,
+        f"greedy {g:.3f}" if g is not None else "—",
+        f"kl_mean {res.get('kl_mean', '—')}",
+        f"kl_max {res.get('kl_max', '—')}",
+    ]
+    return "| " + " | ".join(cols) + " |"
+
+
 def _tier(cell: dict) -> str:
     labels = cell.get("runs_on") or []
     return labels[-1] if labels else "?"
@@ -169,6 +184,12 @@ def render(
             reason = (r.get("errors") or ["unknown error"])[0]
             rows.append(_row(c["id"], "failed", dev, {}, reason[:48]))
             failed += 1
+            continue
+        if not r["delta"] and any(
+            k in r.get("cell", {}) for k in ("greedy_agreement",)
+        ):
+            rows.append(_parity_row(c["id"], dev, r["cell"]))
+            ok += 1
             continue
         state = _cell_state(r["delta"])
         rows.append(

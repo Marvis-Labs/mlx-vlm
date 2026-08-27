@@ -21,6 +21,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 COMPONENTS = Path(__file__).resolve().parent / "components"
 MATRIX = ROOT / "mlx_vlm" / "tests" / "capabilities.json"
+PARITY_MODELS = Path(__file__).resolve().parent / "parity_models.yaml"
 MODELS = Path(__file__).resolve().parent / "models.yaml"
 
 # Peak memory measured against weights on disk, gemma-2-2b-it-4bit:
@@ -211,6 +212,34 @@ def expand(arch: str, spec: dict, models: dict) -> List[Cell]:
     return cells
 
 
+def parity_cell(arch: str, pair: dict) -> Cell:
+    """A correctness cell: check a new model against its reference. Labelled
+    parity, since it needs a device with room for two copies and the
+    transformers library the benchmark environment does not carry."""
+    return Cell(
+        id=f"{arch}.parity",
+        arch=arch,
+        component="parity",
+        config="reference",
+        scenario="parity",
+        regime="single",
+        variants=[
+            {
+                "repo": pair["mlx"],
+                "revision": "",
+                "precision": "bf16",
+                "requires_gb": 0.0,
+                "ref": pair["ref"],
+            }
+        ],
+        min_gb=0.0,
+        runs_on=["self-hosted", "macos", "arm64", "parity"],
+        metrics=["greedy_agreement", "kl_mean", "kl_max"],
+        args={},
+        env={},
+    )
+
+
 def route(paths: Sequence[str]) -> dict:
     matrix = json.loads(MATRIX.read_text())
     rows = matrix.get("architectures", matrix)
@@ -224,9 +253,20 @@ def route(paths: Sequence[str]) -> dict:
     # Model change: this architecture across every enabled component it
     # reaches. Actions asks for the model path; the router decides how far
     # the fleet can take it.
+    parity = yaml.safe_load(PARITY_MODELS.read_text()) or {}
     for arch in sorted(buckets["models"]):
         if arch not in rows:
-            notes.append(f"{arch}: not in the capability matrix")
+            # A model the matrix has never seen is new: there is no previous
+            # revision to compare against, so it goes to the correctness gate
+            # rather than the performance path.
+            if arch in parity:
+                c = parity_cell(arch, parity[arch])
+                cells[c.id] = c
+            else:
+                notes.append(
+                    f"{arch}: new model; add it to ci/parity_models.yaml "
+                    f"to check it against a reference"
+                )
             continue
         if arch not in models:
             notes.append(f"{arch}: no model metadata, cannot size a cell")

@@ -69,3 +69,9 @@ def test_cell_labelled_by_smallest_variant():
 
 def test_empty_diff_is_empty():
     assert R.route([])["cells"] == []
+
+
+def test_new_model_undeclared_asks_for_declaration():
+    r = R.route(["mlx_vlm/models/gliner2_5/language.py"])
+    assert any("parity_models.yaml" in n for n in r["notes"])
+    assert r["cells"] == []
