@@ -227,7 +227,7 @@ def main() -> int:
     results = None
     if args.results:
         results = [
-            json.loads(p.read_text()) for p in Path(args.results).rglob("*.json")
+            json.loads(p.read_text()) for p in Path(args.results).rglob("result.json")
         ]
     upsert(args.pr, args.repo, render(args.pr, cells, results))
     return 0
