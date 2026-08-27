@@ -84,7 +84,16 @@ def interleave(
     runs: Dict[str, List[dict]] = {"base": [], "head": []}
     errors: List[str] = []
     for i in range(repeats):
-        for label, tree in (("base", base), ("head", head)):
+        # Counterbalanced, not merely alternating. Running base then head
+        # every time cancels drift across pairs but not bias within one: the
+        # revision that always goes second inherits whatever the first leaves
+        # behind. Measured on a mini, prefill for the second position was
+        # pinned near the slow end while the first ranged over both, which
+        # reads as a forty percent regression in code that changed neither.
+        order = (("base", base), ("head", head))
+        if i % 2:
+            order = tuple(reversed(order))
+        for label, tree in order:
             # Every repeat is a fresh subprocess with a cold Metal kernel
             # cache, so each one needs its own warmup. Warming only the
             # first leaves the rest measuring compilation.
