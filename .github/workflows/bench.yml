@@ -1,57 +1,74 @@
 name: benchmark
 
-# Runners are registered to this repository, which we own; upstream pull
-# requests are fetched by number rather than requiring anything from the
-# upstream maintainer. Manual dispatch only: a self-hosted runner executes
-# whatever the pull request contains, on our own hardware.
+# Runs when someone with write access comments "/ci run" on a pull request.
+# Self-hosted runners execute the pull request's code on our own hardware, so
+# the trigger is a maintainer action, never an automatic one.
 on:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       pr:
-        description: "Blaizzy/mlx-vlm PR number"
+        description: "PR number"
         required: true
-      upstream:
-        description: "source repository"
-        default: Blaizzy/mlx-vlm
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
-  group: bench-${{ inputs.pr }}
+  group: bench-${{ github.event.issue.number || inputs.pr }}
   cancel-in-progress: true
 
 jobs:
   route:
+    # Only a "/ci run" comment on a pull request, or a manual dispatch.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/ci run'))
     runs-on: ubuntu-latest
     outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      base: ${{ steps.pr.outputs.base }}
+      head: ${{ steps.pr.outputs.head }}
       cells: ${{ steps.r.outputs.cells }}
-      head: ${{ steps.r.outputs.head }}
     steps:
+      - name: acknowledge the comment
+        if: github.event_name == 'issue_comment'
+        run: gh api -X POST repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: resolve base and head
+        id: pr
+        run: |
+          PR=${{ github.event.issue.number || inputs.pr }}
+          gh api repos/${{ github.repository }}/pulls/$PR \
+            --jq '"pr='$PR'\nbase=\(.base.sha)\nhead=\(.head.sha)"' >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # The router reads the component configs and model metadata, both YAML.
       - run: pip install --quiet pyyaml
+
       - name: select cells
         id: r
         run: |
-          git remote add up https://github.com/${{ inputs.upstream }}.git
-          git fetch -q up "+refs/pull/${{ inputs.pr }}/head:refs/remotes/pr/head" "+refs/heads/main:refs/remotes/up/main"
-          BASE=$(git merge-base up/main pr/head)
-          echo "head=$(git rev-parse pr/head)" >> "$GITHUB_OUTPUT"
-          python -m ci.route --base "$BASE" --head "$(git rev-parse pr/head)" \
+          python -m ci.route --base "${{ steps.pr.outputs.base }}" --head "${{ steps.pr.outputs.head }}" \
             --gh-repo ${{ github.repository }} --out "$GITHUB_OUTPUT" --write . > /dev/null
 
-      # Published before anything runs, so a cell that never reaches a device
-      # is visibly unrun rather than absent from the report.
+      # Posted before anything runs: a cell that never reaches a device stays
+      # visibly pending rather than absent.
       - name: publish the pending matrix
-        run: python -m ci.report --pr ${{ inputs.pr }} --repo ${{ inputs.upstream }} init --cells cells.json --notes notes.json
+        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} init --cells cells.json --notes notes.json
         env:
-          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
 
   cell:
     needs: route
@@ -64,14 +81,13 @@ jobs:
     runs-on: ${{ matrix.cell.runs_on }}
     timeout-minutes: 90
     steps:
-      # No checkout: the device fetches both refs itself and resolves the
-      # merge-base, so the harness is never shadowed by the revision under
-      # test and the job carries no repository state of its own.
+      # No checkout: the device fetches both refs and resolves the merge-base
+      # itself, so the harness is never shadowed by the revision under test.
       - name: measure
         run: |
           echo '${{ toJSON(matrix.cell) }}' > "$RUNNER_TEMP/cell.json"
           CI_REPO=${{ github.repository }} \
-          CI_UPSTREAM=https://github.com/${{ inputs.upstream }}.git \
+          CI_UPSTREAM=https://github.com/${{ github.repository }}.git \
           CI_RESULT="$RUNNER_TEMP/result.json" \
             ~/device-script/bin/device.sh run "$RUNNER_TEMP/cell.json" "${{ needs.route.outputs.head }}"
         env:
@@ -81,12 +97,9 @@ jobs:
         if: always()
         run: |
           test -f "$RUNNER_TEMP/result.json" || \
-            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job did not produce a result"]}' > "$RUNNER_TEMP/result.json"
-          # The harness lives where device.sh checked it out, not in the job's
-          # working directory, and the pinned interpreter is the one that has
-          # its dependencies.
+            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job produced no result"]}' > "$RUNNER_TEMP/result.json"
           cd "$HOME/ci-src" && "$HOME/ci-venv/bin/python" -m ci.report \
-            --pr ${{ inputs.pr }} --repo ${{ inputs.upstream }} \
+            --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
             update --result "$RUNNER_TEMP/result.json"
         env:
-          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
