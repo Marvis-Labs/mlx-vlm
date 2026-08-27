@@ -51,6 +51,12 @@ def main() -> int:
             # against the old one has to be re-baselined rather than compared.
             if v.get("sha") and v["sha"] != info["sha"]:
                 problems.append(f"{arch}/{v['repo']}: revision moved, re-baseline")
+            # A repository can exist and hold nothing. Recording it as zero
+            # gigabytes produced a cell that cleared every capacity check and
+            # would then have to load weights that are not there.
+            if info["weights_gb"] <= 0:
+                problems.append(f"{arch}/{v['repo']}: no weight files")
+                continue
             v.update(info, verified=str(date.today()))
 
     for p in problems:

@@ -12,12 +12,6 @@ deepseek_v32:
     sha: 999056d2845aeffee54f6df148f94d6fdf229f52
     verified: '2026-08-26'
     weights_gb: 704.04
-  - gated: false
-    precision: bf16
-    repo: mlx-community/DeepSeek-V3.2-Speciale-bf16
-    sha: 80b7ce60c255d5b5545bc125053a864d22f61ec3
-    verified: '2026-08-26'
-    weights_gb: 0.0
 diffusion_gemma:
   variants:
   - gated: false
