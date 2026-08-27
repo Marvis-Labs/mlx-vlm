@@ -89,7 +89,12 @@ jobs:
         run: |
           test -f "$RUNNER_TEMP/result.json" || \
             echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job did not produce a result"]}' > "$RUNNER_TEMP/result.json"
-          python3 -m ci.report --pr ${{ inputs.pr }} --repo ${{ inputs.upstream }} update --result "$RUNNER_TEMP/result.json"
+          # The harness lives where device.sh checked it out, not in the job's
+          # working directory, and the pinned interpreter is the one that has
+          # its dependencies.
+          cd "$HOME/ci-src" && "$HOME/ci-venv/bin/python" -m ci.report \
+            --pr ${{ inputs.pr }} --repo ${{ inputs.upstream }} \
+            update --result "$RUNNER_TEMP/result.json"
         env:
           GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || github.token }}
 
