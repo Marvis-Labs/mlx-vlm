@@ -60,11 +60,7 @@ def record(result: dict, head_sha: str = "", db: Optional[Path] = None) -> None:
             "INSERT INTO results (cell, arch, component, precision, device, "
             "head_sha, ok, peak_mem_gb, delta) VALUES (?,?,?,?,?,?,?,?,?)",
             (
-                (
-                    cell.get("id", "?").rsplit(".", 1)[0]
-                    if cell.get("precision")
-                    else cell.get("id", "?")
-                ),
+                cell.get("id", "?"),  # the id is already precision-free
                 cell.get("arch", "?"),
                 cell.get("component", "?"),
                 cell.get("precision"),
