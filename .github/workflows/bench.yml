@@ -65,10 +65,14 @@ jobs:
 
       # Posted before anything runs: a cell that never reaches a device stays
       # visibly pending rather than absent.
-      - name: publish the pending matrix
-        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} init --cells cells.json --notes notes.json
+      - name: post the pending comment
+        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json
         env:
           GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cells
+          path: cells.json
 
   cell:
     needs: route
@@ -93,13 +97,34 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
-      - name: update this cell's row
+      - name: hand back the result
         if: always()
         run: |
           test -f "$RUNNER_TEMP/result.json" || \
             echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job produced no result"]}' > "$RUNNER_TEMP/result.json"
-          cd "$HOME/ci-harness" && "$HOME/ci-venv/bin/python" -m ci.report \
-            --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
-            update --result "$RUNNER_TEMP/result.json"
+          cp "$RUNNER_TEMP/result.json" "result.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-${{ strategy.job-index }}
+          path: result.json
+
+  report:
+    needs: [route, cell]
+    if: always() && needs.route.outputs.cells != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pyyaml
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: render the final comment
+        run: |
+          python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
+            --cells artifacts/cells/cells.json --results artifacts
         env:
           GH_TOKEN: ${{ github.token }}
