@@ -179,6 +179,12 @@ def main() -> int:
     args = ap.parse_args()
 
     cell = json.loads(open(args.cell).read())
+    # A cell is machine-generated, but a malformed one should still fail with a
+    # readable message rather than a traceback the operator has to decode.
+    missing = [k for k in ("scenario", "repo", "args") if k not in cell]
+    if missing:
+        print(json.dumps({"error": f"cell missing {', '.join(missing)}"}))
+        return 2
     scenario = SCENARIOS.get(cell["scenario"])
     if scenario is None:
         print(json.dumps({"error": f"unknown scenario {cell['scenario']}"}))
