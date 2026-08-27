@@ -93,7 +93,8 @@ jobs:
           CI_REPO=${{ github.repository }} \
           CI_UPSTREAM=https://github.com/${{ github.repository }}.git \
           CI_RESULT="$RUNNER_TEMP/result.json" \
-            ~/device-script/bin/device.sh run "$RUNNER_TEMP/cell.json" "${{ needs.route.outputs.head }}"
+            ~/device-script/bin/device.sh run "$RUNNER_TEMP/cell.json" \
+              "${{ needs.route.outputs.base }}" "${{ needs.route.outputs.head }}"
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
