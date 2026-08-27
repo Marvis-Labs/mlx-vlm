@@ -116,6 +116,11 @@ def _graph(cells: list, results: list) -> list:
     return lines
 
 
+def _tier(cell: dict) -> str:
+    labels = cell.get("runs_on") or []
+    return labels[-1] if labels else "?"
+
+
 def render(
     pr: str, cells: list, results: Optional[list] = None, notes: Optional[list] = None
 ) -> str:
@@ -137,10 +142,11 @@ def render(
     for c in sorted(cells, key=lambda c: c["id"]):
         r = by_id.get(c["id"])
         if r is None:
-            rows.append(_row(c["id"], "pending", c["runs_on"][-1], {}, ""))
+            rows.append(_row(c["id"], "pending", _tier(c), {}, ""))
             pending += 1
             continue
-        dev = f"{r['device']['chip']} {r['device']['memory_gb']}GB"
+        d = r.get("device") or {}
+        dev = f"{d.get('chip', '?')} {d.get('memory_gb', 0)}GB"
         if not r.get("ok"):
             rows.append(
                 _row(c["id"], "failed", dev, {}, (r.get("errors") or [""])[0][:48])

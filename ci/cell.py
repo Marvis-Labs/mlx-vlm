@@ -181,7 +181,9 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
             }
             continue
         change = (hm - bm) / bm * 100
-        se = 2 * (b["stderr_pct"] ** 2 + h["stderr_pct"] ** 2) ** 0.5
+        # A malformed or older-format summary may lack the spread fields;
+        # treat that as zero uncertainty rather than crashing the whole run.
+        se = 2 * (b.get("stderr_pct", 0) ** 2 + h.get("stderr_pct", 0) ** 2) ** 0.5
         bar = bar_for(key, se)
         if key in LOWER_IS_BETTER:
             change = -change  # normalise so positive always means better
@@ -189,7 +191,7 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
             "base": bm,
             "head": hm,
             "change_pct": round(change, 2),
-            "cv_pct": round(max(b["cv_pct"], h["cv_pct"]), 2),
+            "cv_pct": round(max(b.get("cv_pct", 0), h.get("cv_pct", 0)), 2),
             # The bar a delta must clear: two standard errors of the
             # difference, or the smallest change worth acting on, whichever
             # is larger. Peak memory is perfectly repeatable, so its standard

@@ -44,7 +44,10 @@ def bar_for(metric: str, stderr_pct: float) -> float:
 
 def verdict(metric: str, delta: dict) -> str:
     """regressed / improved / noise / inconclusive."""
-    if delta.get("change_pct") is None:
+    change = delta.get("change_pct")
+    if change is not None and change != change:  # NaN: an undefined ratio
+        return "noise"
+    if change is None:
         # A counter with a zero baseline has no percentage. Switching on
         # matters only when the counter describes behaviour.
         return (
