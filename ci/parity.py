@@ -59,7 +59,10 @@ def _mlx_logits(repo: str, token_ids):
     model, _ = load(repo)
     lm = getattr(model, "language_model", model)
     ids = mx.array([token_ids])
-    logits = lm(ids)
+    out = lm(ids)
+    # mlx-vlm returns a LanguageModelOutput; older/text models may return an
+    # array or a tuple. Take .logits when present, else the raw output.
+    logits = getattr(out, "logits", out)
     if isinstance(logits, tuple):
         logits = logits[0]
     logits = logits[0]  # (seq, vocab)
