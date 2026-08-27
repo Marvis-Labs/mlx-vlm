@@ -317,6 +317,7 @@ def main() -> None:
         "--fleet", type=int, nargs="*", help="override fleet capacities in GB"
     )
     ap.add_argument("--out", help="append cells=<json> for GITHUB_OUTPUT")
+    ap.add_argument("--write", help="directory for cells.json and notes.json")
     args = ap.parse_args()
 
     paths = args.paths or changed_paths(args.base, args.head)
@@ -326,6 +327,13 @@ def main() -> None:
     if args.out:
         with open(args.out, "a") as fh:
             fh.write("cells=" + json.dumps(result["cells"]) + "\n")
+    if args.write:
+        # The reporter needs these as files. Writing them here keeps the
+        # workflow from unpacking the router's own output with a one-liner.
+        Path(args.write, "cells.json").write_text(json.dumps(result["cells"]))
+        Path(args.write, "notes.json").write_text(
+            json.dumps([n for n in result["notes"] if "fits the fleet" in n])
+        )
     print(json.dumps(result, indent=1))
 
 

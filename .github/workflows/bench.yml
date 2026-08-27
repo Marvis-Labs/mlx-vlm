@@ -36,13 +36,6 @@ jobs:
           python-version: "3.12"
       # The router reads the component configs and model metadata, both YAML.
       - run: pip install --quiet pyyaml
-      - name: resolve the pull request
-        id: pr
-        run: |
-          gh api repos/${{ inputs.upstream }}/pulls/${{ inputs.pr }} \
-            --jq '"head=\(.head.sha)\nbase=\(.base.sha)"' >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: select cells
         id: r
         run: |
@@ -51,8 +44,7 @@ jobs:
           BASE=$(git merge-base up/main pr/head)
           echo "head=$(git rev-parse pr/head)" >> "$GITHUB_OUTPUT"
           python -m ci.route --base "$BASE" --head "$(git rev-parse pr/head)" \
-            --gh-repo ${{ github.repository }} --out "$GITHUB_OUTPUT" > routed.json
-          python -c "import json;d=json.load(open('routed.json'));json.dump(d['cells'],open('cells.json','w'));json.dump([n for n in d['notes'] if 'fits the fleet' in n],open('notes.json','w'))"
+            --gh-repo ${{ github.repository }} --out "$GITHUB_OUTPUT" --write . > /dev/null
 
       # Published before anything runs, so a cell that never reaches a device
       # is visibly unrun rather than absent from the report.
@@ -78,7 +70,8 @@ jobs:
       - name: measure
         run: |
           echo '${{ toJSON(matrix.cell) }}' > "$RUNNER_TEMP/cell.json"
-          CI_SRC_REPO=https://github.com/${{ inputs.upstream }}.git \
+          CI_REPO=${{ github.repository }} \
+          CI_UPSTREAM=https://github.com/${{ inputs.upstream }}.git \
           CI_RESULT="$RUNNER_TEMP/result.json" \
             ~/device-script/bin/device.sh run "$RUNNER_TEMP/cell.json" "${{ needs.route.outputs.head }}"
         env:
@@ -97,9 +90,3 @@ jobs:
             update --result "$RUNNER_TEMP/result.json"
         env:
           GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || github.token }}
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: result-${{ matrix.cell.id }}
-          path: ${{ runner.temp }}/result.json
