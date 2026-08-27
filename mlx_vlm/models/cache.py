@@ -186,6 +186,8 @@ class ConcatenateKVCache(_BaseCache):
 
     def trim(self, n):
         n = min(self.offset, n)
+        if n == 0:
+            return 0
         self.offset -= n
         if self.keys is not None:
             self.keys = self.keys[..., : self.offset, :]
