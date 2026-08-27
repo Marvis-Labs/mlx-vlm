@@ -29,6 +29,7 @@ STATUS = {
     "improved": "🟢",
     "inconclusive": "⚠️",
     "failed": "❌",
+    "busy": "⊘",
     "no-device": "⬜",
 }
 
@@ -167,7 +168,7 @@ def render(
     by_id = {r["cell"]["id"]: r for r in results}
     one_arch = len({c["arch"] for c in cells}) == 1
 
-    ok = failed = pending = regressed = 0
+    ok = failed = pending = regressed = declined = 0
     rows = []
     for c in sorted(cells, key=lambda c: c["id"]):
         r = by_id.get(c["id"])
@@ -182,8 +183,16 @@ def render(
             dev += f" · {prec}"
         if not r.get("ok"):
             reason = (r.get("errors") or ["unknown error"])[0]
-            rows.append(_row(c["id"], "failed", dev, {}, reason[:48]))
-            failed += 1
+            # A device that declined because it was busy is not a crash and not
+            # a regression: the cell never measured, so it is environmental and
+            # re-runnable. Show it apart from a real failure and keep it out of
+            # the failure count so a busy fleet does not read as a broken PR.
+            if r.get("declined"):
+                rows.append(_row(c["id"], "busy", dev, {}, reason[:48]))
+                declined += 1
+            else:
+                rows.append(_row(c["id"], "failed", dev, {}, reason[:48]))
+                failed += 1
             continue
         if not r["delta"] and any(
             k in r.get("cell", {}) for k in ("greedy_agreement",)
@@ -209,11 +218,13 @@ def render(
     if one_arch:
         graph, regressed = _graph(cells, results)
 
-    done = ok + failed
+    done = ok + failed + declined
     if pending:
         head = f"running — {done} of {len(cells)} done"
     elif regressed:
         head = f"{regressed} regression(s)"
+    elif ok == 0 and failed == 0 and declined:
+        head = "all devices busy — re-run when idle"
     elif failed and not ok:
         head = "all cells failed"
     else:
@@ -221,7 +232,7 @@ def render(
 
     lines = [marker(pr), f"**mlx-vlm benchmark** — {head}", ""]
     lines += graph
-    summary = f"{ok} ok · {failed} failed · {pending} pending"
+    summary = f"{ok} ok · {failed} failed · {declined} busy · {pending} pending"
     lines += [
         f"<details><summary>per-cell detail ({summary})</summary>",
         "",
@@ -235,7 +246,8 @@ def render(
         "",
         "<sub>Positive is better. 🔴/🟢 mark a change past both two standard "
         "errors and a floor worth acting on; ⚠️ the device was too noisy to "
-        "decide; ❌ the cell failed (reason in the note).</sub>",
+        "decide; ⊘ the device was busy and declined — re-run when idle; "
+        "❌ the cell failed (reason in the note).</sub>",
     ]
     return "\n".join(lines)
 

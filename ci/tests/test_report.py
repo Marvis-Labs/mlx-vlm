@@ -54,6 +54,27 @@ def test_failed_cell_shows_reason():
     assert "❌" in out and "crashed: expand_dims()" in out
 
 
+def test_declined_cell_is_busy_not_failed():
+    out = RP.render(
+        "1",
+        CELLS,
+        [
+            _res(
+                "gemma2.apc.off.single",
+                ok=False,
+                declined=True,
+                errors=["device busy: VirtualMachine is using the machine"],
+            )
+        ],
+    )
+    # A decline is environmental: shown apart from a crash, counted as busy,
+    # and never as a failure that would read like a broken PR. (The legend
+    # still names ❌, so assert on the counts, not on the glyph's absence.)
+    assert "⊘" in out
+    assert "1 busy" in out and "0 failed" in out
+    assert "all devices busy" in out
+
+
 def test_empty_route_explains_itself():
     out = RP.render("1", [], notes=["gemma2: no sized model"])
     assert "nothing to run" in out and "no sized model" in out
