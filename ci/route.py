@@ -235,6 +235,15 @@ def route(
     models = yaml.safe_load(MODELS.read_text())
     specs = load_components()
     caps = caps if caps is not None else fleet(gh_repo)
+    if not caps:
+        # No reachable fleet means every cell would be dropped for want of a
+        # matching runner label, which reads as "nothing to test" when the
+        # truth is "could not ask what runs here". Say so loudly.
+        return {
+            "cells": [],
+            "fleet_gb": [],
+            "notes": ["no runners found: set GH_TOKEN or register a runner"],
+        }
     buckets = classify(paths, specs)
 
     cells: Dict[str, Cell] = {}
