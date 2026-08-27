@@ -1,0 +1,24 @@
+name: speculative
+enabled: false   # blocked on the engine exposing acceptance -- see below
+description: Speculative decoding via a draft model.
+
+# BLOCKER (why disabled): a speculative change can only be measured
+# meaningfully by acceptance rate -- how many drafted tokens the target
+# accepts -- because end-to-end throughput conflates draft quality with
+# execution speed. The accepted count exists in the engine
+# (mlx_vlm/speculative/common.py returns (accepted_count, new_tokens)) but is
+# not surfaced: run_speculative_rounds yields (tokens, logprobs) tuples
+# through mtp/eagle3/dflash variants and drops the count. Surfacing it means
+# threading accepted through those yield signatures into GenerationResult --
+# a cross-cutting engine change, not a one-liner. Enable this once
+# GenerationResult carries an accepted-tokens field and the probe reports it.
+
+paths: [mlx_vlm/generate/ar.py, mlx_vlm/speculative/utils.py]
+columns: [cache_kinds, speculative]
+requires: [speculative]
+scenario: single_generation
+regimes: [single]
+metrics: [decode_tps, ttft_ms, acceptance_rate]   # acceptance_rate pending the surface above
+configs:
+  - {id: "off", args: {num_draft_tokens: 0}}
+  - {id: draft-3, args: {num_draft_tokens: 3}}
