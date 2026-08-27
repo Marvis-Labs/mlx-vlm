@@ -113,3 +113,38 @@ def history(
         }
         for r in rows
     ]
+
+
+def ingest(results_dir, head_sha: str = "", db: Optional[Path] = None) -> int:
+    """Record every result.json under a directory. Returns the count.
+
+    Called by the report job after a run, so the measurements a run produced
+    accumulate in the store on the results-data branch rather than vanishing
+    with the ephemeral cloud job.
+    """
+    n = 0
+    for path in Path(results_dir).rglob("result.json"):
+        try:
+            record(json.loads(path.read_text()), head_sha, db)
+            n += 1
+        except Exception:
+            continue
+    return n
+
+
+def _main() -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ingest", help="directory of result.json to record")
+    ap.add_argument("--head", default="")
+    ap.add_argument("--db")
+    args = ap.parse_args()
+    if args.ingest:
+        db = Path(args.db) if args.db else None
+        print(f"recorded {ingest(args.ingest, args.head, db)} results")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

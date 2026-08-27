@@ -57,6 +57,15 @@ jobs:
           python-version: "3.12"
       - run: pip install --quiet pyyaml
 
+      # Pull the measurements from the results-data branch so the router can
+      # size cells from a measured peak instead of an estimate.
+      - name: fetch the results database
+        run: |
+          mkdir -p "$HOME/.mlx-vlm-ci"
+          git fetch origin results-data 2>/dev/null \
+            && git show results-data:.mlx-vlm-ci/results.db > "$HOME/.mlx-vlm-ci/results.db" 2>/dev/null \
+            || echo "no results database yet"
+
       - name: select cells
         id: r
         run: |
@@ -127,5 +136,25 @@ jobs:
         run: |
           python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
             --cells artifacts/cells/cells.json --results artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # Persist the measurements so they survive this ephemeral job: fetch the
+      # results database from the results-data branch, record this run's
+      # results into it, and push it back. Observational data cannot live on
+      # the code branch, so it gets its own.
+      - name: persist results to the results-data branch
+        if: always()
+        run: |
+          git config user.name ci-bot
+          git config user.email ci-bot@users.noreply.github.com
+          git fetch origin results-data 2>/dev/null && git checkout results-data \
+            || git checkout --orphan results-data
+          mkdir -p .mlx-vlm-ci
+          python -m ci.store --ingest artifacts --head "${{ needs.route.outputs.head }}" \
+            --db .mlx-vlm-ci/results.db
+          git add .mlx-vlm-ci/results.db
+          git commit -q -m "results for ${{ needs.route.outputs.head }}" || exit 0
+          git push origin results-data
         env:
           GH_TOKEN: ${{ github.token }}
