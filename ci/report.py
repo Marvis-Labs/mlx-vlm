@@ -161,7 +161,10 @@ def render(
             pending += 1
             continue
         d = r.get("device") or {}
+        prec = r.get("cell", {}).get("precision", "")
         dev = f"{d.get('chip', '?')} {d.get('memory_gb', 0)}GB"
+        if prec:
+            dev += f" · {prec}"
         if not r.get("ok"):
             reason = (r.get("errors") or ["unknown error"])[0]
             rows.append(_row(c["id"], "failed", dev, {}, reason[:48]))

@@ -54,12 +54,13 @@ class Cell:
     arch: str
     component: str
     config: str
-    repo: str
-    revision: str
-    precision: str
     scenario: str
     regime: str
-    requires_gb: float
+    # Every precision the model is published in. The device that picks the
+    # cell chooses the largest that fits its own memory, so the router never
+    # needs to know what hardware exists.
+    variants: List[Dict[str, Any]]
+    min_gb: float  # memory for the smallest variant, the entry bar
     runs_on: List[str]
     metrics: List[str]
     args: Dict[str, Any] = field(default_factory=dict)
@@ -74,22 +75,6 @@ def load_components(*, enabled_only: bool = True) -> List[dict]:
             continue
         out.append(spec)
     return out
-
-
-def fleet(repo: Optional[str] = None) -> List[int]:
-    """Runner memory sizes, largest first, read from a committed file.
-
-    Not discovered from the API: listing self-hosted runners needs an admin
-    token the workflow has no way to hold, and the fleet changes rarely. A
-    committed list is simpler, needs no credentials, and shows up in review.
-    """
-    path = Path(__file__).resolve().parent / "fleet.txt"
-    caps = []
-    for line in path.read_text().splitlines():
-        line = line.split("#")[0].strip()
-        if line.isdigit() and int(line) > 0:  # a 0 GB runner is not a runner
-            caps.append(int(line))
-    return sorted(caps, reverse=True)
 
 
 def signature(row: dict, columns: Sequence[str]) -> tuple:
@@ -159,55 +144,49 @@ def classify(paths: Sequence[str], specs: Sequence[dict]) -> dict:
     return out
 
 
-def pick_variant(
-    arch: str,
-    models: dict,
-    budget_gb: Optional[float],
-    scenario: str = "single_generation",
-) -> Optional[dict]:
-    """Largest precision the fleet can hold — devices should be used fully.
+def variants_for(arch: str, models: dict, scenario: str) -> List[Dict[str, Any]]:
+    """Every publishable precision, each with the memory it needs, large first.
 
-    Falling back to a smaller precision keeps coverage rather than dropping
-    the architecture, since precision is a property of the cell and not of
-    the code under test.
+    The device picks from this at run time, so the router makes no assumption
+    about the fleet. A checkpoint needing packages the measurement environment
+    does not carry is dropped, since it would fail on every device.
     """
     entry = models.get(arch) or {}
-    # Some checkpoints need packages the measurement environment does not
-    # pin -- a remote-code processor that imports torch, for instance. The
-    # cell would be dispatched, occupy a runner, and fail every time.
-    missing = [p for p in entry.get("needs", []) if p not in INSTALLED]
-    if missing:
-        return None
-    variants = entry.get("variants") or []
-    ranked = sorted(variants, key=lambda v: v["weights_gb"], reverse=True)
+    if [p for p in entry.get("needs", []) if p not in INSTALLED]:
+        return []
     mult = SCENARIO_MULTIPLIER.get(scenario, DEFAULT_MULTIPLIER)
-    for v in ranked:
-        need = v["weights_gb"] * mult
-        if budget_gb is None or need <= budget_gb:
-            return {**v, "requires_gb": round(need, 1)}
-    return None
+    out = []
+    for v in sorted(
+        entry.get("variants") or [], key=lambda v: v["weights_gb"], reverse=True
+    ):
+        out.append(
+            {
+                "repo": v["repo"],
+                "revision": v.get("sha", ""),
+                "precision": v["precision"],
+                "requires_gb": round(v["weights_gb"] * mult, 1),
+            }
+        )
+    return out
 
 
-# Must match the ladder a runner advertises in device.sh. A cell asks for the
-# smallest tier that holds it, and every runner at or above that tier carries
-# the matching label, so the cell is not pinned to one machine size.
+# The ladder a runner advertises in device.sh. A cell is labelled with the tier
+# for its smallest variant, so any device large enough to run it at some
+# precision matches; that device then picks the largest precision it can hold.
 TIERS = [16, 32, 48, 64, 96, 128, 192, 256, 512]
 
 
-def label_for(requires_gb: float, caps: Sequence[int]) -> Optional[List[str]]:
-    biggest = max(caps) * USABLE_FRACTION if caps else 0
-    if requires_gb > biggest:
-        return None
-    tier = next((t for t in TIERS if t * USABLE_FRACTION >= requires_gb), None)
+def label_for(min_gb: float) -> Optional[List[str]]:
+    tier = next((t for t in TIERS if t * USABLE_FRACTION >= min_gb), None)
     return ["self-hosted", "macos", "arm64", f"mem-{tier}"] if tier else None
 
 
-def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cell]:
-    budget = max(caps) * USABLE_FRACTION if caps else None
-    variant = pick_variant(arch, models, budget, spec["scenario"])
-    if variant is None:
+def expand(arch: str, spec: dict, models: dict) -> List[Cell]:
+    variants = variants_for(arch, models, spec["scenario"])
+    if not variants:
         return []
-    runs_on = label_for(variant["requires_gb"], caps)
+    min_gb = min(v["requires_gb"] for v in variants)  # smallest precision
+    runs_on = label_for(min_gb)
     if runs_on is None:
         return []
     cells = []
@@ -215,16 +194,14 @@ def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cel
         for cfg in spec["configs"]:
             cells.append(
                 Cell(
-                    id=f"{arch}.{spec['name']}.{cfg['id']}.{variant['precision']}.{regime}",
+                    id=f"{arch}.{spec['name']}.{cfg['id']}.{regime}",
                     arch=arch,
                     component=spec["name"],
                     config=cfg["id"],
-                    repo=variant["repo"],
-                    revision=variant.get("sha", ""),
-                    precision=variant["precision"],
                     scenario=spec["scenario"],
                     regime=regime,
-                    requires_gb=variant["requires_gb"],
+                    variants=variants,
+                    min_gb=min_gb,
                     runs_on=runs_on,
                     metrics=spec["metrics"],
                     args=cfg.get("args") or {},
@@ -234,21 +211,11 @@ def expand(arch: str, spec: dict, models: dict, caps: Sequence[int]) -> List[Cel
     return cells
 
 
-def route(
-    paths: Sequence[str],
-    caps: Optional[Sequence[int]] = None,
-) -> dict:
+def route(paths: Sequence[str]) -> dict:
     matrix = json.loads(MATRIX.read_text())
     rows = matrix.get("architectures", matrix)
     models = yaml.safe_load(MODELS.read_text())
     specs = load_components()
-    caps = caps if caps is not None else fleet()
-    if not caps:
-        return {
-            "cells": [],
-            "fleet_gb": [],
-            "notes": ["fleet.txt is empty or has no valid sizes; add a runner"],
-        }
     buckets = classify(paths, specs)
 
     cells: Dict[str, Cell] = {}
@@ -267,9 +234,9 @@ def route(
         for spec in specs:
             if not reaches(rows[arch], spec):
                 continue
-            produced = expand(arch, spec, models, caps)
+            produced = expand(arch, spec, models)
             if not produced:
-                notes.append(f"{arch}/{spec['name']}: no variant fits the fleet")
+                notes.append(f"{arch}/{spec['name']}: no runnable variant")
             for c in produced:
                 cells[c.id] = c
 
@@ -296,7 +263,7 @@ def route(
                     notes.append(f"{spec['name']}: signature {sig} has no sized model")
                     continue
                 arch = alt
-            for c in expand(arch, spec, models, caps):
+            for c in expand(arch, spec, models):
                 cells[c.id] = c
 
     for path in buckets["unrouted"]:
@@ -304,7 +271,6 @@ def route(
 
     return {
         "cells": [asdict(c) for c in sorted(cells.values(), key=lambda c: c.id)],
-        "fleet_gb": caps,
         "notes": notes,
     }
 
@@ -324,16 +290,12 @@ def main() -> None:
     ap.add_argument("--base")
     ap.add_argument("--head")
     ap.add_argument("--paths", nargs="*", help="explicit paths instead of a diff")
-    ap.add_argument(
-        "--fleet", type=int, nargs="*", help="override fleet capacities in GB"
-    )
     ap.add_argument("--out", help="append cells=<json> for GITHUB_OUTPUT")
     ap.add_argument("--write", help="directory for cells.json and notes.json")
     args = ap.parse_args()
 
     paths = args.paths or changed_paths(args.base, args.head)
-    caps = sorted(args.fleet, reverse=True) if args.fleet is not None else None
-    result = route(paths, caps=caps)
+    result = route(paths)
 
     if args.out:
         with open(args.out, "a") as fh:

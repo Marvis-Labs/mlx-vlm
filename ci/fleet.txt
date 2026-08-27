@@ -1,8 +1,0 @@
-# Memory of each benchmark runner, in GB, one per line. This is what the
-# router sizes cells against. It is committed rather than discovered because
-# reading self-hosted runners needs an admin token the workflow does not
-# have, and the fleet changes rarely enough that a line in a file is simpler
-# and visible in the diff. Add a machine here when you register it.
-128   # M5 Max
-16    # M4 mini (amelia)
-16    # M4 mini (lexie)

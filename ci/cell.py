@@ -300,6 +300,46 @@ def worktrees(repo: Path, base: str, head: str, work: Path) -> tuple[Path, Path]
     return out[0], out[1]
 
 
+def choose_variant(cell: dict) -> dict:
+    """Pick the largest precision this device can hold, by sensing its own RAM.
+
+    This is where zero-configuration lives: the router shipped every variant
+    and made no assumption about hardware, so a mini picks 4-bit and a big
+    machine picks bf16 of the same cell without anyone configuring either. The
+    result of choosing on-device is that base and head, which run in the same
+    job, always share a precision, so the comparison stays valid.
+    """
+    variants = cell.get("variants")
+    if not variants:  # a resolved cell (already has repo) passes through
+        return cell
+    import subprocess
+
+    mem_gb = (
+        int(
+            subprocess.run(
+                ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True
+            ).stdout
+        )
+        / 2**30
+    )
+    usable = mem_gb * float(os.environ.get("USABLE_FRACTION", "90")) / 100
+    # variants arrive largest first; take the first that fits.
+    for v in variants:
+        if v["requires_gb"] <= usable:
+            return dict(
+                cell,
+                repo=v["repo"],
+                revision=v["revision"],
+                precision=v["precision"],
+                requires_gb=v["requires_gb"],
+            )
+    smallest = min(variants, key=lambda v: v["requires_gb"])
+    raise SystemExit(
+        f"device has {usable:.0f}GB usable, smallest variant needs "
+        f"{smallest['requires_gb']}GB"
+    )
+
+
 def warm(cell: dict) -> None:
     """Download the pinned weights once, before anything is timed.
 
@@ -351,7 +391,8 @@ def main() -> int:
     args = ap.parse_args()
 
     cell_path = Path(args.cell).resolve()
-    cell = json.loads(cell_path.read_text())
+    cell = choose_variant(json.loads(cell_path.read_text()))
+    cell_path.write_text(json.dumps(cell))  # the probe reads the resolved cell
     repo = Path(args.repo).resolve()
     work = Path(args.work or os.environ.get("CI_WORK", Path.home() / "ci-work"))
     work.mkdir(parents=True, exist_ok=True)
