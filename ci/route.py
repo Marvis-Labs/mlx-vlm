@@ -87,7 +87,7 @@ def fleet(repo: Optional[str] = None) -> List[int]:
     caps = []
     for line in path.read_text().splitlines():
         line = line.split("#")[0].strip()
-        if line.isdigit():
+        if line.isdigit() and int(line) > 0:  # a 0 GB runner is not a runner
             caps.append(int(line))
     return sorted(caps, reverse=True)
 
@@ -243,6 +243,12 @@ def route(
     models = yaml.safe_load(MODELS.read_text())
     specs = load_components()
     caps = caps if caps is not None else fleet()
+    if not caps:
+        return {
+            "cells": [],
+            "fleet_gb": [],
+            "notes": ["fleet.txt is empty or has no valid sizes; add a runner"],
+        }
     buckets = classify(paths, specs)
 
     cells: Dict[str, Cell] = {}
