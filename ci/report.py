@@ -17,26 +17,12 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from ci.verdict import FUNCTIONAL, verdict
+
 SHOWN = ["decode_tps", "prefill_tps", "ttft_ms", "peak_mem_gb"]
 
-# Behavioural counters, reported beside the timings when a cell produces
-# them. A change that holds throughput flat while prefix reuse collapses is a
-# regression no speed column can show, so these are never merely informational.
-FUNCTIONAL = ["token_hit_rate", "matched_tokens", "exact_hits"]
-COLUMNS = SHOWN + FUNCTIONAL
+COLUMNS = SHOWN + sorted(FUNCTIONAL)
 
-# A metric has to clear both statistical confidence and an amount worth
-# acting on. Peak memory is perfectly repeatable, so its standard error is
-# zero and without a floor any nonzero delta reads as significant.
-FLOOR_PCT = {
-    "peak_mem_gb": 2.0,
-    "decode_tps": 2.0,
-    "prefill_tps": 3.0,
-    "ttft_ms": 5.0,
-    "wall_ms": 2.0,
-}
-DEFAULT_FLOOR_PCT = 3.0
-INCONCLUSIVE_RATIO = 2.0
 
 STATUS = {
     "pending": "⏳ pending",
@@ -51,27 +37,6 @@ STATUS = {
 
 def marker(pr: str) -> str:
     return f"<!-- mlx-vlm-ci:{pr} -->"
-
-
-def verdict(metric: str, delta: dict) -> str:
-    floor = FLOOR_PCT.get(metric, DEFAULT_FLOOR_PCT)
-    noise = delta.get("noise_pct", 0)
-    if delta.get("change_pct") is None:
-        # A counter with a zero baseline has no percentage. Switching on is
-        # only a regression when the counter describes behaviour, since a
-        # functional path appearing or vanishing is the whole signal.
-        return (
-            "regressed"
-            if delta.get("significant") and delta.get("functional")
-            else "noise"
-        )
-    if noise > floor * INCONCLUSIVE_RATIO:
-        return "inconclusive"
-    # Judged here rather than read from the result: a run measured under an
-    # earlier rule would otherwise carry that rule's verdict forward.
-    if abs(delta["change_pct"]) <= max(noise, floor):
-        return "noise"
-    return "improved" if delta["change_pct"] > 0 else "regressed"
 
 
 def row(
