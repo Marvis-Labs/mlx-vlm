@@ -139,7 +139,15 @@ def compare(base: Dict[str, Any], head: Dict[str, Any]) -> Dict[str, Any]:
     deltas: Dict[str, Any] = {}
     for key, b in base.items():
         h = head.get(key)
-        if not isinstance(b, dict) or not isinstance(h, dict):
+        # A summary entry, not any mapping: keeping non-numeric metrics such
+        # as the prefix-cache rejection reasons put a plain dict in here, and
+        # treating it as a metric raised a KeyError mid-run.
+        if not (
+            isinstance(b, dict)
+            and isinstance(h, dict)
+            and "median" in b
+            and "median" in h
+        ):
             continue
         bm, hm = b["median"], h["median"]
         if bm == 0:
