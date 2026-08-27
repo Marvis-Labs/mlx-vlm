@@ -102,7 +102,7 @@ jobs:
         if: always()
         run: |
           test -f "$RUNNER_TEMP/result.json" || \
-            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["job produced no result"]}' > "$RUNNER_TEMP/result.json"
+            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["not ready: device declined or the job failed before measuring"]}' > "$RUNNER_TEMP/result.json"
           cp "$RUNNER_TEMP/result.json" "result.json"
       - uses: actions/upload-artifact@v4
         if: always()

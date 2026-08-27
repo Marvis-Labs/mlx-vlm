@@ -22,6 +22,25 @@ from typing import Any, Dict, List
 from ci.verdict import FUNCTIONAL, LOWER_IS_BETTER, bar_for
 
 
+def _probe_error(proc) -> str:
+    """A consistent, human reason from a crashed probe.
+
+    Every failure reads "category: detail". A crash reports the actual
+    exception from the last traceback line -- expand_dims on a quantized
+    cache, say -- rather than the useless "exited 1"; the exit code alone
+    told the operator nothing.
+    """
+    tail = [l.strip() for l in proc.stderr.splitlines() if l.strip()]
+    # The last line of a Python traceback is "ExcType: message".
+    for line in reversed(tail):
+        if ": " in line and line[0].isupper() and "Error" in line.split(":")[0]:
+            kind, _, msg = line.partition(": ")
+            return f"crashed: {msg[:80] or kind}"
+    if "MemoryError" in proc.stderr or "metal" in proc.stderr.lower():
+        return "crashed: out of memory"
+    return f"crashed: probe exited {proc.returncode}"
+
+
 def probe(
     worktree: Path,
     cell_path: Path,
@@ -58,15 +77,12 @@ def probe(
         cwd=str(Path(cell_path).resolve().parent),
     )
     if proc.returncode != 0:
-        return {
-            "error": f"probe exited {proc.returncode}",
-            "stderr": proc.stderr[-2000:],
-        }
+        return {"error": _probe_error(proc)}
     try:
         return json.loads(proc.stdout.strip().splitlines()[-1])
-    except Exception as exc:
+    except Exception:
         return {
-            "error": f"unparseable probe output: {exc}",
+            "error": "bad output: probe printed no result json",
             "stdout": proc.stdout[-800:],
             "stderr": proc.stderr[-800:],
         }
@@ -99,7 +115,10 @@ def interleave(
             # first leaves the rest measuring compilation.
             out = probe(tree, cell_path, label, warmup, 1, timeout)
             if "error" in out:
-                errors.append(f"{label} repeat {i}: {out['error']}")
+                # The reason is the signal; which repeat hit it is noise, and
+                # every repeat usually fails the same way. Keep it once.
+                if out["error"] not in errors:
+                    errors.append(out["error"])
                 continue
             runs[label].extend(out["runs"])
             runs.setdefault(f"{label}_env", []).append(

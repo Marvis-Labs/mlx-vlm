@@ -183,11 +183,11 @@ def main() -> int:
     # readable message rather than a traceback the operator has to decode.
     missing = [k for k in ("scenario", "repo", "args") if k not in cell]
     if missing:
-        print(json.dumps({"error": f"cell missing {', '.join(missing)}"}))
+        print(json.dumps({"error": f"bad cell: missing {', '.join(missing)}"}))
         return 2
     scenario = SCENARIOS.get(cell["scenario"])
     if scenario is None:
-        print(json.dumps({"error": f"unknown scenario {cell['scenario']}"}))
+        print(json.dumps({"error": f"bad cell: unknown scenario {cell['scenario']}"}))
         return 2
 
     for key, value in (cell.get("env") or {}).items():
