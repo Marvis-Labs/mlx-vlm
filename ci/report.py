@@ -66,6 +66,56 @@ def _row(cell_id: str, state: str, device: str, delta: dict, note: str) -> str:
     return "| " + " | ".join(cells) + " |"
 
 
+def _diverge(
+    change: float, significant: bool, half: int = 10, cap: float = 15.0
+) -> str:
+    """A bar from a center line: left is worse, right is better, capped."""
+    n = min(round(abs(change) / cap * half), half) if significant else 0
+    if n == 0:
+        return "·" * half + "┃" + "·" * half
+    if change < 0:
+        return "·" * (half - n) + "█" * n + "┃" + "·" * half
+    return "·" * half + "┃" + "█" * n + "·" * (half - n)
+
+
+def _graph(cells: list, results: list) -> list:
+    """A compact before/after graph, shown when one architecture is changed.
+
+    A model-path change touches a single architecture across many configs, so
+    the median change per metric is the headline; the diverging bar makes a
+    regression visible at a glance without reading the table.
+    """
+    import statistics
+
+    by_id = {r["cell"]["id"]: r for r in results}
+    arch = cells[0]["arch"]
+    per_metric: dict = {}
+    for c in cells:
+        r = by_id.get(c["id"])
+        if not r or not r.get("ok"):
+            continue
+        for m, v in r["delta"].items():
+            if isinstance(v, dict) and m in SPEED and v.get("change_pct") is not None:
+                per_metric.setdefault(m, []).append((v["change_pct"], v["significant"]))
+    if not per_metric:
+        return []
+    lines = [
+        f"### `{arch}` — median change across configs",
+        "",
+        "```",
+        f"{'':<13}worse ◄──────────┃──────────► better",
+    ]
+    for m in SPEED:
+        pts = per_metric.get(m)
+        if not pts:
+            continue
+        med = statistics.median([c for c, _ in pts])
+        sig = sum(s for _, s in pts) > len(pts) / 2
+        lines.append(f"{m:<13}{_diverge(med, sig)} {med:+6.1f}%")
+    lines += ["```", ""]
+    return lines
+
+
 def render(pr: str, cells: list, results: Optional[list] = None) -> str:
     by_id = {r["cell"]["id"]: r for r in (results or [])}
     rows, regressed, pending = [], 0, 0
@@ -93,6 +143,10 @@ def render(pr: str, cells: list, results: Optional[list] = None) -> str:
             )
         )
 
+    graph = []
+    if results and len({c["arch"] for c in cells}) == 1:
+        graph = _graph(cells, results)
+
     if pending:
         head = f"running — {len(cells) - pending} of {len(cells)} done"
     elif regressed:
@@ -100,14 +154,16 @@ def render(pr: str, cells: list, results: Optional[list] = None) -> str:
     else:
         head = "no regression"
 
-    lines = [
-        marker(pr),
-        f"**mlx-vlm benchmark** — {head}",
+    lines = [marker(pr), f"**mlx-vlm benchmark** — {head}", ""]
+    lines += graph
+    lines += [
+        "<details><summary>per-cell detail</summary>",
         "",
         "| cell | device | " + " | ".join(["status"] + COLUMNS) + " | note |",
         "|" + "---|" * (len(COLUMNS) + 4),
     ]
     lines += rows
+    lines += ["", "</details>"]
     lines += [
         "",
         "<sub>Positive is better. 🔴/🟢 mark changes past both two standard "
