@@ -35,7 +35,15 @@ SCENARIO_MULTIPLIER = {
     "shared_prefix_pair": 2.0,
     "long_prompt": 2.8,
 }
-DEFAULT_MULTIPLIER = 2.8  # unknown scenario: assume the worst
+DEFAULT_MULTIPLIER = 2.8
+
+# What the pinned measurement environment provides.
+INSTALLED = {
+    "mlx",
+    "mlx_vlm",
+    "huggingface_hub",
+    "yaml",
+}  # unknown scenario: assume the worst
 
 USABLE_FRACTION = 0.90
 
@@ -163,7 +171,14 @@ def pick_variant(
     the architecture, since precision is a property of the cell and not of
     the code under test.
     """
-    variants = (models.get(arch) or {}).get("variants") or []
+    entry = models.get(arch) or {}
+    # Some checkpoints need packages the measurement environment does not
+    # pin -- a remote-code processor that imports torch, for instance. The
+    # cell would be dispatched, occupy a runner, and fail every time.
+    missing = [p for p in entry.get("needs", []) if p not in INSTALLED]
+    if missing:
+        return None
+    variants = entry.get("variants") or []
     ranked = sorted(variants, key=lambda v: v["weights_gb"], reverse=True)
     mult = SCENARIO_MULTIPLIER.get(scenario, DEFAULT_MULTIPLIER)
     for v in ranked:

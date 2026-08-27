@@ -39,6 +39,8 @@ diffusion_gemma:
     verified: '2026-08-26'
     weights_gb: 48.1
 florence2:
+  needs:
+  - torch
   variants:
   - gated: false
     precision: 4bit
