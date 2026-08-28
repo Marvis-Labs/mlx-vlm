@@ -22,11 +22,18 @@ concurrency:
 
 jobs:
   route:
-    # Only a "/ci run" comment on a pull request, or a manual dispatch.
+    # Only a "/ci run" comment on a pull request, from someone with write
+    # access, or a manual dispatch. The association check is the security gate,
+    # not a nicety: a self-hosted runner executes the pull request's head code,
+    # so without it any user -- including on a fork PR -- could run arbitrary
+    # code on our hardware by commenting "/ci run". workflow_dispatch is already
+    # restricted to users with write access by GitHub.
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.issue.pull_request &&
-       startsWith(github.event.comment.body, '/ci run'))
+       startsWith(github.event.comment.body, '/ci run') &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+                github.event.comment.author_association))
     runs-on: ubuntu-latest
     outputs:
       pr: ${{ steps.pr.outputs.pr }}
