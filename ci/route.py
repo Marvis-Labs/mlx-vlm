@@ -337,27 +337,27 @@ def route(paths: Sequence[str]) -> dict:
     # Component change: one architecture per component-scoped signature,
     # across that component's configurations.
     for spec in buckets["components"]:
-        pool = [a for a in sorted(rows) if reaches(rows[a], spec)]
-        reps: Dict[tuple, str] = {}
+        pool = [a for a in rows if reaches(rows[a], spec)]
+
+        def _weights(a: str) -> float:
+            variants = (models.get(a) or {}).get("variants") or []
+            return min((v["weights_gb"] for v in variants), default=float("inf"))
+
+        # One representative per signature class, and the SMALLEST sized model in
+        # it. Every member takes an identical path through the component, so a
+        # 2GB model tests it exactly as well as a 600GB one -- and is far cheaper
+        # to fetch and run. Picking alphabetically (the old way) routed a cache
+        # change onto giant MoEs like deepseek_v4, which no runner could download
+        # in time.
+        by_sig: Dict[tuple, List[str]] = {}
         for arch in pool:
-            reps.setdefault(signature(rows[arch], spec["columns"]), arch)
-        for sig, arch in sorted(reps.items(), key=lambda kv: kv[1]):
-            if arch not in models:
-                # Substitute inside the signature class: members take an
-                # identical path through the component, so this is free.
-                alt = next(
-                    (
-                        a
-                        for a in pool
-                        if a in models and signature(rows[a], spec["columns"]) == sig
-                    ),
-                    None,
-                )
-                if alt is None:
-                    notes.append(f"{spec['name']}: signature {sig} has no sized model")
-                    continue
-                arch = alt
-            for c in expand(arch, spec, models):
+            by_sig.setdefault(signature(rows[arch], spec["columns"]), []).append(arch)
+        for sig, members in sorted(by_sig.items(), key=lambda kv: min(kv[1])):
+            sized = [a for a in members if a in models]
+            if not sized:
+                notes.append(f"{spec['name']}: signature {sig} has no sized model")
+                continue
+            for c in expand(min(sized, key=_weights), spec, models):
                 cells[c.id] = c
 
     for path in buckets["unrouted"]:
