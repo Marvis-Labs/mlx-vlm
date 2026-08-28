@@ -18,3 +18,7 @@ class ModelConfig(BaseModelConfig):
     def __post_init__(self):
         if self.num_key_value_heads is None:
             self.num_key_value_heads = self.n_head
+
+# ci stress sweep: touch gpt2 to route its cells
+
+# ci stress sweep marker: gpt2

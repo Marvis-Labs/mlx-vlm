@@ -50,3 +50,5 @@ class ModelConfig(BaseModelConfig):
                 for i, layer_type in enumerate(self.layer_types)
                 if layer_type == "full_attention"
             ]
+
+# ci stress sweep: touch lfm2 to route its cells
