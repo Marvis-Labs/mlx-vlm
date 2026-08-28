@@ -106,3 +106,23 @@ def test_parity_metrics_without_reference_is_a_clean_error():
         {"id": "x.parity", "component": "parity", "repo": "org/x-bf16"}
     )
     assert metrics == {} and errors and "reference" in errors[0]
+
+
+def test_choose_variant_carries_the_gated_flag():
+    # The gated flag must survive resolution so a gated checkpoint without a
+    # token is declined with a clear reason, not an opaque mid-run 401.
+    cell = {
+        "id": "g.apc.off.single",
+        "variants": [
+            {
+                "repo": "org/g-bf16",
+                "revision": "",
+                "precision": "bf16",
+                "requires_gb": 4.0,
+                "gated": True,
+            }
+        ],
+    }
+    with mock.patch("subprocess.run") as r:
+        r.return_value.stdout = str(64 * 2**30)
+        assert C.choose_variant(dict(cell)).get("gated") is True

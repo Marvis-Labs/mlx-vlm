@@ -323,6 +323,10 @@ def choose_variant(cell: dict) -> dict:
             # here is why the gate had no way to run.
             if "ref" in v:
                 resolved["ref"] = v["ref"]
+            # Keep the gated flag so a gated checkpoint without a token can be
+            # declined with a clear reason instead of a mid-run 401.
+            if v.get("gated"):
+                resolved["gated"] = True
             return resolved
     smallest = min(variants, key=lambda v: v["requires_gb"])
     raise SystemExit(
