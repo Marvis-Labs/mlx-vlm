@@ -134,3 +134,15 @@ def test_warning_banners_the_report():
     assert "⚠️" in out and "modifies CI harness files" in out
     # the benchmark still ran, so the normal detail is present too
     assert "per-cell detail" in out
+
+
+def test_status_for_maps_headline_to_commit_state():
+    from ci.report import status_for
+
+    assert status_for("**mlx-vlm benchmark** — no regression")[0] == "success"
+    assert status_for("**mlx-vlm benchmark** — 2 regression(s)")[0] == "failure"
+    assert status_for("**mlx-vlm benchmark** — ⛔ refused: x")[0] == "failure"
+    assert status_for("**mlx-vlm benchmark** — running — 1 of 4 done")[0] == "pending"
+    assert (
+        status_for("**mlx-vlm benchmark** — all devices busy — re-run")[0] == "success"
+    )

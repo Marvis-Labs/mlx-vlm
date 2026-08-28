@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write # push accumulated results to the results-data branch
   pull-requests: write # upsert the single benchmark comment
+  statuses: write # post a commit status so the result shows on the PR itself
 
 concurrency:
   group: bench-${{ github.event.issue.number || inputs.pr }}
@@ -82,13 +83,16 @@ jobs:
       # Posted before anything runs: a cell that never reaches a device stays
       # visibly pending rather than absent.
       - name: post the pending comment
-        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json --notes notes.json
+        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json --notes notes.json --head ${{ steps.pr.outputs.head }}
         env:
           GH_TOKEN: ${{ github.token }}
+          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         with:
           name: cells
-          path: cells.json
+          path: |
+            cells.json
+            notes.json
 
   cell:
     needs: route
@@ -152,9 +156,11 @@ jobs:
       - name: render the final comment
         run: |
           python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
-            --cells artifacts/cells/cells.json --results artifacts
+            --cells artifacts/cells/cells.json --notes artifacts/cells/notes.json \
+            --results artifacts --head ${{ needs.route.outputs.head }}
         env:
           GH_TOKEN: ${{ github.token }}
+          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       # Persist the measurements so they survive this ephemeral job: fetch the
       # results database from the results-data branch, record this run's

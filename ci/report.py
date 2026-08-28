@@ -320,6 +320,45 @@ def _api(method: str, path: str, body: Optional[dict] = None) -> Any:
         return json.load(r) if r.length else None
 
 
+def set_status(
+    repo: str, sha: str, state: str, description: str, url: str = ""
+) -> None:
+    """Post a commit status so the result shows on the PR, not only in a comment.
+
+    An issue_comment run is not linked to the pull request as a check, so
+    without this the PR's checks area stays empty even while the benchmark runs
+    -- which reads as "CI never ran".
+    """
+    _api(
+        "POST",
+        f"/repos/{repo}/statuses/{sha}",
+        {
+            "state": state,
+            "context": "benchmark",
+            "description": description[:140],
+            **({"target_url": url} if url else {}),
+        },
+    )
+
+
+def status_for(comment: str) -> tuple:
+    """Map a rendered comment to (commit-status state, description). Keyed on the
+    one headline the report already computes, so the status and the comment can
+    never disagree."""
+    head = next(
+        (ln for ln in comment.splitlines() if ln.startswith("**mlx-vlm benchmark**")),
+        "",
+    )
+    desc = head.split("—", 1)[-1].strip() if "—" in head else "benchmark"
+    if "running" in desc:
+        state = "pending"
+    elif "regression(s)" in desc or "all cells failed" in desc or "refused" in desc:
+        state = "failure"
+    else:
+        state = "success"
+    return state, desc
+
+
 def upsert(pr: str, repo: str, body: str) -> None:
     """Post the comment, or edit ours if it already exists. Only the cloud
     job calls this, one write at a time, so there is no race to guard."""
@@ -337,6 +376,7 @@ def main() -> int:
     ap.add_argument("--repo", required=True)
     ap.add_argument("--cells", required=True, help="the routed cell list")
     ap.add_argument("--notes", help="routing notes, for the empty case")
+    ap.add_argument("--head", help="PR head sha, to post a commit status")
     ap.add_argument("--results", help="directory of result json; omit for pending")
     args = ap.parse_args()
 
@@ -350,7 +390,11 @@ def main() -> int:
         results = [
             json.loads(p.read_text()) for p in Path(args.results).rglob("result.json")
         ]
-    upsert(args.pr, args.repo, render(args.pr, cells, results, notes=notes))
+    comment = render(args.pr, cells, results, notes=notes)
+    upsert(args.pr, args.repo, comment)
+    if args.head:
+        state, desc = status_for(comment)
+        set_status(args.repo, args.head, state, desc, os.environ.get("CI_RUN_URL", ""))
     return 0
 
 
