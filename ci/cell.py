@@ -311,13 +311,19 @@ def choose_variant(cell: dict) -> dict:
     # variants arrive largest first; take the first that fits.
     for v in variants:
         if v["requires_gb"] <= usable:
-            return dict(
+            resolved = dict(
                 cell,
                 repo=v["repo"],
                 revision=v["revision"],
                 precision=v["precision"],
                 requires_gb=v["requires_gb"],
             )
+            # A parity variant also carries its transformers reference; keep it
+            # so the parity cell can find the model to check against. Dropping it
+            # here is why the gate had no way to run.
+            if "ref" in v:
+                resolved["ref"] = v["ref"]
+            return resolved
     smallest = min(variants, key=lambda v: v["requires_gb"])
     raise SystemExit(
         f"device has {usable:.0f}GB usable, smallest variant needs "
@@ -357,6 +363,23 @@ def release(work: Path) -> None:
         shutil.rmtree(tree, ignore_errors=True)
 
 
+def parity_metrics(cell: dict) -> tuple:
+    """Correctness of a new model against its transformers reference, as
+    (metrics, errors). A new model has no prior revision to compare, so this
+    replaces the before/after measurement. The heavy deps (torch, transformers)
+    import only here, never on the performance path.
+    """
+    ref = cell.get("ref")
+    if not ref:
+        return {}, ["parity cell has no reference repo"]
+    from ci.parity import compare
+
+    try:
+        return compare(cell["repo"], ref), []
+    except Exception as exc:  # a missing reference class, a load failure
+        return {}, [f"parity failed: {type(exc).__name__}: {exc}"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cell", required=True)
@@ -377,6 +400,26 @@ def main() -> int:
     cell_path = Path(args.cell).resolve()
     cell = choose_variant(json.loads(cell_path.read_text()))
     cell_path.write_text(json.dumps(cell))  # the probe reads the resolved cell
+
+    # A parity cell checks a new model against a reference rather than measuring
+    # a before/after, so it never fetches two revisions or runs the probe. This
+    # is the execution path the gate was missing: routing produced parity cells
+    # and the report rendered them, but the orchestrator ran the perf probe.
+    if cell.get("component") == "parity":
+        metrics, errors = parity_metrics(cell)
+        result = {
+            "cell": {**cell, **metrics},
+            "device": fingerprint(),
+            "delta": {},
+            "errors": errors,
+            "ok": not errors,
+        }
+        Path(args.out).write_text(json.dumps(result, indent=1))
+        print(
+            json.dumps({"cell": cell["id"], "ok": result["ok"], "errors": errors[:3]})
+        )
+        return 0 if result["ok"] else 1
+
     work = Path(args.work or os.environ.get("CI_WORK", Path.home() / "ci-work"))
     work.mkdir(parents=True, exist_ok=True)
 

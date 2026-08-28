@@ -64,3 +64,45 @@ def test_probe_error_extracts_real_reason():
         returncode=1, stderr="  File x\nTypeError: expand_dims(): bad args"
     )
     assert C._probe_error(proc) == "crashed: expand_dims(): bad args"
+
+
+def test_choose_variant_carries_the_parity_reference():
+    # A parity variant's transformers reference must survive resolution, or the
+    # gate has no model to check against (the bug that left it unrunnable).
+    cell = {
+        "id": "x.parity",
+        "component": "parity",
+        "variants": [
+            {
+                "repo": "org/x-bf16",
+                "revision": "",
+                "precision": "bf16",
+                "requires_gb": 0.0,
+                "ref": "org/x",
+            }
+        ],
+    }
+    with mock.patch("subprocess.run") as r:
+        r.return_value.stdout = str(64 * 2**30)  # 64GB
+        out = C.choose_variant(dict(cell))
+    assert out["repo"] == "org/x-bf16" and out["ref"] == "org/x"
+
+
+def test_parity_metrics_uses_the_reference_check(monkeypatch):
+    # The orchestrator must route a parity cell to ci.parity.compare, not the
+    # perf probe, and surface its greedy/KL numbers.
+    monkeypatch.setattr(
+        "ci.parity.compare",
+        lambda mlx, ref: {"greedy_agreement": 0.99, "kl_mean": 0.01, "kl_max": 0.05},
+    )
+    metrics, errors = C.parity_metrics(
+        {"id": "x.parity", "component": "parity", "repo": "org/x-bf16", "ref": "org/x"}
+    )
+    assert errors == [] and metrics["greedy_agreement"] == 0.99
+
+
+def test_parity_metrics_without_reference_is_a_clean_error():
+    metrics, errors = C.parity_metrics(
+        {"id": "x.parity", "component": "parity", "repo": "org/x-bf16"}
+    )
+    assert metrics == {} and errors and "reference" in errors[0]
