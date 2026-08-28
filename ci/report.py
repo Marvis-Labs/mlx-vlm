@@ -189,8 +189,23 @@ def render(
     with the graph (bars pending until results arrive); a component change
     leads with the table. Failures always appear the same way: a red cross in
     the status column with the reason in the note column."""
+    notes = notes or []
+    # A change to the CI's own security boundary is surfaced above everything
+    # else: a refusal replaces the report, a warning banners it.
+    refusal = next((n for n in notes if n.startswith("REFUSED:")), None)
+    if refusal:
+        return "\n".join(
+            [
+                marker(pr),
+                "**mlx-vlm benchmark** — ⛔ refused: protected CI files changed",
+                "",
+                f"> {refusal}",
+            ]
+        )
+    warning = next((n for n in notes if n.startswith("WARNING:")), None)
+
     if not cells:
-        why = "; ".join(notes or []) or "no benchmarkable change detected"
+        why = "; ".join(notes) or "no benchmarkable change detected"
         return "\n".join(
             [
                 marker(pr),
@@ -267,6 +282,8 @@ def render(
         head = "no regression"
 
     lines = [marker(pr), f"**mlx-vlm benchmark** — {head}", ""]
+    if warning:
+        lines += [f"> ⚠️ {warning}", ""]
     lines += graph
     summary = f"{ok} ok · {failed} failed · {declined} busy · {pending} pending"
     lines += [
@@ -324,12 +341,16 @@ def main() -> int:
     args = ap.parse_args()
 
     cells = json.loads(Path(args.cells).read_text())
+    # Notes carry the "nothing to run" reason and the CI-change warning/refusal;
+    # they were parsed but never handed to render, so they never reached the
+    # comment.
+    notes = json.loads(Path(args.notes).read_text()) if args.notes else None
     results = None
     if args.results:
         results = [
             json.loads(p.read_text()) for p in Path(args.results).rglob("result.json")
         ]
-    upsert(args.pr, args.repo, render(args.pr, cells, results))
+    upsert(args.pr, args.repo, render(args.pr, cells, results, notes=notes))
     return 0
 
 

@@ -23,6 +23,31 @@ COMPONENTS = Path(__file__).resolve().parent / "components"
 MATRIX = ROOT / "mlx_vlm" / "tests" / "capabilities.json"
 PARITY_MODELS = Path(__file__).resolve().parent / "parity_models.yaml"
 MODELS = Path(__file__).resolve().parent / "models.yaml"
+PROTECTED = Path(__file__).resolve().parent / "protected_paths.yaml"
+
+
+def _protected(paths: Sequence[str]) -> tuple:
+    """Split changed paths into (refuse, warn) against protected_paths.yaml.
+
+    This list, like the rest of the harness, is read from the default branch,
+    so a pull request cannot weaken it for its own run -- and editing the list
+    is itself a refused change.
+    """
+    rules = yaml.safe_load(PROTECTED.read_text()) if PROTECTED.exists() else {}
+
+    def match(path: str, pattern: str) -> bool:
+        return path == pattern or (pattern.endswith("/") and path.startswith(pattern))
+
+    refuse = sorted(
+        p for p in paths if any(match(p, x) for x in rules.get("refuse") or [])
+    )
+    warn = sorted(
+        p
+        for p in paths
+        if p not in refuse and any(match(p, x) for x in rules.get("warn") or [])
+    )
+    return refuse, warn
+
 
 # Peak memory measured against weights on disk, gemma-2-2b-it-4bit:
 #   184 tokens -> 1.39x    730 -> 1.99x    2940 -> 1.90x    11832 -> 2.76x
@@ -255,6 +280,23 @@ def parity_cell(arch: str, pair: dict) -> Cell:
 
 
 def route(paths: Sequence[str]) -> dict:
+    # A change to the CI's own security boundary is handled before anything is
+    # measured. Refused files stop the run outright; warned files let it proceed
+    # but flag the diff so a maintainer approves the change knowingly.
+    refuse, warn = _protected(paths)
+    if refuse:
+        return {
+            "cells": [],
+            "notes": [
+                "REFUSED: this pull request changes protected CI files ("
+                + ", ".join(refuse)
+                + "). The benchmark will not run on it. These define how the CI "
+                "is triggered and what it is allowed to do, so they can only be "
+                "changed by the owner committing directly to the default branch "
+                "on GitHub -- never approved by a run on a pull request."
+            ],
+        }
+
     matrix = json.loads(MATRIX.read_text())
     rows = matrix.get("architectures", matrix)
     models = yaml.safe_load(MODELS.read_text())
@@ -322,6 +364,15 @@ def route(paths: Sequence[str]) -> dict:
 
     for path in buckets["unrouted"]:
         notes.append(f"unrouted: {path}")
+
+    if warn:
+        notes.insert(
+            0,
+            "WARNING: this pull request modifies CI harness files ("
+            + ", ".join(warn)
+            + "). It changes how the benchmark itself behaves -- review these "
+            "before approving the run, not just the numbers below.",
+        )
 
     return {
         "cells": [asdict(c) for c in sorted(cells.values(), key=lambda c: c.id)],

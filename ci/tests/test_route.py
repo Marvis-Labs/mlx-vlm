@@ -96,3 +96,32 @@ def test_declared_new_model_routes_to_the_parity_gate(tmp_path, monkeypatch):
     assert cell["component"] == "parity"
     assert "greedy_agreement" in cell["metrics"]
     assert not any(c["component"] != "parity" for c in r["cells"])
+
+
+def test_protected_workflow_change_is_refused():
+    # Touching the trigger/permissions must stop the run outright, never be
+    # blessed by a green benchmark on a PR.
+    r = R.route([".github/workflows/bench.yml"])
+    assert r["cells"] == []
+    assert any(n.startswith("REFUSED:") for n in r["notes"])
+
+
+def test_protected_list_itself_cannot_be_weakened_via_pr():
+    r = R.route(["ci/protected_paths.yaml"])
+    assert r["cells"] == [] and any(n.startswith("REFUSED:") for n in r["notes"])
+
+
+def test_harness_change_warns_but_still_runs():
+    r = R.route(["ci/report.py", "mlx_vlm/models/gemma2/language.py"])
+    assert r["cells"], "the model change must still produce cells"
+    assert any(n.startswith("WARNING:") for n in r["notes"])
+
+
+def test_refuse_wins_over_warn():
+    r = R.route(["ci/report.py", ".github/workflows/bench.yml"])
+    assert r["cells"] == [] and any(n.startswith("REFUSED:") for n in r["notes"])
+
+
+def test_ordinary_model_change_is_neither_warned_nor_refused():
+    r = R.route(["mlx_vlm/models/gemma2/language.py"])
+    assert not any(n.startswith(("WARNING:", "REFUSED:")) for n in r["notes"])

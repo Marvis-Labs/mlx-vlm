@@ -115,3 +115,22 @@ def test_parity_applies_committed_thresholds_not_just_greedy():
     assert "kl_max 0.5 🔴" in out
     # greedy is fine, so it must not be flagged
     assert "greedy 0.995 🔴" not in out
+
+
+def test_refusal_replaces_the_report():
+    out = RP.render(
+        "1", [], notes=["REFUSED: this pull request changes protected CI files (x)"]
+    )
+    assert "⛔ refused" in out and "protected CI files" in out
+
+
+def test_warning_banners_the_report():
+    out = RP.render(
+        "1",
+        CELLS,
+        [_res("gemma2.apc.off.single")],
+        notes=["WARNING: this pull request modifies CI harness files (ci/report.py)"],
+    )
+    assert "⚠️" in out and "modifies CI harness files" in out
+    # the benchmark still ran, so the normal detail is present too
+    assert "per-cell detail" in out
