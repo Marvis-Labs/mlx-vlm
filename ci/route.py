@@ -288,12 +288,10 @@ def route(paths: Sequence[str]) -> dict:
         return {
             "cells": [],
             "notes": [
-                "REFUSED: this pull request changes protected CI files ("
+                "REFUSED: changes protected CI files ("
                 + ", ".join(refuse)
-                + "). The benchmark will not run on it. These define how the CI "
-                "is triggered and what it is allowed to do, so they can only be "
-                "changed by the owner committing directly to the default branch "
-                "on GitHub -- never approved by a run on a pull request."
+                + "). Only the owner can change these, by committing to the "
+                "default branch."
             ],
         }
 
@@ -368,10 +366,9 @@ def route(paths: Sequence[str]) -> dict:
     if warn:
         notes.insert(
             0,
-            "WARNING: this pull request modifies CI harness files ("
+            "WARNING: modifies CI harness files ("
             + ", ".join(warn)
-            + "). It changes how the benchmark itself behaves -- review these "
-            "before approving the run, not just the numbers below.",
+            + "). Review before approving -- this changes how the benchmark runs.",
         )
 
     return {
