@@ -188,3 +188,5 @@ jobs:
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}
+
+# (test) protected-path validation — harmless comment
