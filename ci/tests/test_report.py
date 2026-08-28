@@ -31,7 +31,7 @@ def _res(cid, **kw):
 def test_pending_and_done_have_the_same_frame():
     pending = RP.render("1", CELLS)
     done = RP.render("1", CELLS, [_res("gemma2.apc.off.single")])
-    for frame in ("### `gemma2`", "worse ", "per-cell detail"):
+    for frame in ("`gemma2`", "median change across configs", "per-cell results"):
         assert frame in pending and frame in done
 
 
@@ -133,7 +133,7 @@ def test_warning_banners_the_report():
     )
     assert "⚠️" in out and "modifies CI harness files" in out
     # the benchmark still ran, so the normal detail is present too
-    assert "per-cell detail" in out
+    assert "per-cell results" in out
 
 
 def test_status_for_maps_headline_to_commit_state():

@@ -48,8 +48,11 @@ def _cell_state(delta: dict) -> str:
 
 
 def _row(cell_id: str, state: str, device: str, delta: dict, note: str) -> str:
+    # Show only the speed metrics: a wide table with the sparse functional
+    # columns scrolled off-screen. Functional metrics still shape the status via
+    # _cell_state, and a real problem lands in the note, so nothing is lost.
     cells = [f"`{cell_id}`", device, STATUS.get(state, state)]
-    for k in COLUMNS:
+    for k in SPEED:
         v = delta.get(k)
         if not isinstance(v, dict):
             cells.append("")
@@ -67,25 +70,18 @@ def _row(cell_id: str, state: str, device: str, delta: dict, note: str) -> str:
     return "| " + " | ".join(cells) + " |"
 
 
-def _diverge(
-    change: float, significant: bool, half: int = 10, cap: float = 15.0
-) -> str:
-    """A bar from a center line: left is worse, right is better, capped."""
-    n = min(round(abs(change) / cap * half), half) if significant else 0
-    if n == 0:
-        return "·" * half + "┃" + "·" * half
-    if change < 0:
-        return "·" * (half - n) + "█" * n + "┃" + "·" * half
-    return "·" * half + "┃" + "█" * n + "·" * (half - n)
+METRIC_LABEL = {
+    "decode_tps": "decode (tok/s)",
+    "prefill_tps": "prefill (tok/s)",
+    "ttft_ms": "time to first token",
+    "peak_mem_gb": "peak memory",
+}
 
 
-def _graph(cells: list, results: list) -> tuple:
-    """The before/after graph, always drawn so the comment keeps one shape.
-
-    Bars are flat with a pending marker until a metric has results, then fill
-    with the median change across configs. Returns the lines and the count of
-    metrics whose median is a real regression, so the headline can agree with
-    the graph.
+def _summary(cells: list, results: list) -> tuple:
+    """The headline table: median change per metric across every config, drawn
+    the same from pending to done. Returns the lines and the count of metrics
+    whose median is a real regression, so the headline agrees with the table.
     """
     import statistics
 
@@ -103,26 +99,27 @@ def _graph(cells: list, results: list) -> tuple:
 
     arch = cells[0]["arch"]
     lines = [
-        f"### `{arch}` — median change across configs",
+        f"**`{arch}` — median change across configs** · positive is better",
         "",
-        "```",
-        f"{'':<13}worse ◄──────────┃──────────► better",
+        "| metric | change | |",
+        "|:--|--:|:-:|",
     ]
     regressions = 0
     for m in SPEED:
+        label = METRIC_LABEL.get(m, m)
         pts = per_metric.get(m)
         if not pts:
-            lines.append(f"{m:<13}{'·' * 10}┃{'·' * 10}   pending")
+            lines.append(f"| {label} | — | ⏳ |")
             continue
         med = statistics.median([c for c, _ in pts])
         sig = sum(s for _, s in pts) > len(pts) / 2
         mark = ""
         if sig and med < -floor_for(m):
-            mark, regressions = " 🔴", regressions + 1
+            mark, regressions = "🔴", regressions + 1
         elif sig and med > floor_for(m):
-            mark = " 🟢"
-        lines.append(f"{m:<13}{_diverge(med, sig)} {med:+6.1f}%{mark}")
-    lines += ["```", ""]
+            mark = "🟢"
+        lines.append(f"| {label} | {med:+.1f}% | {mark} |")
+    lines += [""]
     return lines, regressions
 
 
@@ -262,11 +259,11 @@ def render(
         )
         ok += 1
 
-    # The graph, for a single-architecture change, is the headline and always
-    # drawn. Its regression count drives the status so headline and graph agree.
-    graph = []
+    # The summary table, for a single-architecture change, is the headline and
+    # always drawn. Its regression count drives the status so the two agree.
+    summary_tbl = []
     if one_arch:
-        graph, regressed = _graph(cells, results)
+        summary_tbl, regressed = _summary(cells, results)
 
     done = ok + failed + declined
     if pending:
@@ -282,21 +279,24 @@ def render(
     else:
         head = "no regression"
 
-    lines = [marker(pr), f"**mlx-vlm benchmark** — {head}", ""]
+    title = f"`{cells[0]['arch']}` — {head}" if one_arch else head
+    lines = [marker(pr), f"### mlx-vlm benchmark · {title}", ""]
     if warning:
         lines += [f"> ⚠️ {warning}", ""]
-    lines += graph
-    summary = f"{ok} ok · {failed} failed · {declined} busy · {pending} pending"
+    lines += summary_tbl
+    # Per-cell results are shown in full, not hidden behind a dropdown: this is
+    # the first thing a reviewer sees on the PR, so it must be legible up front.
+    tally = f"{ok} measured · {declined} busy · {failed} failed · {pending} pending"
     lines += [
-        f"<details><summary>per-cell detail ({summary})</summary>",
+        f"**per-cell results** — {tally}",
         "",
-        "| cell | device | " + " | ".join(["status"] + COLUMNS) + " | note |",
-        "|" + "---|" * (len(COLUMNS) + 4),
+        "| cell | device | status | "
+        + " | ".join(METRIC_LABEL.get(m, m) for m in SPEED)
+        + " | note |",
+        "|" + "---|" * (len(SPEED) + 4),
     ]
     lines += rows
     lines += [
-        "",
-        "</details>",
         "",
         "<sub>Positive is better. 🔴/🟢 mark a change past both two standard "
         "errors and a floor worth acting on; ⚠️ the device was too noisy to "
@@ -347,16 +347,17 @@ def status_for(comment: str) -> tuple:
     one headline the report already computes, so the status and the comment can
     never disagree."""
     head = next(
-        (ln for ln in comment.splitlines() if ln.startswith("**mlx-vlm benchmark**")),
+        (ln for ln in comment.splitlines() if "mlx-vlm benchmark" in ln),
         "",
     )
-    desc = head.split("—", 1)[-1].strip() if "—" in head else "benchmark"
-    if "running" in desc:
+    low = head.lower()
+    if "running" in low:
         state = "pending"
-    elif "regression(s)" in desc or "failed" in desc or "refused" in desc:
+    elif "regression(s)" in low or "failed" in low or "refused" in low:
         state = "failure"
     else:
         state = "success"
+    desc = head.split("benchmark", 1)[-1].lstrip(" ·—#*").strip() or "benchmark"
     return state, desc
 
 
