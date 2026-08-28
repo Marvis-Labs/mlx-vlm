@@ -115,7 +115,7 @@ jobs:
           # the clone's stored credential, which a bare token cannot. A public
           # ci-runner would allow the simpler one-line curl fetch; the local clone
           # is the friction a private runner repo introduces.
-          SCRIPT="$HOME/ci-runner"; [ -d "$SCRIPT/.git" ] || SCRIPT="$HOME/device-script"
+          SCRIPT="$HOME/ci-runner"; [ -x "$SCRIPT/bin/device.sh" ] || SCRIPT="$HOME/device-script"
           git -C "$SCRIPT" pull --quiet --ff-only 2>/dev/null || true
           CI_REPO=${{ github.repository }} \
           CI_RESULT="$RUNNER_TEMP/result.json" \
