@@ -19,7 +19,6 @@ from typing import Any, Optional
 from ci.verdict import FUNCTIONAL, verdict
 
 SPEED = ["decode_tps", "prefill_tps", "ttft_ms", "peak_mem_gb"]
-PARITY = ["greedy_agreement", "kl_mean", "kl_max"]
 COLUMNS = SPEED + sorted(FUNCTIONAL)
 
 STATUS = {
