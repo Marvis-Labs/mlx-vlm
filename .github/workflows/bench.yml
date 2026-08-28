@@ -145,8 +145,11 @@ jobs:
           path: result.json
 
   report:
-    needs: [route, cell]
-    if: always() && needs.route.outputs.cells != '[]'
+    # Runs alongside the cells, not after them, so the comment fills in live as
+    # each cell reports instead of jumping from all-pending to done. Runners
+    # hold no token, so this cloud job is the only writer.
+    needs: route
+    if: needs.route.outputs.cells != '[]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -154,17 +157,28 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install --quiet pyyaml
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: render the final comment
-        run: |
-          python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
-            --cells artifacts/cells/cells.json --notes artifacts/cells/notes.json \
-            --results artifacts --head ${{ needs.route.outputs.head }}
+      - name: live comment updates
         env:
           GH_TOKEN: ${{ github.token }}
           CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Poll this run's own artifacts and re-render until every cell has
+          # reported. Each cell uploads exactly one result (measured, declined,
+          # or a crash stub), so the count reaching the total means done.
+          mkdir -p art
+          for i in $(seq 1 200); do
+            rm -rf art/*
+            gh run download ${{ github.run_id }} -D art 2>/dev/null || true
+            cj=art/cells/cells.json
+            [ -f "$cj" ] || { sleep 15; continue; }
+            total=$(python -c "import json;print(len(json.load(open('$cj'))))")
+            done=$(find art -name result.json | wc -l | tr -d ' ')
+            python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
+              --cells "$cj" --notes art/cells/notes.json --results art \
+              --head ${{ needs.route.outputs.head }}
+            [ "$done" -ge "$total" ] && break
+            sleep 20
+          done
 
       # Persist the measurements so they survive this ephemeral job: fetch the
       # results database from the results-data branch, record this run's
@@ -186,7 +200,7 @@ jobs:
               git checkout --orphan results-data
             fi
             mkdir -p .mlx-vlm-ci
-            python -m ci.store --ingest artifacts --head "${{ needs.route.outputs.head }}" \
+            python -m ci.store --ingest art --head "${{ needs.route.outputs.head }}" \
               --db .mlx-vlm-ci/results.db
             git add .mlx-vlm-ci/results.db
             git commit -q -m "results for ${{ needs.route.outputs.head }}" || exit 0
@@ -198,5 +212,3 @@ jobs:
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}
-
-# (test) protected-path validation — harmless comment
