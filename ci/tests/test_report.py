@@ -31,7 +31,7 @@ def _res(cid, **kw):
 def test_pending_and_done_have_the_same_frame():
     pending = RP.render("1", CELLS)
     done = RP.render("1", CELLS, [_res("gemma2.apc.off.single")])
-    for frame in ("`gemma2`", "median change across configs", "per-cell results"):
+    for frame in ("### mlx-vlm benchmark", "`gemma2`", "| cell | device | status |"):
         assert frame in pending and frame in done
 
 
@@ -70,9 +70,8 @@ def test_declined_cell_is_busy_not_failed():
     # A decline is environmental: shown apart from a crash, counted as busy,
     # and never as a failure that would read like a broken PR. (The legend
     # still names ❌, so assert on the counts, not on the glyph's absence.)
-    assert "⊘" in out
-    assert "1 busy" in out and "0 failed" in out
-    assert "all devices busy" in out
+    assert "⊘" in out  # the busy glyph in the row
+    assert "all devices busy" in out  # the verdict in the title
 
 
 def test_empty_route_explains_itself():
@@ -132,8 +131,8 @@ def test_warning_banners_the_report():
         notes=["WARNING: this pull request modifies CI harness files (ci/report.py)"],
     )
     assert "⚠️" in out and "modifies CI harness files" in out
-    # the benchmark still ran, so the normal detail is present too
-    assert "per-cell results" in out
+    # the benchmark still ran, so the results table is present too
+    assert "| cell | device | status |" in out
 
 
 def test_status_for_maps_headline_to_commit_state():

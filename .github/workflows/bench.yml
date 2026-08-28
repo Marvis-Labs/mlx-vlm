@@ -110,23 +110,16 @@ jobs:
       - name: measure
         run: |
           echo '${{ toJSON(matrix.cell) }}' > "$RUNNER_TEMP/cell.json"
-          # Fetch the runner script fresh from its repo each run, so a machine
-          # never needs a manual update: it supplies only uv, a venv, and the
-          # runner. Use the API contents endpoint, which always reflects the
-          # latest commit -- raw.githubusercontent is served from CDN edges that
-          # cached stale copies, so different runners disagreed on the script.
-          # Authenticate it: unauthenticated the API allows 60 requests/hour per
-          # IP, which a concurrent sweep blew through -- cells then 403'd on the
-          # fetch and failed before measuring. A token raises the limit to 5000.
-          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/Marvis-Labs/ci-runner/contents/bin/device.sh?ref=main" \
-            -o "$RUNNER_TEMP/device.sh"
-          chmod +x "$RUNNER_TEMP/device.sh"
+          # ci-runner is private, so a cross-repo GITHUB_TOKEN fetch 404s. Use the
+          # runner's own clone and self-update it -- git pull authenticates with
+          # the clone's stored credential, which a bare token cannot. A public
+          # ci-runner would allow the simpler one-line curl fetch; the local clone
+          # is the friction a private runner repo introduces.
+          SCRIPT="$HOME/ci-runner"; [ -d "$SCRIPT/.git" ] || SCRIPT="$HOME/device-script"
+          git -C "$SCRIPT" pull --quiet --ff-only 2>/dev/null || true
           CI_REPO=${{ github.repository }} \
-          CI_UPSTREAM=https://github.com/${{ github.repository }}.git \
           CI_RESULT="$RUNNER_TEMP/result.json" \
-            "$RUNNER_TEMP/device.sh" run "$RUNNER_TEMP/cell.json" \
+            "$SCRIPT/bin/device.sh" run "$RUNNER_TEMP/cell.json" \
               "${{ needs.route.outputs.base }}" "${{ needs.route.outputs.head }}"
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

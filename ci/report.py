@@ -261,9 +261,8 @@ def render(
 
     # The summary table, for a single-architecture change, is the headline and
     # always drawn. Its regression count drives the status so the two agree.
-    summary_tbl = []
     if one_arch:
-        summary_tbl, regressed = _summary(cells, results)
+        _, regressed = _summary(cells, results)
 
     done = ok + failed + declined
     if pending:
@@ -279,30 +278,19 @@ def render(
     else:
         head = "no regression"
 
+    # Barebone by request: a title and one table, nothing else. The title
+    # carries the verdict; the status column carries each cell's outcome.
     title = f"`{cells[0]['arch']}` — {head}" if one_arch else head
     lines = [marker(pr), f"### mlx-vlm benchmark · {title}", ""]
     if warning:
         lines += [f"> ⚠️ {warning}", ""]
-    lines += summary_tbl
-    # Per-cell results are shown in full, not hidden behind a dropdown: this is
-    # the first thing a reviewer sees on the PR, so it must be legible up front.
-    tally = f"{ok} measured · {declined} busy · {failed} failed · {pending} pending"
     lines += [
-        f"**per-cell results** — {tally}",
-        "",
         "| cell | device | status | "
         + " | ".join(METRIC_LABEL.get(m, m) for m in SPEED)
         + " | note |",
         "|" + "---|" * (len(SPEED) + 4),
     ]
     lines += rows
-    lines += [
-        "",
-        "<sub>Positive is better. 🔴/🟢 mark a change past both two standard "
-        "errors and a floor worth acting on; ⚠️ the device was too noisy to "
-        "decide; ⊘ the device was busy and declined — re-run when idle; "
-        "❌ the cell failed (reason in the note).</sub>",
-    ]
     return "\n".join(lines)
 
 
