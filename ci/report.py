@@ -274,10 +274,12 @@ def render(
         head = f"running — {done} of {len(cells)} done"
     elif regressed:
         head = f"{regressed} regression(s)"
-    elif ok == 0 and failed == 0 and declined:
+    elif failed:
+        # A crash is not hidden behind a passing headline. Surfacing it here
+        # also drives the commit status red, so a maintainer sees it on the PR.
+        head = "all cells failed" if not ok else f"{failed} cell(s) failed"
+    elif ok == 0 and declined:
         head = "all devices busy — re-run when idle"
-    elif failed and not ok:
-        head = "all cells failed"
     else:
         head = "no regression"
 
@@ -352,7 +354,7 @@ def status_for(comment: str) -> tuple:
     desc = head.split("—", 1)[-1].strip() if "—" in head else "benchmark"
     if "running" in desc:
         state = "pending"
-    elif "regression(s)" in desc or "all cells failed" in desc or "refused" in desc:
+    elif "regression(s)" in desc or "failed" in desc or "refused" in desc:
         state = "failure"
     else:
         state = "success"

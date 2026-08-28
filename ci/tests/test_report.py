@@ -146,3 +146,34 @@ def test_status_for_maps_headline_to_commit_state():
     assert (
         status_for("**mlx-vlm benchmark** — all devices busy — re-run")[0] == "success"
     )
+
+
+def test_failed_cells_are_surfaced_in_headline_even_when_some_pass():
+    from ci.report import status_for
+
+    cells = [
+        {
+            "id": f"gemma2.apc.{c}.single",
+            "arch": "gemma2",
+            "runs_on": ["self-hosted", "macos", "arm64", "mem-16"],
+        }
+        for c in ("off", "exact")
+    ]
+    res = [
+        {
+            "cell": {"id": "gemma2.apc.off.single"},
+            "device": {"chip": "M4", "memory_gb": 16},
+            "delta": {},
+            "ok": True,
+        },
+        {
+            "cell": {"id": "gemma2.apc.exact.single"},
+            "device": {"chip": "M4", "memory_gb": 16},
+            "delta": {},
+            "ok": False,
+            "errors": ["crashed: boom"],
+        },
+    ]
+    out = RP.render("1", cells, res)
+    assert "1 cell(s) failed" in out  # not hidden behind "no regression"
+    assert status_for(out)[0] == "failure"

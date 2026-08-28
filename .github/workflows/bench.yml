@@ -114,9 +114,12 @@ jobs:
           # never needs a manual update: it supplies only uv, a venv, and the
           # runner. Use the API contents endpoint, which always reflects the
           # latest commit -- raw.githubusercontent is served from CDN edges that
-          # cached stale copies, so different runners disagreed on the script
-          # and ran logic that no longer matched the branch.
-          curl -fsSL -H "Accept: application/vnd.github.raw" \
+          # cached stale copies, so different runners disagreed on the script.
+          # Authenticate it: unauthenticated the API allows 60 requests/hour per
+          # IP, which a concurrent sweep blew through -- cells then 403'd on the
+          # fetch and failed before measuring. A token raises the limit to 5000.
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.raw" \
             "https://api.github.com/repos/Marvis-Labs/runner-script/contents/bin/device.sh?ref=main" \
             -o "$RUNNER_TEMP/device.sh"
           chmod +x "$RUNNER_TEMP/device.sh"
@@ -127,6 +130,7 @@ jobs:
               "${{ needs.route.outputs.base }}" "${{ needs.route.outputs.head }}"
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: hand back the result
         if: always()
