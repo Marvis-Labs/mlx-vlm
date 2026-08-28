@@ -120,7 +120,7 @@ jobs:
           # fetch and failed before measuring. A token raises the limit to 5000.
           curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/Marvis-Labs/runner-script/contents/bin/device.sh?ref=main" \
+            "https://api.github.com/repos/Marvis-Labs/ci-runner/contents/bin/device.sh?ref=main" \
             -o "$RUNNER_TEMP/device.sh"
           chmod +x "$RUNNER_TEMP/device.sh"
           CI_REPO=${{ github.repository }} \
