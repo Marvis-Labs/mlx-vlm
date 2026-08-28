@@ -127,16 +127,52 @@ def _graph(cells: list, results: list) -> tuple:
     return lines, regressions
 
 
+_PARITY_THRESHOLDS: Optional[dict] = None
+
+
+def _parity_threshold(arch: str) -> dict:
+    """The reviewed parity tolerances for an architecture, falling back to the
+    default. Loaded from the committed parity_thresholds.yaml so the gate
+    applies the baseline on disk rather than a number buried in the renderer --
+    which hardcoded greedy>=0.98 and ignored the KL ceilings entirely."""
+    global _PARITY_THRESHOLDS
+    if _PARITY_THRESHOLDS is None:
+        import yaml
+
+        p = Path(__file__).resolve().parent / "parity_thresholds.yaml"
+        _PARITY_THRESHOLDS = yaml.safe_load(p.read_text()) if p.exists() else {}
+    t = dict(_PARITY_THRESHOLDS.get("default", {}))
+    t.update(_PARITY_THRESHOLDS.get(arch, {}))
+    return t
+
+
 def _parity_row(cell_id: str, device: str, res: dict) -> str:
-    g = res.get("greedy_agreement")
-    mark = "✅" if g is not None and g >= 0.98 else "🔴"
+    arch = res.get("arch") or cell_id.split(".")[0]
+    t = _parity_threshold(arch)
+    g, km, kx = (
+        res.get("greedy_agreement"),
+        res.get("kl_mean"),
+        res.get("kl_max"),
+    )
+    # A parity cell passes only if it agrees enough AND diverges little enough:
+    # greedy above its floor, both KL figures under their ceilings. Any breach
+    # is a reported drift, not a silent pass, and the failing metric is flagged.
+    g_bad = g is None or ("greedy" in t and g < t["greedy"])
+    km_bad = km is not None and "kl_mean" in t and km > t["kl_mean"]
+    kx_bad = kx is not None and "kl_max" in t and kx > t["kl_max"]
+    mark = "🔴" if (g_bad or km_bad or kx_bad) else "✅"
+
+    def flag(label: str, val, bad: bool) -> str:
+        shown = f"{label} {val}" if val is not None else f"{label} —"
+        return shown + (" 🔴" if bad else "")
+
     cols = [
         f"`{cell_id}`",
         device,
         mark,
-        f"greedy {g:.3f}" if g is not None else "—",
-        f"kl_mean {res.get('kl_mean', '—')}",
-        f"kl_max {res.get('kl_max', '—')}",
+        flag("greedy", f"{g:.3f}" if g is not None else None, g_bad),
+        flag("kl_mean", km, km_bad),
+        flag("kl_max", kx, kx_bad),
     ]
     return "| " + " | ".join(cols) + " |"
 

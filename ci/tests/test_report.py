@@ -82,3 +82,36 @@ def test_empty_route_explains_itself():
 
 def test_unknown_cell_result_is_ignored():
     RP.render("1", CELLS, [_res("gemma2.GHOST.single")])
+
+
+def test_parity_applies_committed_thresholds_not_just_greedy():
+    # High greedy agreement but KL past the ceiling must fail. The old renderer
+    # hardcoded greedy>=0.98 and never looked at KL, so this would have passed
+    # silently -- a model that picks the same argmax while diverging in
+    # probability. The committed parity_thresholds.yaml must actually apply.
+    cells = [
+        {
+            "id": "smollm3.parity",
+            "arch": "smollm3",
+            "runs_on": ["self-hosted", "macos", "arm64", "parity"],
+        }
+    ]
+    res = [
+        {
+            "cell": {
+                "id": "smollm3.parity",
+                "arch": "smollm3",
+                "greedy_agreement": 0.995,
+                "kl_mean": 0.005,
+                "kl_max": 0.5,
+            },
+            "device": {"chip": "M4", "memory_gb": 16},
+            "delta": {},
+            "ok": True,
+        }
+    ]
+    out = RP.render("9", cells, res)
+    assert "🔴" in out
+    assert "kl_max 0.5 🔴" in out
+    # greedy is fine, so it must not be flagged
+    assert "greedy 0.995 🔴" not in out
