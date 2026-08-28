@@ -126,3 +126,19 @@ def test_choose_variant_carries_the_gated_flag():
     with mock.patch("subprocess.run") as r:
         r.return_value.stdout = str(64 * 2**30)
         assert C.choose_variant(dict(cell)).get("gated") is True
+
+
+def test_probe_reports_a_timeout_cleanly(tmp_path, monkeypatch):
+    # A probe that outruns its budget (a huge download, a hung load) must come
+    # back as a clean timeout error, not raise and crash the orchestrator into
+    # the workflow's opaque placeholder.
+    import subprocess
+
+    def boom(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="probe", timeout=k.get("timeout", 1))
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    out = C.probe(
+        tmp_path, tmp_path / "cell.json", "base", warmup=0, iterations=1, timeout=5
+    )
+    assert "error" in out and "timed out" in out["error"]

@@ -59,23 +59,29 @@ def probe(
     env["PYTHONPATH"] = str(worktree)
     env["CI_REVISION_LABEL"] = label
     env.setdefault("TOKENIZERS_PARALLELISM", "false")
-    proc = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).resolve().parent / "probe.py"),
-            "--cell",
-            str(cell_path),
-            "--warmup",
-            str(warmup),
-            "--iterations",
-            str(iterations),
-        ],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=timeout,
-        cwd=str(Path(cell_path).resolve().parent),
-    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parent / "probe.py"),
+                "--cell",
+                str(cell_path),
+                "--warmup",
+                str(warmup),
+                "--iterations",
+                str(iterations),
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=timeout,
+            cwd=str(Path(cell_path).resolve().parent),
+        )
+    except subprocess.TimeoutExpired:
+        # A hung load or a very large download that outruns the per-probe budget
+        # must read as a clear timeout, not propagate uncaught and leave the
+        # cell with the workflow's opaque "job failed before measuring".
+        return {"error": f"timed out after {timeout}s (download or load too slow)"}
     if proc.returncode != 0:
         return {"error": _probe_error(proc)}
     try:
