@@ -125,3 +125,11 @@ def test_refuse_wins_over_warn():
 def test_ordinary_model_change_is_neither_warned_nor_refused():
     r = R.route(["mlx_vlm/models/gemma2/language.py"])
     assert not any(n.startswith(("WARNING:", "REFUSED:")) for n in r["notes"])
+
+
+def test_capability_matrix_edit_warns():
+    # The matrix lives outside ci/ but drives routing, so touching it must warn.
+    r = R.route(
+        ["mlx_vlm/tests/capabilities.json", "mlx_vlm/models/gemma2/language.py"]
+    )
+    assert any(n.startswith("WARNING:") for n in r["notes"])

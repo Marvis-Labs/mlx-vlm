@@ -23,3 +23,4 @@ refuse:
 
 warn:
   - ci/ # the harness: routing, orchestrator, probe, report, sizing, model data
+  - mlx_vlm/tests/capabilities.json # the capability matrix that drives routing
