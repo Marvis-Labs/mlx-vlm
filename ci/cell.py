@@ -317,22 +317,11 @@ def choose_variant(cell: dict) -> dict:
     # variants arrive largest first; take the first that fits.
     for v in variants:
         if v["requires_gb"] <= usable:
-            resolved = dict(
-                cell,
-                repo=v["repo"],
-                revision=v["revision"],
-                precision=v["precision"],
-                requires_gb=v["requires_gb"],
-            )
-            # A parity variant also carries its transformers reference; keep it
-            # so the parity cell can find the model to check against. Dropping it
-            # here is why the gate had no way to run.
-            if "ref" in v:
-                resolved["ref"] = v["ref"]
-            # Keep the gated flag so a gated checkpoint without a token can be
-            # declined with a clear reason instead of a mid-run 401.
-            if v.get("gated"):
-                resolved["gated"] = True
+            # The whole picked variant becomes the cell's fields (repo, revision,
+            # precision, requires_gb, and any ref/gated it carries), so a new
+            # variant field never needs a change here.
+            resolved = {**cell, **v}
+            resolved.pop("variants", None)
             return resolved
     smallest = min(variants, key=lambda v: v["requires_gb"])
     raise SystemExit(
@@ -393,8 +382,13 @@ def parity_metrics(cell: dict) -> tuple:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cell", required=True)
-    ap.add_argument("--base", required=True, help="base revision")
-    ap.add_argument("--head", required=True, help="head revision")
+    ap.add_argument(
+        "--resolve-only",
+        action="store_true",
+        help="pick the variant this device can hold, write it back, print requires_gb",
+    )
+    ap.add_argument("--base", help="base revision")
+    ap.add_argument("--head", help="head revision")
     ap.add_argument(
         "--repo-url",
         default="https://github.com/Marvis-Labs/mlx-vlm-ci",
@@ -409,7 +403,15 @@ def main() -> int:
 
     cell_path = Path(args.cell).resolve()
     cell = choose_variant(json.loads(cell_path.read_text()))
-    cell_path.write_text(json.dumps(cell))  # the probe reads the resolved cell
+    cell_path.write_text(json.dumps(cell))
+    if args.resolve_only:
+        if cell.get("gated") and not os.environ.get("HF_TOKEN"):
+            sys.stderr.write("gated model needs HF_TOKEN\n")
+            return 1
+        print(cell["requires_gb"])
+        return 0
+    if not (args.base and args.head):
+        ap.error("--base and --head are required to measure")
 
     # A parity cell checks a new model against a reference rather than measuring
     # a before/after, so it never fetches two revisions or runs the probe. This
