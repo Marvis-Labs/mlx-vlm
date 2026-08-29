@@ -1,207 +1,214 @@
 name: benchmark
 
-# Runs when someone with write access comments "/ci run" on a pull request.
-# Self-hosted runners execute the pull request's code on our own hardware, so
-# the trigger is a maintainer action, never an automatic one.
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: "PR number"
-        required: true
 
 permissions:
-  contents: write # push accumulated results to the results-data branch
-  pull-requests: write # upsert the single benchmark comment
-  statuses: write # post a commit status so the result shows on the PR itself
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+  statuses: write
 
 concurrency:
-  group: bench-${{ github.event.issue.number || inputs.pr }}
+  group: benchmark-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
-  route:
-    # Only a "/ci run" comment on a pull request, from someone with write
-    # access, or a manual dispatch. The association check is the security gate,
-    # not a nicety: a self-hosted runner executes the pull request's head code,
-    # so without it any user -- including on a fork PR -- could run arbitrary
-    # code on our hardware by commenting "/ci run". workflow_dispatch is already
-    # restricted to users with write access by GitHub.
+  prepare:
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request &&
-       startsWith(github.event.comment.body, '/ci run') &&
-       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
-                github.event.comment.author_association))
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/ci run') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+               github.event.comment.author_association)
     runs-on: ubuntu-latest
     outputs:
-      pr: ${{ steps.pr.outputs.pr }}
       base: ${{ steps.pr.outputs.base }}
       head: ${{ steps.pr.outputs.head }}
-      cells: ${{ steps.r.outputs.cells }}
+      has_device: ${{ steps.dispatch.outputs.has_device }}
+      runs_on: ${{ steps.dispatch.outputs.runs_on }}
     steps:
-      - name: acknowledge the comment
-        if: github.event_name == 'issue_comment'
+      - name: Acknowledge request
         run: gh api -X POST repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
         env:
           GH_TOKEN: ${{ github.token }}
-
-      - name: resolve base and head
+      - name: Resolve immutable revisions
         id: pr
         run: |
-          PR=${{ github.event.issue.number || inputs.pr }}
-          gh api repos/${{ github.repository }}/pulls/$PR \
-            --jq '"pr='$PR'\nbase=\(.base.sha)\nhead=\(.head.sha)"' >> "$GITHUB_OUTPUT"
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }} \
+            --jq '"base=\(.base.sha)\nhead=\(.head.sha)"' >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
-
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ steps.pr.outputs.base }}
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - run: pip install --quiet pyyaml
-
-      # Pull the measurements from the results-data branch so the router can
-      # size cells from a measured peak instead of an estimate.
-      - name: fetch the results database
-        run: |
-          mkdir -p "$HOME/.mlx-vlm-ci"
-          git fetch origin results-data 2>/dev/null \
-            && git show results-data:.mlx-vlm-ci/results.db > "$HOME/.mlx-vlm-ci/results.db" 2>/dev/null \
-            || echo "no results database yet"
-
-      - name: select cells
-        id: r
-        run: |
-          python -m ci.route --base "${{ steps.pr.outputs.base }}" --head "${{ steps.pr.outputs.head }}" \
-            --out "$GITHUB_OUTPUT" --write . > /dev/null
-
-      # Posted before anything runs: a cell that never reaches a device stays
-      # visibly pending rather than absent.
-      - name: post the pending comment
-        run: python -m ci.report --pr ${{ steps.pr.outputs.pr }} --repo ${{ github.repository }} --cells cells.json --notes notes.json --head ${{ steps.pr.outputs.head }}
+      - name: Build immutable job plan
         env:
+          BASE_SHA: ${{ steps.pr.outputs.base }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          git fetch --no-tags origin "pull/$PR_NUMBER/head"
+          test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA"
+          mkdir -p "$RUNNER_TEMP/pr-ci"
+          git show "$HEAD_SHA:ci/model_path.yaml" > "$RUNNER_TEMP/pr-ci/model_path.yaml"
+          git show "$HEAD_SHA:ci/model-path-scenario.yaml" > "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml"
+          python -m pip install --quiet pyyaml==6.0.3
+          python -m ci.control plan \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --repository "${{ github.repository }}" \
+            --pr "$PR_NUMBER" \
+            --rules-config ci/change-rules.yaml \
+            --model-config "$RUNNER_TEMP/pr-ci/model_path.yaml" \
+            --scenario-config "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --output control.json \
+            --markdown planning.md
+          python -m ci.control release \
+            --control control.json \
+            --current-head "$HEAD_SHA" \
+            --output runner-plan.json \
+            --markdown released.md
+      - name: Select smallest available device
+        id: dispatch
+        env:
+          CI_DEVICES: ${{ vars.CI_DEVICES }}
           GH_TOKEN: ${{ github.token }}
-          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      - uses: actions/upload-artifact@v4
+        run: |
+          test -n "$CI_DEVICES"
+          printf '%s\n' "$CI_DEVICES" > devices.json
+          : > busy-runners.txt
+          gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
+            --jq '.workflow_runs[].id' | while read -r run_id; do
+              gh api "repos/${{ github.repository }}/actions/runs/$run_id/jobs?filter=latest&per_page=100" \
+                --jq '.jobs[] | select(.status == "in_progress") | .runner_name'
+            done >> busy-runners.txt
+          jq -Rsc 'split("\n") | map(select(length > 0))' busy-runners.txt > busy.json
+          python -m ci.device_inventory \
+            --plan runner-plan.json \
+            --devices devices.json \
+            --busy busy.json \
+            --dispatch dispatch.json \
+            --job job.json \
+            --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cells
+          name: dispatch-${{ github.run_id }}
           path: |
-            cells.json
-            notes.json
+            control.json
+            runner-plan.json
+            dispatch.json
+            job.json
+            devices.json
+            busy.json
 
-  cell:
-    needs: route
-    if: needs.route.outputs.cells != '[]'
-    strategy:
-      fail-fast: false
-      max-parallel: 4          # one cell per device; devices are single tenant
-      matrix:
-        cell: ${{ fromJSON(needs.route.outputs.cells) }}
-    runs-on: ${{ matrix.cell.runs_on }}
+  execute:
+    needs: prepare
+    if: needs.prepare.outputs.has_device == 'true'
+    runs-on: ${{ fromJSON(needs.prepare.outputs.runs_on) }}
     timeout-minutes: 90
     steps:
-      # No checkout: the device fetches both refs and resolves the merge-base
-      # itself, so the harness is never shadowed by the revision under test.
-      - name: measure
-        run: |
-          echo '${{ toJSON(matrix.cell) }}' > "$RUNNER_TEMP/cell.json"
-          # ci-runner is private, so a cross-repo GITHUB_TOKEN fetch 404s. Use the
-          # runner's own clone and self-update it -- git pull authenticates with
-          # the clone's stored credential, which a bare token cannot. A public
-          # ci-runner would allow the simpler one-line curl fetch; the local clone
-          # is the friction a private runner repo introduces.
-          SCRIPT="$HOME/ci-runner"; [ -x "$SCRIPT/bin/device.sh" ] || SCRIPT="$HOME/device-script"
-          git -C "$SCRIPT" pull --quiet --ff-only 2>/dev/null || true
-          CI_REPO=${{ github.repository }} \
-          CI_RESULT="$RUNNER_TEMP/result.json" \
-            "$SCRIPT/bin/device.sh" run "$RUNNER_TEMP/cell.json" \
-              "${{ needs.route.outputs.base }}" "${{ needs.route.outputs.head }}"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.prepare.outputs.base }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.prepare.outputs.base }}
+          path: base
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.prepare.outputs.head }}
+          path: head
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: dispatch-${{ github.run_id }}
+          path: dispatch
+      - name: Compare base and pull request
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-
-      - name: hand back the result
-        if: always()
         run: |
-          test -f "$RUNNER_TEMP/result.json" || \
-            echo '{"cell":{"id":"${{ matrix.cell.id }}"},"device":{"chip":"?","memory_gb":0},"delta":{},"ok":false,"errors":["not ready: device declined or the job failed before measuring"]}' > "$RUNNER_TEMP/result.json"
-          cp "$RUNNER_TEMP/result.json" "result.json"
-      - uses: actions/upload-artifact@v4
+          set +e
+          "$HOME/mlx-vlm-ci-runner/RUN_JOB.sh" \
+            dispatch/job.json "$RUNNER_TEMP/device-result.json" -- \
+            /usr/bin/python3 "$GITHUB_WORKSPACE/control/ci/model_path_compare.py" \
+              --job "$GITHUB_WORKSPACE/dispatch/job.json" \
+              --base "$GITHUB_WORKSPACE/base" \
+              --head "$GITHUB_WORKSPACE/head" \
+              --probe "$GITHUB_WORKSPACE/control/ci/model_path_probe.py" \
+              --image "$GITHUB_WORKSPACE/control/ci/assets/cat.jpg" \
+              --max-tokens 32
+          set -e
+          /usr/bin/python3 "$GITHUB_WORKSPACE/control/ci/worker_result.py" \
+            --job "$GITHUB_WORKSPACE/dispatch/job.json" \
+            --result "$RUNNER_TEMP/device-result.json" \
+            --output result.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: result-${{ strategy.job-index }}
+          name: execution-${{ github.run_id }}
           path: result.json
 
   report:
-    # Runs alongside the cells, not after them, so the comment fills in live as
-    # each cell reports instead of jumping from all-pending to done. Runners
-    # hold no token, so this cloud job is the only writer.
-    needs: route
-    if: needs.route.outputs.cells != '[]'
+    needs: [prepare, execute]
+    if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.prepare.outputs.base }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - run: pip install --quiet pyyaml
-      - name: live comment updates
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: dispatch-${{ github.run_id }}
+          path: dispatch
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: needs.execute.result == 'success'
+        with:
+          name: execution-${{ github.run_id }}
+          path: execution
+      - name: Render final bot output
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python -m ci.workflow_report \
+            --plan dispatch/runner-plan.json \
+            --dispatch dispatch/dispatch.json \
+            --result execution/result.json \
+            --run-url "$RUN_URL" \
+            --record final-record.json \
+            --markdown summary.md
+      - name: Update pull request comment
         env:
           GH_TOKEN: ${{ github.token }}
-          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Poll this run's own artifacts and re-render until every cell has
-          # reported. Each cell uploads exactly one result (measured, declined,
-          # or a crash stub), so the count reaching the total means done.
-          mkdir -p art
-          for i in $(seq 1 200); do
-            rm -rf art/*
-            gh run download ${{ github.run_id }} -D art 2>/dev/null || true
-            cj=art/cells/cells.json
-            [ -f "$cj" ] || { sleep 15; continue; }
-            total=$(python -c "import json;print(len(json.load(open('$cj'))))")
-            done=$(find art -name result.json | wc -l | tr -d ' ')
-            python -m ci.report --pr ${{ needs.route.outputs.pr }} --repo ${{ github.repository }} \
-              --cells "$cj" --notes art/cells/notes.json --results art \
-              --head ${{ needs.route.outputs.head }}
-            [ "$done" -ge "$total" ] && break
-            sleep 20
-          done
-
-      # Persist the measurements so they survive this ephemeral job: fetch the
-      # results database from the results-data branch, record this run's
-      # results into it, and push it back. Observational data cannot live on
-      # the code branch, so it gets its own.
-      - name: persist results to the results-data branch
-        if: always()
-        run: |
-          git config user.name ci-bot
-          git config user.email ci-bot@users.noreply.github.com
-          # Two runs on different PRs can finish together and race this push.
-          # A bare push loses the loser's results and fails the job. Retry: each
-          # attempt re-syncs to the latest results-data and re-ingests THIS run's
-          # artifacts onto it, so a race delays the write instead of dropping it.
-          for attempt in 1 2 3 4 5; do
-            if git fetch origin results-data 2>/dev/null; then
-              git checkout -B results-data origin/results-data
-            else
-              git checkout --orphan results-data
-            fi
-            mkdir -p .mlx-vlm-ci
-            python -m ci.store --ingest art --head "${{ needs.route.outputs.head }}" \
-              --db .mlx-vlm-ci/results.db
-            git add .mlx-vlm-ci/results.db
-            git commit -q -m "results for ${{ needs.route.outputs.head }}" || exit 0
-            git push origin results-data && exit 0
-            echo "results-data push raced; retrying ($attempt)"
-            sleep $((RANDOM % 4 + 2))
-          done
-          echo "could not persist results after 5 attempts" >&2
-          exit 1
+          CI_REPOSITORY: ${{ github.repository }}
+          CI_PR: ${{ github.event.issue.number }}
+          CI_SUMMARY: summary.md
+        run: bash .github/scripts/upsert-mlx-vlm-ci-comment.sh
+      - name: Set commit status
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(python -c 'import json; r=json.load(open("final-record.json")); print("success" if r["outcome"] in {"passed", "improved"} else "failure")')
+          gh api --method POST repos/${{ github.repository }}/statuses/${{ needs.prepare.outputs.head }} \
+            -f state="$state" -f context=mlx-vlm-ci \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: proof-${{ github.run_id }}
+          path: |
+            final-record.json
+            summary.md

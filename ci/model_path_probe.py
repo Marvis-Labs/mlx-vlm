@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import statistics
 import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -48,17 +49,8 @@ def summarize(results: Sequence[Any], started: float, ttft_ms: float) -> dict[st
     }
 
 
-def run(
-    job: Mapping[str, Any], image: Path, prompt: str, max_tokens: int
-) -> dict[str, Any]:
-    from mlx_vlm import load, stream_generate
-    from mlx_vlm.prompt_utils import apply_chat_template
-    from mlx_vlm.utils import load_config
-
-    repo, revision = checkpoint(job)
-    model, processor = load(repo, revision=revision)
-    config = load_config(repo, revision=revision)
-    formatted = apply_chat_template(processor, config, prompt, num_images=1)
+def generate(model, processor, formatted: str, image: Path, max_tokens: int):
+    from mlx_vlm import stream_generate
 
     started = time.perf_counter()
     first_token_at = None
@@ -75,11 +67,58 @@ def run(
         if first_token_at is None:
             first_token_at = time.perf_counter()
         results.append(result)
-
-    findings = summarize(
+    return summarize(
         results,
         started,
         ((first_token_at or time.perf_counter()) - started) * 1000,
+    )
+
+
+def aggregate(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    if not runs:
+        raise ValueError("at least one measured run is required")
+    hashes = {str(run["output_hash"]) for run in runs}
+    if len(hashes) != 1:
+        raise RuntimeError("deterministic runs produced different output hashes")
+    result = dict(runs[-1])
+    for name in (
+        "prompt_tokens",
+        "generation_tokens",
+        "prefill_tps",
+        "decode_tps",
+        "ttft_ms",
+        "wall_ms",
+        "peak_memory_gib",
+    ):
+        result[name] = round(statistics.median(float(run[name]) for run in runs), 4)
+    result["runs"] = [dict(run) for run in runs]
+    return result
+
+
+def run(
+    job: Mapping[str, Any],
+    image: Path,
+    prompt: str,
+    max_tokens: int,
+    warmup: int = 1,
+    iterations: int = 3,
+) -> dict[str, Any]:
+    from mlx_vlm import load
+    from mlx_vlm.prompt_utils import apply_chat_template
+    from mlx_vlm.utils import load_config
+
+    repo, revision = checkpoint(job)
+    model, processor = load(repo, revision=revision)
+    config = load_config(repo, revision=revision)
+    formatted = apply_chat_template(processor, config, prompt, num_images=1)
+
+    for _ in range(warmup):
+        generate(model, processor, formatted, image, max_tokens)
+    findings = aggregate(
+        [
+            generate(model, processor, formatted, image, max_tokens)
+            for _ in range(iterations)
+        ]
     )
     findings.update(
         {
@@ -100,6 +139,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--prompt", default="Describe the animal in this image in one sentence."
     )
     parser.add_argument("--max-tokens", type=int, default=32)
+    parser.add_argument("--warmup", type=int, default=1)
+    parser.add_argument("--iterations", type=int, default=3)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
 
@@ -107,9 +148,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(f"image not found: {args.image}")
     if args.max_tokens <= 0:
         parser.error("--max-tokens must be positive")
+    if args.warmup < 0:
+        parser.error("--warmup cannot be negative")
+    if args.iterations <= 0:
+        parser.error("--iterations must be positive")
 
     findings = run(
-        json.loads(args.job.read_text()), args.image, args.prompt, args.max_tokens
+        json.loads(args.job.read_text()),
+        args.image,
+        args.prompt,
+        args.max_tokens,
+        args.warmup,
+        args.iterations,
     )
     output = args.output or Path(os.environ.get("CI_JOB_FINDINGS", "findings.json"))
     output.write_text(json.dumps(findings, indent=2, sort_keys=True) + "\n")

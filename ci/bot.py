@@ -198,6 +198,7 @@ class ModelPathOutput:
             "cancelled",
             "running",
             "queued",
+            "improved",
             "passed",
         ):
             if outcome in outcomes:
@@ -325,20 +326,33 @@ class ModelPathOutput:
         findings = result.get("findings")
         if not isinstance(findings, Mapping):
             return None
+        error = findings.get("error")
+        if error:
+            return f"Checkpoint comparison failed: {error}."
+        correctness = findings.get("correctness", {})
+        if isinstance(correctness, Mapping) and correctness.get("match") is False:
+            return (
+                "Checkpoint output mismatch: main "
+                f"{correctness.get('base_output_hash')} versus PR "
+                f"{correctness.get('head_output_hash')}."
+            )
         cache = result.get("cache", {})
         cache_state = "cache reused" if cache.get("reused") else "downloaded"
+        head = findings.get("head", findings)
+        if not isinstance(head, Mapping):
+            return f"HF checkpoint comparison completed ({cache_state})."
         values = (
-            ("prefill", findings.get("prefill_tps"), "tok/s"),
-            ("decode", findings.get("decode_tps"), "tok/s"),
-            ("TTFT", findings.get("ttft_ms"), "ms"),
-            ("peak memory", findings.get("peak_memory_gib"), "GiB"),
+            ("prefill", head.get("prefill_tps"), "tok/s"),
+            ("decode", head.get("decode_tps"), "tok/s"),
+            ("TTFT", head.get("ttft_ms"), "ms"),
+            ("peak memory", head.get("peak_memory_gib"), "GiB"),
         )
         measurements = "; ".join(
             f"{name} {value} {unit}"
             for name, value, unit in values
             if value is not None
         )
-        output_hash = findings.get("output_hash")
+        output_hash = head.get("output_hash")
         suffix = f"; output {output_hash}" if output_hash else ""
         return f"HF checkpoint findings ({cache_state}): {measurements}{suffix}."
 
@@ -421,6 +435,7 @@ class BotOutput:
             "Awaiting maintainer approval",
             "Awaiting /ci run",
             "Ready for runner dispatch",
+            "Improved",
             "Passed",
         ):
             if status in statuses:

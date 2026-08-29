@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from ci.model_path_probe import checkpoint, summarize
+from ci.model_path_probe import aggregate, checkpoint, summarize
 
 
 def test_checkpoint_requires_pinned_repo():
@@ -38,3 +38,24 @@ def test_summarize_reports_e2e_metrics(monkeypatch):
     assert findings["ttft_ms"] == 250.0
     assert findings["wall_ms"] == 2000.0
     assert findings["peak_memory_gib"] == 18.5
+
+
+def test_aggregate_uses_median_and_retains_runs():
+    first = {
+        "output_hash": "same",
+        "prompt_tokens": 10,
+        "generation_tokens": 2,
+        "prefill_tps": 100,
+        "decode_tps": 20,
+        "ttft_ms": 500,
+        "wall_ms": 900,
+        "peak_memory_gib": 4,
+    }
+    second = dict(first, prefill_tps=120, ttft_ms=400)
+    third = dict(first, prefill_tps=110, ttft_ms=450)
+
+    findings = aggregate([first, second, third])
+
+    assert findings["prefill_tps"] == 110
+    assert findings["ttft_ms"] == 450
+    assert len(findings["runs"]) == 3
