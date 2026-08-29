@@ -189,6 +189,12 @@ models:
     hf_checkpoint:
       status: TODO
   deepseek_vl_v2:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: deepseek_vl_v2
@@ -203,11 +209,11 @@ models:
         files: 1
         bytes: 2099712075
         gib: 1.96
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   deepseekocr:
+    capabilities:
+      - ocr
+    scenarios:
+      - ocr
     synthetic:
       status: configured
       adapter: deepseekocr
@@ -222,10 +228,6 @@ models:
         files: 1
         bytes: 2451214926
         gib: 2.28
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   deepseekocr_2:
     synthetic:
       status: TODO
@@ -242,6 +244,10 @@ models:
     hf_checkpoint:
       status: TODO
   dots_ocr:
+    capabilities:
+      - ocr
+    scenarios:
+      - ocr
     synthetic:
       status: configured
       adapter: dots_ocr
@@ -256,10 +262,6 @@ models:
         files: 1
         bytes: 3524130967
         gib: 3.28
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   ernie4_5:
     synthetic:
       status: TODO
@@ -316,6 +318,13 @@ models:
     hf_checkpoint:
       status: TODO
   florence2:
+    capabilities:
+      - vision_language
+      - ocr
+      - detection
+    scenarios:
+      - ocr
+      - detection
     synthetic:
       status: configured
       adapter: florence2
@@ -330,10 +339,6 @@ models:
         files: 1
         bytes: 163524711
         gib: 0.15
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   flux2:
     synthetic:
       status: TODO
@@ -350,6 +355,12 @@ models:
     hf_checkpoint:
       status: TODO
   gemma3:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: gemma3
@@ -364,10 +375,6 @@ models:
         files: 1
         bytes: 2995351814
         gib: 2.79
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   gemma3_embedding:
     synthetic:
       status: TODO
@@ -379,6 +386,12 @@ models:
     hf_checkpoint:
       status: TODO
   gemma3n:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: gemma3n
@@ -393,10 +406,6 @@ models:
         files: 1
         bytes: 4462976625
         gib: 4.16
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   gemma4:
     synthetic:
       status: TODO
@@ -438,6 +447,12 @@ models:
     hf_checkpoint:
       status: TODO
   glm4v:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: glm4v
@@ -456,11 +471,13 @@ models:
         files: 2
         bytes: 7074017754
         gib: 6.59
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   glm4v_moe:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: glm4v_moe
@@ -479,10 +496,6 @@ models:
         files: 12
         bytes: 61857424876
         gib: 57.61
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   glm5_next:
     synthetic:
       status: TODO
@@ -499,6 +512,10 @@ models:
     hf_checkpoint:
       status: TODO
   got:
+    capabilities:
+      - ocr
+    scenarios:
+      - ocr
     synthetic:
       status: configured
       adapter: got
@@ -513,10 +530,6 @@ models:
         files: 1
         bytes: 454463407
         gib: 0.42
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   gpt2:
     synthetic:
       status: TODO
@@ -548,6 +561,12 @@ models:
     hf_checkpoint:
       status: TODO
   granite_vision:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: granite_vision
@@ -565,10 +584,6 @@ models:
         files: 1
         bytes: 2346291044
         gib: 2.19
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   granitemoe:
     synthetic:
       status: TODO
@@ -605,6 +620,12 @@ models:
     hf_checkpoint:
       status: TODO
   idefics2:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: idefics2
@@ -625,11 +646,13 @@ models:
         files: 1
         bytes: 4748021239
         gib: 4.42
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   idefics3:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: idefics3
@@ -644,10 +667,6 @@ models:
         files: 1
         bytes: 5354033292
         gib: 4.99
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   ideogram4:
     synthetic:
       status: TODO
@@ -669,6 +688,12 @@ models:
     hf_checkpoint:
       status: TODO
   internvl_chat:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: internvl_chat
@@ -683,10 +708,6 @@ models:
         files: 1
         bytes: 964986994
         gib: 0.90
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   iquestloopcoder:
     synthetic:
       status: TODO
@@ -768,6 +789,12 @@ models:
     hf_checkpoint:
       status: TODO
   llama4:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: llama4
@@ -782,10 +809,6 @@ models:
         files: 12
         bytes: 61115340220
         gib: 56.92
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   llama4_text:
     synthetic:
       status: TODO
@@ -802,6 +825,12 @@ models:
     hf_checkpoint:
       status: TODO
   llava:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: llava
@@ -816,16 +845,18 @@ models:
         files: 1
         bytes: 3975094479
         gib: 3.70
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   llava_bunny:
     synthetic:
       status: TODO
     hf_checkpoint:
       status: TODO
   llava_next:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: llava_next
@@ -840,10 +871,6 @@ models:
         files: 1
         bytes: 4258218323
         gib: 3.97
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   llmjpvl:
     synthetic:
       status: TODO
@@ -910,6 +937,14 @@ models:
     hf_checkpoint:
       status: TODO
   minicpmo:
+    capabilities:
+      - text_instruction
+      - vision_language
+      - audio_language
+    scenarios:
+      - text_instruction
+      - vlm_color
+      - audio_language
     synthetic:
       status: configured
       adapter: minicpmo
@@ -927,11 +962,13 @@ models:
         files: 2
         bytes: 6143475931
         gib: 5.72
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   minicpmv4_6:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: minicpmv4_6
@@ -949,10 +986,6 @@ models:
         files: 1
         bytes: 2157823786
         gib: 2.01
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   minimax:
     synthetic:
       status: TODO
@@ -984,6 +1017,12 @@ models:
     hf_checkpoint:
       status: TODO
   mistral3:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: mistral3
@@ -998,10 +1037,6 @@ models:
         files: 1
         bytes: 2745210934
         gib: 2.56
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   mistral4:
     synthetic:
       status: TODO
@@ -1013,6 +1048,12 @@ models:
     hf_checkpoint:
       status: TODO
   mllama:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: mllama
@@ -1027,16 +1068,18 @@ models:
         files: 2
         bytes: 6007438436
         gib: 5.59
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   modernbert:
     synthetic:
       status: TODO
     hf_checkpoint:
       status: TODO
   molmo:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: molmo
@@ -1051,10 +1094,6 @@ models:
         files: 1
         bytes: 5298715127
         gib: 4.93
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   molmo2:
     synthetic:
       status: TODO
@@ -1156,6 +1195,12 @@ models:
     hf_checkpoint:
       status: TODO
   paligemma:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: paligemma
@@ -1170,10 +1215,6 @@ models:
         files: 1
         bytes: 2299016937
         gib: 2.14
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   phi:
     synthetic:
       status: TODO
@@ -1185,6 +1226,12 @@ models:
     hf_checkpoint:
       status: TODO
   phi3_v:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: phi3_v
@@ -1203,10 +1250,6 @@ models:
         files: 1
         bytes: 2334279041
         gib: 2.17
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   phi3small:
     synthetic:
       status: TODO
@@ -1218,6 +1261,14 @@ models:
     hf_checkpoint:
       status: TODO
   phi4mm:
+    capabilities:
+      - text_instruction
+      - vision_language
+      - audio_language
+    scenarios:
+      - text_instruction
+      - vlm_color
+      - audio_language
     synthetic:
       status: configured
       adapter: phi4mm
@@ -1232,10 +1283,6 @@ models:
         files: 1
         bytes: 3894257630
         gib: 3.63
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   phimoe:
     synthetic:
       status: TODO
@@ -1247,6 +1294,12 @@ models:
     hf_checkpoint:
       status: TODO
   pixtral:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: pixtral
@@ -1261,10 +1314,6 @@ models:
         files: 2
         bytes: 7136056634
         gib: 6.65
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   plamo:
     synthetic:
       status: TODO
@@ -1291,6 +1340,12 @@ models:
     hf_checkpoint:
       status: TODO
   qwen2_5_vl:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: qwen2_5_vl
@@ -1309,16 +1364,18 @@ models:
         files: 1
         bytes: 3073720461
         gib: 2.86
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   qwen2_moe:
     synthetic:
       status: TODO
     hf_checkpoint:
       status: TODO
   qwen2_vl:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: qwen2_vl
@@ -1337,10 +1394,6 @@ models:
         files: 1
         bytes: 1245868907
         gib: 1.16
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   qwen3:
     synthetic:
       status: TODO
@@ -1377,6 +1430,12 @@ models:
     hf_checkpoint:
       status: TODO
   qwen3_vl:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: qwen3_vl
@@ -1395,16 +1454,18 @@ models:
         files: 1
         bytes: 1782040921
         gib: 1.66
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   qwen3_vl_embedding:
     synthetic:
       status: TODO
     hf_checkpoint:
       status: TODO
   qwen3_vl_moe:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: qwen3_vl_moe
@@ -1423,10 +1484,6 @@ models:
         files: 4
         bytes: 18252103673
         gib: 17.00
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   qwen4_exp:
     synthetic:
       status: TODO
@@ -1483,6 +1540,12 @@ models:
     hf_checkpoint:
       status: TODO
   smolvlm:
+    capabilities:
+      - text_instruction
+      - vision_language
+    scenarios:
+      - text_instruction
+      - vlm_color
     synthetic:
       status: configured
       adapter: smolvlm
@@ -1500,10 +1563,6 @@ models:
         files: 1
         bytes: 513026834
         gib: 0.48
-      smoke:
-        prompt: Describe the image.
-        image: generated_rgb
-        max_tokens: 1
   solar_open:
     synthetic:
       status: TODO
