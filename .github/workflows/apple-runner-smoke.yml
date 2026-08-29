@@ -1,0 +1,67 @@
+name: Apple runner connectivity smoke
+
+on:
+  push:
+    branches:
+      - draft/ci-support-foundation
+    paths:
+      - .github/workflows/apple-runner-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  system-snapshot:
+    name: ${{ matrix.device }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: local-m5-max-128gb
+            label: device-alazers-m5-max-128gb
+          - device: amelia-m4-16gb
+            label: device-amelia-m4-16gb
+          - device: lexie-m4-16gb
+            label: device-lexie-m4-16gb
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - ${{ matrix.label }}
+    timeout-minutes: 5
+    steps:
+      - name: Record system state
+        shell: bash
+        run: |
+          set -euo pipefail
+          snapshot="$RUNNER_TEMP/${{ matrix.device }}.txt"
+          {
+            printf 'runner_name=%s\n' "$RUNNER_NAME"
+            printf 'runner_os=%s\n' "$RUNNER_OS"
+            printf 'runner_arch=%s\n' "$RUNNER_ARCH"
+            printf 'computer_name=%s\n' "$(scutil --get ComputerName)"
+            printf 'hardware_model=%s\n' "$(sysctl -n hw.model)"
+            printf 'memory_bytes=%s\n' "$(sysctl -n hw.memsize)"
+            sw_vers
+            uname -m
+            uptime
+            df -h /
+            xcode-select -p
+            git --version
+            uv --version
+            uv python find 3.10
+            python3 --version
+            pgrep -afil 'Runner.Listener|Runner.Worker' || true
+            ps -axo pid=,%cpu=,%mem=,etime=,comm= | sort -k2 -nr | head -12
+          } | tee "$snapshot"
+          {
+            printf '### %s\n\n' '${{ matrix.device }}'
+            printf '```text\n'
+            cat "$snapshot"
+            printf '```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: system-${{ matrix.device }}
+          path: ${{ runner.temp }}/${{ matrix.device }}.txt
+          retention-days: 1
