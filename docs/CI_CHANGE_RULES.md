@@ -22,4 +22,6 @@ Adding another path category to an existing CI behavior requires only another ru
 
 `new_model_path` applies when `mlx_vlm/models/{model}` is absent from the base tree and present in the pull-request head. It supersedes ordinary model-path handling for that model.
 
-The pull request must change `ci/model_path.yaml` and add a matching entry with configured synthetic and Hugging Face checkpoint sections. CI validates that configuration without executing contributor code, then emits an `awaiting_maintainer_approval` gate bound to the exact head commit and a digest of the submitted configuration. No synthetic construction or checkpoint test is dispatched until a later communication and approval layer resolves that gate.
+The pull request must change `ci/model_path.yaml` and add a matching entry with configured synthetic and Hugging Face checkpoint sections. CI validates that configuration without executing contributor code, then emits an `awaiting_maintainer_approval` gate bound to the exact head commit and a digest of the submitted configuration.
+
+The trusted control workflow reports that gate through one pull-request comment and a protected `apple-silicon-ci` environment. Approval recomputes the current pull-request head, verifies the configuration digest, and publishes an immutable runner job manifest; it does not execute model code itself.

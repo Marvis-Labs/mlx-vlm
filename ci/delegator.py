@@ -162,6 +162,8 @@ class ModelPath:
 
     @staticmethod
     def _load_yaml(path: Path) -> dict[str, Any]:
+        if path.stat().st_size > 2_000_000:
+            raise ValueError(f"{path} exceeds the 2000000-byte configuration limit")
         data = yaml.safe_load(path.read_text())
         if not isinstance(data, dict):
             raise ValueError(f"{path} must contain a YAML mapping")
@@ -329,11 +331,26 @@ class NewModelPath:
                     "changed_paths": paths,
                     "requested_jobs": ["synthetic", "hf_checkpoint"],
                     "configuration": configuration,
-                    "message": (
-                        f"New model `{model_name}` detected. Awaiting maintainer "
-                        "approval before synthetic and Hugging Face checkpoint tests "
-                        f"run for `{context.head_sha}`."
-                    ),
+                    "pending_jobs": [
+                        {
+                            "id": f"new_model_path:{model_name}:synthetic",
+                            "component": self.name,
+                            "model": model_name,
+                            "mode": "synthetic",
+                            "changed_paths": paths,
+                            "scenarios": configuration["scenarios"],
+                            "synthetic": configuration["synthetic"],
+                        },
+                        {
+                            "id": f"new_model_path:{model_name}:hf_checkpoint",
+                            "component": self.name,
+                            "model": model_name,
+                            "mode": "hf_checkpoint",
+                            "changed_paths": paths,
+                            "scenarios": configuration["scenarios"],
+                            "hf_checkpoint": configuration["hf_checkpoint"],
+                        },
+                    ],
                 }
             )
 
@@ -396,6 +413,7 @@ class Delegator:
         ]
         return {
             "schema_version": 1,
+            "head_sha": context.head_sha,
             "rules": list(dict.fromkeys(match.rule for match in matches)),
             "components": [plan["component"] for plan in plans],
             "jobs": [job for plan in plans for job in plan["jobs"]],
@@ -510,17 +528,29 @@ def changed_files_from_git(
     return diff_from_git(base, head, cwd).changed_files
 
 
+def create_delegator(
+    rules_config: Path, model_config: Path, scenario_config: Path
+) -> Delegator:
+    """Create a delegator from explicit trusted rules and manifest paths."""
+
+    model_path = ModelPath(
+        model_config,
+        scenario_config,
+    )
+    return Delegator(
+        ChangeDetector.from_yaml(rules_config),
+        [NewModelPath(model_path), model_path],
+    )
+
+
 def default_delegator(config_directory: Path | None = None) -> Delegator:
     """Create the delegator using repository rules and model manifests."""
 
     config_directory = config_directory or Path(__file__).resolve().parent
-    model_path = ModelPath(
+    return create_delegator(
+        config_directory / "change-rules.yaml",
         config_directory / "model_path.yaml",
         config_directory / "model-path-scenario.yaml",
-    )
-    return Delegator(
-        ChangeDetector.from_yaml(config_directory / "change-rules.yaml"),
-        [NewModelPath(model_path), model_path],
     )
 
 

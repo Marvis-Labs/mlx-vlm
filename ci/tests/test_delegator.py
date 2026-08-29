@@ -153,6 +153,10 @@ def test_new_model_emits_approval_gate_and_no_jobs(tmp_path):
     assert gate["head_sha"] == "abc123"
     assert gate["configuration_digest"].startswith("sha256:")
     assert gate["requested_jobs"] == ["synthetic", "hf_checkpoint"]
+    assert [job["mode"] for job in gate["pending_jobs"]] == [
+        "synthetic",
+        "hf_checkpoint",
+    ]
     assert gate["configuration"]["hf_checkpoint"]["repo"] == "example/ready"
 
 
@@ -220,6 +224,7 @@ def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
 
     assert plan == {
         "schema_version": 1,
+        "head_sha": None,
         "rules": [],
         "components": [],
         "jobs": [],
