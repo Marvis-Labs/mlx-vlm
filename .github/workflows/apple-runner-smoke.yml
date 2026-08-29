@@ -52,7 +52,7 @@ jobs:
             uv python find 3.10
             python3 --version
             pgrep -afil 'Runner.Listener|Runner.Worker' || true
-            ps -axo pid=,%cpu=,%mem=,etime=,comm= | sort -k2 -nr | head -12
+            ps -axo pid=,%cpu=,%mem=,etime=,comm= | sort -k2 -nr | sed -n '1,12p'
           } | tee "$snapshot"
           {
             printf '### %s\n\n' '${{ matrix.device }}'
