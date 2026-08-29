@@ -224,6 +224,20 @@ class VisionModel(nn.Module):
 
         self.blocks = [Qwen2VLVisionBlock(config) for _ in range(config.depth)]
         self.merger = PatchMerger(dim=config.hidden_size, context_dim=config.embed_dim)
+        self._cached_pixels = None
+        self._cached_grid = None
+        self._cached_features = None
+
+    def cached_features(self, hidden_states, grid_thw):
+        if self._cached_features is None:
+            return None
+        if hidden_states.shape != self._cached_pixels.shape:
+            return None
+        if grid_thw.shape != self._cached_grid.shape:
+            return None
+        pixels_match = mx.all(hidden_states == self._cached_pixels).item()
+        grid_matches = mx.all(grid_thw == self._cached_grid).item()
+        return self._cached_features if pixels_match and grid_matches else None
 
     def rot_pos_emb(self, grid_thw):
         pos_ids = []
@@ -269,6 +283,10 @@ class VisionModel(nn.Module):
         grid_thw: mx.array,
         output_hidden_states: Optional[bool] = None,
     ) -> mx.array:
+        cached = self.cached_features(hidden_states, grid_thw)
+        if cached is not None:
+            return cached
+        pixel_values = hidden_states
         hidden_states = self.patch_embed(hidden_states)
         rotary_pos_emb = prepare_rotary_pos_emb_vision(self.rot_pos_emb(grid_thw))
 
@@ -299,7 +317,11 @@ class VisionModel(nn.Module):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
 
-        return self.merger(hidden_states)
+        features = self.merger(hidden_states)
+        self._cached_pixels = pixel_values
+        self._cached_grid = grid_thw
+        self._cached_features = features
+        return features
 
     def sanitize(self, weights):
         sanitized_weights = {}
