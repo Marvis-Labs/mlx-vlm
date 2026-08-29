@@ -169,28 +169,61 @@ def _transform_modelopt_nvfp4_weights(
     weights: Dict[str, mx.array],
     quantization_config: Optional[Dict[str, Any]],
 ) -> Tuple[Dict[str, mx.array], Optional[Dict[str, Any]]]:
+    """Convert ModelOpt NVFP4 and mixed NVFP4/FP8 checkpoints.
+
+    ModelOpt's mixed export uses ``weight_scale_2`` to identify NVFP4
+    linears and a lone ``weight_scale`` for FP8 linears. MLX can load the
+    former natively; the latter are decoded to dense weights because its FP8
+    mode uses block scales rather than ModelOpt's per-tensor/channel scale.
+    """
     if quantization_config is None:
         return weights, None
-    if (
-        quantization_config.get("quant_method") != "modelopt"
-        or quantization_config.get("quant_algo") != "NVFP4"
-    ):
+    if quantization_config.get("quant_method") not in {
+        "modelopt",
+        "modelopt_mixed",
+    } or quantization_config.get("quant_algo") not in {"NVFP4", "MIXED_PRECISION"}:
         return weights, None
 
     scale_2_suffix = ".weight_scale_2"
-    prefixes = {
+    nvfp4_prefixes = {
         key[: -len(scale_2_suffix)] for key in weights if key.endswith(scale_2_suffix)
     }
-    if not prefixes:
+    scale_suffix = ".weight_scale"
+    scaled_prefixes = {
+        key[: -len(scale_suffix)] for key in weights if key.endswith(scale_suffix)
+    }
+    fp8_prefixes = scaled_prefixes - nvfp4_prefixes
+    if not nvfp4_prefixes and not fp8_prefixes:
         return weights, None
 
-    consumed = {
+    nvfp4_consumed = {
         f"{prefix}.{suffix}"
-        for prefix in prefixes
+        for prefix in nvfp4_prefixes
         for suffix in ("weight", "weight_scale", "input_scale")
     }
+    fp8_consumed = {
+        f"{prefix}.{suffix}"
+        for prefix in fp8_prefixes
+        for suffix in ("weight", "input_scale")
+    }
     transformed = {}
+    # Each fold below builds a deep lazy graph. A large MoE export has tens of
+    # thousands of quantized tensors, so the unevaluated intermediates blow past
+    # Metal's live-buffer limit before the dict is ever consumed. Flush in
+    # batches to keep the graph shallow; this also frees the intermediates.
+    pending: List[mx.array] = []
+
+    def _flush(force: bool = False) -> None:
+        if pending and (force or len(pending) >= 256):
+            mx.eval(pending)
+            pending.clear()
+
     for key, value in weights.items():
+        # ModelOpt emits per-layer FP8 KV-cache scales when kv_cache_quant_algo
+        # is set. MLX quantizes the KV cache at runtime and has no parameter to
+        # hold them, so drop them rather than fail the strict load.
+        if key.endswith(".k_scale") or key.endswith(".v_scale"):
+            continue
         if key.endswith(scale_2_suffix):
             prefix = key[: -len(scale_2_suffix)]
             weight_key = f"{prefix}.weight"
@@ -219,12 +252,31 @@ def _transform_modelopt_nvfp4_weights(
             transformed[f"{prefix}.scales"] = _f32_to_e4m3(
                 decoded_scale * value.astype(mx.float32)
             )
-        elif key in consumed:
+            pending.append(transformed[f"{prefix}.scales"])
+            _flush()
+        elif key.endswith(scale_suffix) and key[: -len(scale_suffix)] in fp8_prefixes:
+            prefix = key[: -len(scale_suffix)]
+            weight_key = f"{prefix}.weight"
+            if weight_key not in weights or weights[weight_key].dtype != mx.uint8:
+                raise ValueError(f"Invalid ModelOpt FP8 tensors for {prefix}.")
+            if not mx.issubdtype(value.dtype, mx.floating):
+                raise ValueError(f"Invalid ModelOpt FP8 scale for {prefix}.")
+            transformed[weight_key] = _dequantize_compressed_tensors_fp8_weight(
+                weights[weight_key], value
+            )
+            pending.append(transformed[weight_key])
+            _flush()
+        elif key in nvfp4_consumed or key in fp8_consumed:
             continue
         else:
             transformed[key] = value
 
-    return transformed, {"group_size": 16, "bits": 4, "mode": "nvfp4"}
+    _flush(force=True)
+
+    quantization = None
+    if nvfp4_prefixes:
+        quantization = {"group_size": 16, "bits": 4, "mode": "nvfp4"}
+    return transformed, quantization
 
 
 def _transform_compressed_tensors_nvfp4_weights(
@@ -611,13 +663,19 @@ def get_model_and_args(config: dict, model_path: Optional[Path] = None):
 
     model_type = MODEL_REMAPPING.get(model_type, model_type)
 
-    is_dflash = config.get("dflash_config", None) is not None
-    if is_dflash:
-        # DSpark checkpoints deliberately reuse a Qwen3 draft backbone and
-        # model_type, but their Markov head changes proposal semantics. Route
-        # them before the generic DFlash suffix is applied.
-        suffix = "_dspark" if int(config.get("markov_rank", 0) or 0) > 0 else "_dflash"
-        model_type += suffix
+    architectures = set(config.get("architectures") or ())
+    dflash_config = config.get("dflash_config")
+    if "BoundaryExtractor" in architectures:
+        model_type = "gliner2_5"
+    elif "DFlash2DraftModel" in architectures:
+        model_type = "dflash2"
+    elif dflash_config is not None:
+        is_dspark = (
+            dflash_config.get("projector_type") == "dspark"
+            or int(config.get("markov_rank") or dflash_config.get("markov_rank") or 0)
+            > 0
+        )
+        model_type = "dspark" if is_dspark else f"{model_type}_dflash"
 
     last_err: Optional[ImportError] = None
     for pkg in ("mlx_vlm.models", "mlx_vlm.speculative.drafters"):
@@ -633,18 +691,6 @@ def get_model_and_args(config: dict, model_path: Optional[Path] = None):
     msg = f"Model type {model_type} not supported. Error: {last_err}"
     logging.error(msg)
     raise ValueError(msg)
-
-
-def _has_config(config: dict, key: str) -> bool:
-    value = config.get(key)
-    return value is not None and value != {}
-
-
-def _is_text_only_config(config: dict) -> bool:
-    return not any(
-        _has_config(config, key)
-        for key in ("vision_config", "audio_config", "dflash_config")
-    )
 
 
 def _quantization_path_aliases(
@@ -674,21 +720,53 @@ def _quantization_for_module_path(
     return None
 
 
-def _drop_modules_without_weights(model: nn.Module, weights: dict) -> None:
+def _quantization_path_aliases(
+    path: str, model: Optional[nn.Module] = None
+) -> Tuple[str, ...]:
+    """Return checkpoint quantization keys that may refer to a module path."""
+    aliases = [path]
+    if path.startswith("language_model."):
+        aliases.append(path[len("language_model.") :])
+
+    model_aliases = getattr(model, "quantization_path_aliases", None)
+    if callable(model_aliases):
+        aliases.extend(model_aliases(path))
+
+    return tuple(dict.fromkeys(aliases))
+
+
+def _quantization_for_module_path(
+    quantization: dict, path: str, model: Optional[nn.Module] = None
+) -> Optional[dict]:
+    for alias in _quantization_path_aliases(path, model):
+        value = quantization.get(alias)
+        if isinstance(value, dict):
+            return value
+        if value is False:
+            return {}
+    return None
+
+
+def _drop_modules_without_weights(
+    model: nn.Module, weights: dict, declared_keys: Optional[set] = None
+) -> None:
+    """Drop weightless top-level VLM modules the checkpoint manifest also omits."""
     weighted_modules = {key.partition(".")[0] for key in weights}
+    declared_modules = {key.partition(".")[0] for key in (declared_keys or weights)}
     dropped_modules = []
     for name, child in list(model.items()):
         if name == "language_model" or not isinstance(child, nn.Module):
             continue
         if not tree_flatten(child.parameters()) or name in weighted_modules:
             continue
+        if name in declared_modules:
+            continue
         setattr(model, name, None)
         dropped_modules.append(name)
 
     if dropped_modules:
         logging.warning(
-            "Text-only checkpoint has no weights for VLM module(s): %s. "
-            "Disabling those modules.",
+            "Checkpoint has no weights for module(s): %s. Disabling them.",
             ", ".join(dropped_modules),
         )
 
@@ -756,14 +834,24 @@ def load_model(model_path: Path, lazy: bool = False, **kwargs) -> nn.Module:
         ValueError: If the model class or args class are not found or cannot be instantiated.
     """
     strict = kwargs.pop("strict", True)
+    # An expert-offload dir (mlx_vlm.moe_offload) is missing routed-expert
+    # keys by design; defer eval until patch_model swaps those modules, or
+    # their random-init resident weights get eagerly materialized -- the OOM
+    # this feature exists to avoid.
+    is_offload_dir = (model_path / "offload_index.json").exists()
+    if is_offload_dir:
+        strict = False
+        requested_lazy, lazy = lazy, True
     config = load_config(model_path, **kwargs)
 
     index_file = model_path / "model.safetensors.index.json"
     weight_files = []
+    declared_keys: set = set()
     if index_file.exists():
         try:
             with open(index_file) as f:
                 weight_map = json.load(f).get("weight_map", {})
+            declared_keys = set(weight_map)
             weight_files = [
                 str(model_path / shard)
                 for shard in sorted(set(weight_map.values()))
@@ -771,6 +859,7 @@ def load_model(model_path: Path, lazy: bool = False, **kwargs) -> nn.Module:
             ]
         except (ValueError, OSError):
             weight_files = []
+            declared_keys = set()
     if not weight_files:
         weight_files = [
             wf
@@ -805,12 +894,16 @@ python -m mlx_vlm.convert --hf-path <local_dir> --mlx-path <mlx_dir>
         weights.update(_load_safetensors(wf))
 
     model_class, _ = get_model_and_args(config=config, model_path=model_path)
-    text_only_config = _is_text_only_config(config)
 
     # Initialize text and vision configs if not present
     config.setdefault("text_config", config.pop("llm_config", {}))
     config.setdefault("vision_config", {})
     config.setdefault("audio_config", {})
+    ple_storage = config["text_config"].get("ple_storage")
+    if ple_storage and (manifest := ple_storage.get("manifest")):
+        manifest_path = Path(manifest)
+        if not manifest_path.is_absolute():
+            ple_storage["manifest"] = str(model_path / manifest_path)
 
     has_quantization = "quantization" in config
 
@@ -895,7 +988,10 @@ python -m mlx_vlm.convert --hf-path <local_dir> --mlx-path <mlx_dir>
                 from .models.deepseek_v4.language import make_quantization_config
 
                 quantization = make_quantization_config(model)
-            elif quant_method == "fp8" and config.get("model_type") == "qwen3_5":
+            elif quant_method == "fp8" and config.get("model_type") in {
+                "qwen3_5",
+                "qwen3_5_moe",
+            }:
                 from .models.qwen3_5.fp8 import make_quantization_config
 
                 quantization = make_quantization_config(config)
@@ -974,10 +1070,44 @@ python -m mlx_vlm.convert --hf-path <local_dir> --mlx-path <mlx_dir>
             )
         model = quantize_activations(model)
 
-    if text_only_config:
-        _drop_modules_without_weights(model, weights)
+    if is_offload_dir:
+        # strict=False above must not swallow a genuinely malformed offload
+        # dir: verify every parameter left at random-init is actually an
+        # expected expert-weight path, and fail loudly on anything else.
+        from .moe_offload import PEREXPERT_RE, STACKED_FUSED_RE, STACKED_RE
+
+        expected = {k for k, _ in tree_flatten(model.parameters())}
+        missing = expected - set(weights)
+        unexpected_missing = [
+            k
+            for k in missing
+            if not (
+                PEREXPERT_RE.match(k)
+                or STACKED_RE.match(k)
+                or STACKED_FUSED_RE.match(k)
+            )
+        ]
+        if unexpected_missing:
+            raise ValueError(
+                f"Offload dir {model_path} is missing {len(unexpected_missing)} "
+                "resident parameters that aren't routed-expert weights (malformed "
+                "repack() output?): " + ", ".join(sorted(unexpected_missing)[:10])
+            )
+
+    _drop_modules_without_weights(model, weights, declared_keys)
 
     model.load_weights(list(weights.items()), strict=strict)
+
+    if is_offload_dir:
+        from .moe_offload import patch_model
+
+        model.moe_offload_store = patch_model(
+            model,
+            str(model_path),
+            expert_cache_gb=kwargs.get("expert_cache_gb"),
+            max_kv_size=kwargs.get("max_kv_size"),
+        )
+        lazy = requested_lazy
 
     if not lazy:
         mx.eval(model.parameters())
@@ -1204,10 +1334,23 @@ def load_config(model_path: Union[str, Path], **kwargs) -> dict:
             except json.JSONDecodeError:
                 pass
 
-        return config
-
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"Config not found at {model_path}") from exc
+
+    # GLiNER2.5 ships its encoder config in a sidecar directory instead of
+    # inline, so fold it in alongside the other config files. Raised outside the
+    # block above so the missing file is not reported as a missing config.json.
+    if "BoundaryExtractor" in (config.get("architectures") or ()):
+        if "encoder_config" not in config:
+            encoder_config_path = model_path / "encoder_config" / "config.json"
+            if not encoder_config_path.is_file():
+                raise FileNotFoundError(
+                    f"GLiNER2.5 encoder config not found: {encoder_config_path}"
+                )
+            with open(encoder_config_path, encoding="utf-8") as f:
+                config["encoder_config"] = json.load(f)
+
+    return config
 
 
 def load_image_processor(model_path: Union[str, Path], **kwargs) -> BaseImageProcessor:
