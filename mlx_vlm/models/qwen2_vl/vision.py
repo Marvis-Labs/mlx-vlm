@@ -19,10 +19,7 @@ def check_array_shape(arr):
         return True
 
     # Check if out_channels is the largest, and kH and KW are the same
-    if (out_channels >= kH) and (out_channels >= KW) and (kH == KW):
-        return True
-    else:
-        return False
+    return (out_channels >= kH) and (out_channels >= KW) and (kH == KW)
 
 
 def rotate_half(x):
