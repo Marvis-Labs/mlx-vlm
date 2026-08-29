@@ -29,7 +29,7 @@ def rotate_half(x):
     """Rotates half the hidden dims of the input."""
     x1 = x[..., : x.shape[-1] // 2]
     x2 = x[..., x.shape[-1] // 2 :]
-    return mx.concatenate([-x2, x1], axis=-1)
+    return mx.concatenate([x2, -x1], axis=-1)
 
 
 def apply_rotary_pos_emb_vision(tensor, freqs) -> mx.array:
