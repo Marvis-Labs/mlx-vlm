@@ -10,6 +10,7 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
+from ci.bot import BotOutput
 from ci.delegator import create_delegator, diff_from_git
 
 
@@ -140,83 +141,7 @@ def release_control(
 
 
 def render_status(record: Mapping[str, Any]) -> str:
-    outcome = record["outcome"]
-    labels = {
-        PlanningOutcome.BLOCKED.value: "Blocked",
-        PlanningOutcome.AWAITING_APPROVAL.value: "Awaiting maintainer approval",
-        PlanningOutcome.READY.value: "Ready",
-    }
-    lines = [
-        "<!-- mlx-vlm-ci:status -->",
-        "## MLX-VLM CI",
-        "",
-        f"Commit: `{_cell(record['head_sha'])}`  ",
-        f"Status: **{labels[outcome]}**",
-    ]
-    run_url = record.get("run_url")
-    if run_url:
-        lines[-1] += f" · [workflow run]({_url(run_url)})"
-
-    if outcome == PlanningOutcome.BLOCKED.value:
-        lines.extend(["", "| Component | Subject | Problem |", "|---|---|---|"])
-        for error in record["errors"][:50]:
-            lines.append(
-                "| "
-                + " | ".join(
-                    _cell(value)
-                    for value in (
-                        error["component"],
-                        error["subject"],
-                        error["code"],
-                    )
-                )
-                + " |"
-            )
-        lines.extend(
-            ["", "Correct the configuration blockers and update the pull request."]
-        )
-    elif outcome == PlanningOutcome.AWAITING_APPROVAL.value:
-        lines.extend(["", "| Component | Model | Checkpoint |", "|---|---|---|"])
-        for gate in record["gates"][:50]:
-            checkpoint = gate.get("configuration", {}).get("hf_checkpoint", {})
-            lines.append(
-                "| "
-                + " | ".join(
-                    _cell(value)
-                    for value in (
-                        gate["component"],
-                        gate["model"],
-                        checkpoint.get("repo", "unknown"),
-                    )
-                )
-                + " |"
-            )
-        lines.extend(
-            [
-                "",
-                "Synthetic and checkpoint configuration passed static validation.",
-                "No Apple Silicon job starts until the protected environment is approved.",
-            ]
-        )
-    elif record["jobs"]:
-        lines.extend(["", "| Component | Subject | Mode |", "|---|---|---|"])
-        for job in record["jobs"][:50]:
-            lines.append(
-                "| "
-                + " | ".join(
-                    _cell(value)
-                    for value in (
-                        job["component"],
-                        job.get("model", job["id"]),
-                        job.get("mode", "default"),
-                    )
-                )
-                + " |"
-            )
-        lines.extend(["", "The immutable job manifest is ready for runner dispatch."])
-    else:
-        lines.extend(["", "No Apple Silicon jobs are required for this change."])
-    return "\n".join(lines) + "\n"
+    return BotOutput(record).render()
 
 
 def _error_record(blocker: Mapping[str, Any]) -> dict[str, Any]:
@@ -298,23 +223,6 @@ def _require_unique_job_ids(jobs: Sequence[Mapping[str, Any]]) -> None:
 
 def _canonical(value: Mapping[str, Any]) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-
-
-def _cell(value: Any) -> str:
-    text = str(value).replace("@", "@\u200b")
-    return (
-        text.replace("|", "\\|")
-        .replace("`", "\\`")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\r", " ")
-        .replace("\n", " ")[:200]
-    )
-
-
-def _url(value: Any) -> str:
-    text = str(value)
-    return text if text.startswith(("https://", "http://")) else "#"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
