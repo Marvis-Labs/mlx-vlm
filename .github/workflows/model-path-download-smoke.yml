@@ -65,8 +65,8 @@ jobs:
           CI_PR: ${{ github.event.pull_request.number }}
         run: |
           for _ in {1..120}; do
-            count="$(gh api "repos/${{ github.repository }}/issues/$CI_PR/comments" --paginate --jq '[.[] | select(.body == "/ci run" and (.author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR"))] | length')"
-            if ((count > 0)); then
+            authorized="$(gh api "repos/${{ github.repository }}/issues/$CI_PR/comments" --jq 'any(.[]; .body == "/ci run" and (.author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR"))')"
+            if [[ "$authorized" == true ]]; then
               exit 0
             fi
             sleep 5
