@@ -61,15 +61,16 @@ jobs:
         run: bash .github/scripts/upsert-mlx-vlm-ci-comment.sh
       - name: Wait for maintainer command
         env:
+          GH_TOKEN: ${{ github.token }}
           CI_PR: ${{ github.event.pull_request.number }}
         run: |
           for _ in {1..120}; do
-            authorized="$(curl --fail --silent --show-error \
-              --header 'Accept: application/vnd.github+json' \
-              "https://api.github.com/repos/${{ github.repository }}/issues/$CI_PR/comments" | \
-              jq 'any(.[]; .body == "/ci run" and (.author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR"))')"
-            if [[ "$authorized" == true ]]; then
-              exit 0
+            author="$(gh api "repos/${{ github.repository }}/issues/$CI_PR/comments" --jq '[.[] | select(.body == "/ci run")][-1].user.login // empty')"
+            if [[ -n "$author" ]]; then
+              permission="$(gh api "repos/${{ github.repository }}/collaborators/$author/permission" --jq .permission)"
+              case "$permission" in
+                write|maintain|admin) exit 0 ;;
+              esac
             fi
             sleep 5
           done
