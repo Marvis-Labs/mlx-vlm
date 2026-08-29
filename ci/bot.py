@@ -121,7 +121,7 @@ class ModelPathOutput:
         status = self._status(record, jobs, gates, errors, results)
         stages = self._stages(jobs, gates, errors, results)
         metrics = self._metrics(results)
-        messages = self._messages(gates, errors)
+        messages = self._messages(gates, errors, results)
         return BotSection(
             title=model,
             component="ModelPath",
@@ -193,6 +193,7 @@ class ModelPathOutput:
         for outcome in (
             "test_failure",
             "regressed",
+            "no_eligible_runner",
             "infrastructure_failure",
             "cancelled",
             "running",
@@ -298,8 +299,19 @@ class ModelPathOutput:
         self,
         gates: Sequence[Mapping[str, Any]],
         errors: Sequence[Mapping[str, Any]],
+        results: Sequence[Mapping[str, Any]],
     ) -> tuple[str, ...]:
         messages = [str(error.get("code", "unknown_error")) for error in errors]
+        messages.extend(
+            self._no_runner_message(result)
+            for result in results
+            if result.get("outcome") == "no_eligible_runner"
+        )
+        messages.extend(
+            message
+            for result in results
+            if (message := self._findings_message(result)) is not None
+        )
         if any(gate.get("status") == "awaiting_maintainer_approval" for gate in gates):
             messages.append(
                 "Synthetic and checkpoint configuration passed static validation."
@@ -308,6 +320,50 @@ class ModelPathOutput:
                 "No Apple Silicon job starts until the protected environment is approved."
             )
         return tuple(messages)
+
+    def _findings_message(self, result: Mapping[str, Any]) -> str | None:
+        findings = result.get("findings")
+        if not isinstance(findings, Mapping):
+            return None
+        cache = result.get("cache", {})
+        cache_state = "cache reused" if cache.get("reused") else "downloaded"
+        values = (
+            ("prefill", findings.get("prefill_tps"), "tok/s"),
+            ("decode", findings.get("decode_tps"), "tok/s"),
+            ("TTFT", findings.get("ttft_ms"), "ms"),
+            ("peak memory", findings.get("peak_memory_gib"), "GiB"),
+        )
+        measurements = "; ".join(
+            f"{name} {value} {unit}"
+            for name, value, unit in values
+            if value is not None
+        )
+        output_hash = findings.get("output_hash")
+        suffix = f"; output {output_hash}" if output_hash else ""
+        return f"HF checkpoint findings ({cache_state}): {measurements}{suffix}."
+
+    def _no_runner_message(self, result: Mapping[str, Any]) -> str:
+        required = result.get("required_memory_gib", "unknown")
+        required_disk = result.get("required_disk_gib")
+        records = [
+            item
+            for key in ("attempts", "unavailable")
+            for item in result.get(key, [])
+            if isinstance(item, Mapping)
+        ]
+        summaries = [
+            f"{item.get('device', 'unknown')} ({item.get('memory_gib', '?')} GiB): "
+            f"{item.get('reason', 'declined')}"
+            for item in records[:8]
+        ]
+        detail = "; ".join(summaries) if summaries else "no configured candidate"
+        requirement = f"{required} GiB memory"
+        if required_disk is not None:
+            requirement += f" and {required_disk} GiB disk"
+        return (
+            f"No eligible Apple Silicon runner is available. Required: {requirement}. "
+            f"Candidates: {detail}. Retry with /ci run."
+        )
 
 
 class BotOutput:
@@ -357,6 +413,7 @@ class BotOutput:
             "Blocked",
             "Test failed",
             "Regressed",
+            "No eligible runner",
             "Infrastructure failed",
             "Cancelled",
             "Running",
@@ -443,6 +500,7 @@ def _label(value: str) -> str:
         "running": "Running",
         "passed": "Passed",
         "regressed": "Regressed",
+        "no_eligible_runner": "No eligible runner",
         "test_failure": "Test failed",
         "infrastructure_failure": "Infrastructure failed",
         "cancelled": "Cancelled",
