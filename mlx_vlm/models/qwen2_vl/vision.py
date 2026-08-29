@@ -284,6 +284,7 @@ class VisionModel(nn.Module):
             hidden_states = blk(
                 hidden_states, cu_seqlens=cu_seqlens, rotary_pos_emb=rotary_pos_emb
             )
+            mx.eval(hidden_states)
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
 
