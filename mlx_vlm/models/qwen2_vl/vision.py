@@ -135,7 +135,7 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim)
 
     def __call__(
-        self, x: mx.array, cu_seqlens: mx.array, rotary_pos_emb: mx.array = None
+        self, x: mx.array, split_indices: list[int], rotary_pos_emb: mx.array = None
     ) -> mx.array:
         seq_length = x.shape[0]
         qkv = (
@@ -150,17 +150,21 @@ class Attention(nn.Module):
         k = k.transpose(0, 2, 1, 3)
         v = v.transpose(0, 2, 1, 3)
 
-        splits = [
-            mx.split(tensor, cu_seqlens[1:-1].tolist(), axis=2) for tensor in (q, k, v)
-        ]
-
-        attn_outputs = []
-        for q, k, v in zip(*splits):
+        if not split_indices:
             output = mx.fast.scaled_dot_product_attention(
                 q, k, v, scale=self.scale, mask=None
             )
-            attn_outputs.append(output)
-        output = mx.concatenate(attn_outputs, axis=2)
+        else:
+            splits = [mx.split(tensor, split_indices, axis=2) for tensor in (q, k, v)]
+            output = mx.concatenate(
+                [
+                    mx.fast.scaled_dot_product_attention(
+                        q, k, v, scale=self.scale, mask=None
+                    )
+                    for q, k, v in zip(*splits)
+                ],
+                axis=2,
+            )
         output = output.transpose(0, 2, 1, 3)
         output = output.reshape(seq_length, -1)
         return self.proj(output)
@@ -189,10 +193,10 @@ class Qwen2VLVisionBlock(nn.Module):
         self.attn = Attention(dim=config.embed_dim, num_heads=config.num_heads)
         self.mlp = MLP(dim=config.embed_dim, hidden_dim=mlp_hidden_dim)
 
-    def __call__(self, hidden_states, cu_seqlens, rotary_pos_emb) -> mx.array:
+    def __call__(self, hidden_states, split_indices, rotary_pos_emb) -> mx.array:
         hidden_states = hidden_states + self.attn(
             self.norm1(hidden_states),
-            cu_seqlens=cu_seqlens,
+            split_indices=split_indices,
             rotary_pos_emb=rotary_pos_emb,
         )
         hidden_states = hidden_states + self.mlp(self.norm2(hidden_states))
@@ -282,12 +286,15 @@ class VisionModel(nn.Module):
 
         cu_seqlens = mx.cumsum(cu_seqlens.astype(mx.int32), axis=0)
         cu_seqlens = mx.pad(cu_seqlens, (1, 0), mode="constant", constant_values=0)
+        split_indices = cu_seqlens[1:-1].tolist()
 
         encoder_states = (hidden_states,) if output_hidden_states else None
 
         for blk in self.blocks:
             hidden_states = blk(
-                hidden_states, cu_seqlens=cu_seqlens, rotary_pos_emb=rotary_pos_emb
+                hidden_states,
+                split_indices=split_indices,
+                rotary_pos_emb=rotary_pos_emb,
             )
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
