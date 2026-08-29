@@ -32,9 +32,7 @@ def rotate_half(x):
     return mx.concatenate([-x2, x1], axis=-1)
 
 
-def apply_rotary_pos_emb_vision(tensor, freqs) -> mx.array:
-    orig_dtype = tensor.dtype
-
+def prepare_rotary_pos_emb_vision(freqs) -> tuple[mx.array, mx.array]:
     cos = mx.cos(freqs)
     sin = mx.sin(freqs)
 
@@ -45,6 +43,13 @@ def apply_rotary_pos_emb_vision(tensor, freqs) -> mx.array:
     sin = mx.expand_dims(sin, axis=1)  # Equivalent to unsqueeze(1)
     sin = mx.tile(sin, (1, 1, 2))  # Equivalent to repeat(1, 1, 2)
     sin = mx.expand_dims(sin, axis=0)  # Equivalent to [None, ...]
+
+    return cos, sin
+
+
+def apply_rotary_pos_emb_vision(tensor, rotary_pos_emb) -> mx.array:
+    orig_dtype = tensor.dtype
+    cos, sin = rotary_pos_emb
 
     output = (tensor * cos) + (rotate_half(tensor) * sin)
     return output.astype(orig_dtype)
@@ -261,7 +266,7 @@ class VisionModel(nn.Module):
         output_hidden_states: Optional[bool] = None,
     ) -> mx.array:
         hidden_states = self.patch_embed(hidden_states)
-        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        rotary_pos_emb = prepare_rotary_pos_emb_vision(self.rot_pos_emb(grid_thw))
 
         # Assuming grid_thw has shape (batch_size, 3)
         batch_size = grid_thw.shape[0]
