@@ -2,6 +2,18 @@ schema_version: 1
 defaults:
   seed: 0
   temperature: 0.0
+defaults_by_capability:
+  text_completion: text_completion
+  text_instruction: text_instruction
+  vision_language: vlm_animal
+  ocr: ocr
+  diffusion: diffusion_text_to_image
+  image_generation: image_generation
+  image_editing: image_editing
+  embedding: embedding
+  detection: detection
+  segmentation: segmentation
+  audio_language: audio_language
 fixtures:
   red_square:
     generator: raster_shapes
@@ -53,6 +65,24 @@ scenarios:
       real:
         - type: normalized_equals
           value: "4"
+  vlm_animal:
+    capability: vision_language
+    input:
+      interface: chat
+      prompt: "What animal is shown? Answer with one lowercase word."
+      cases:
+        - asset: cat
+          expected: cat
+        - asset: dog
+          expected: dog
+    generation:
+      max_tokens: 4
+    assertions:
+      synthetic:
+        - finite_logits
+        - output_shape
+      real:
+        - normalized_equals_expected
   vlm_color:
     capability: vision_language
     input:
@@ -82,10 +112,10 @@ scenarios:
       real:
         - type: normalized_contains
           value: MLX 42
-  image_generation:
-    capability: image_generation
+  diffusion_text_to_image:
+    capability: diffusion
     input:
-      prompt: "A solid red square centered on a white background."
+      prompt: "A studio photograph of a golden dog lying on green grass, centered, natural daylight."
     generation:
       width: 64
       height: 64
@@ -96,12 +126,25 @@ scenarios:
         - output_shape
       real:
         - non_uniform_image
-        - red_channel_dominant
+  image_generation:
+    capability: image_generation
+    input:
+      prompt: "Generate a square image of a gray cat sitting on green grass."
+    generation:
+      width: 64
+      height: 64
+      max_tokens: 256
+    assertions:
+      synthetic:
+        - finite_pixels
+        - output_shape
+      real:
+        - non_uniform_image
   image_editing:
     capability: image_editing
     input:
-      fixture: red_square
-      prompt: "Change the red square to blue and keep the background white."
+      asset: cat
+      prompt: "Replace the grassy background with a blue studio background. Keep the cat unchanged."
     generation:
       width: 64
       height: 64
@@ -117,10 +160,12 @@ scenarios:
     capability: embedding
     input:
       texts:
-        - "a red square"
-        - "a red square"
-        - "a blue circle"
-      fixture: red_square
+        - "a gray cat"
+        - "a dog resting on grass"
+        - "an airplane"
+      assets:
+        - cat
+        - dog
     assertions:
       synthetic:
         - finite_embeddings
@@ -130,8 +175,8 @@ scenarios:
   detection:
     capability: detection
     input:
-      fixture: red_square
-      prompt: "Locate the red square."
+      asset: dog
+      prompt: "Locate the dog."
     assertions:
       synthetic:
         - finite_outputs
@@ -142,8 +187,8 @@ scenarios:
   segmentation:
     capability: segmentation
     input:
-      fixture: red_square
-      prompt: "Segment the red square."
+      asset: cat
+      prompt: "Segment the cat."
     assertions:
       synthetic:
         - finite_outputs
