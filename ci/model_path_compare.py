@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+POSITIVE_METRICS = {"prefill_tps": "tok/s", "decode_tps": "tok/s"}
+NEGATIVE_METRICS = {
+    "ttft_ms": "ms",
+    "wall_ms": "ms",
+    "peak_memory_gib": "GiB",
+}
+
+
+def run_probe(
+    project: Path,
+    probe: Path,
+    job: Path,
+    image: Path,
+    max_tokens: int,
+    output: Path,
+) -> Mapping[str, Any]:
+    command = [
+        "uv",
+        "run",
+        "--project",
+        str(project),
+        "--python",
+        "3.10",
+        "python",
+        str(probe),
+        "--job",
+        str(job),
+        "--image",
+        str(image),
+        "--max-tokens",
+        str(max_tokens),
+        "--warmup",
+        "1",
+        "--iterations",
+        "3",
+        "--output",
+        str(output),
+    ]
+    subprocess.run(command, check=True)
+    value = json.loads(output.read_text())
+    if not isinstance(value, Mapping):
+        raise RuntimeError("model path probe output must be an object")
+    return value
+
+
+def metric_verdict(name: str, change_pct: float, threshold: float = 5.0) -> str:
+    if abs(change_pct) < threshold:
+        return "noise"
+    if name in POSITIVE_METRICS:
+        return "improved" if change_pct > 0 else "regressed"
+    return "improved" if change_pct < 0 else "regressed"
+
+
+def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
+    metrics: dict[str, dict[str, Any]] = {}
+    for name, unit in (POSITIVE_METRICS | NEGATIVE_METRICS).items():
+        base_value = float(base[name])
+        head_value = float(head[name])
+        change_pct = ((head_value - base_value) / base_value * 100) if base_value else 0
+        metrics[name] = {
+            "base": round(base_value, 4),
+            "head": round(head_value, 4),
+            "change_pct": round(change_pct, 2),
+            "verdict": metric_verdict(name, change_pct),
+            "unit": unit,
+        }
+
+    hashes_match = base.get("output_hash") == head.get("output_hash")
+    metric_verdicts = {item["verdict"] for item in metrics.values()}
+    if not hashes_match:
+        verdict = "test_failure"
+    elif "regressed" in metric_verdicts:
+        verdict = "regressed"
+    elif "improved" in metric_verdicts:
+        verdict = "improved"
+    else:
+        verdict = "passed"
+    return {
+        "verdict": verdict,
+        "correctness": {
+            "base_output_hash": base.get("output_hash"),
+            "head_output_hash": head.get("output_hash"),
+            "match": hashes_match,
+        },
+        "metrics": metrics,
+        "base": dict(base),
+        "head": dict(head),
+    }
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--job", type=Path, required=True)
+    parser.add_argument("--base", type=Path, required=True)
+    parser.add_argument("--head", type=Path, required=True)
+    parser.add_argument("--probe", type=Path, required=True)
+    parser.add_argument("--image", type=Path, required=True)
+    parser.add_argument("--max-tokens", type=int, default=32)
+    args = parser.parse_args(argv)
+
+    findings_path = Path(os.environ.get("CI_JOB_FINDINGS", "findings.json"))
+    base_output = findings_path.with_suffix(".base.json")
+    head_output = findings_path.with_suffix(".head.json")
+    try:
+        base = run_probe(
+            args.base,
+            args.probe,
+            args.job,
+            args.image,
+            args.max_tokens,
+            base_output,
+        )
+        head = run_probe(
+            args.head,
+            args.probe,
+            args.job,
+            args.image,
+            args.max_tokens,
+            head_output,
+        )
+        result = compare(base, head)
+    except Exception as error:
+        result = {
+            "verdict": "test_failure",
+            "error": f"{type(error).__name__}: {error}",
+        }
+    findings_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(json.dumps(result, sort_keys=True))
+    return 2 if result["verdict"] == "test_failure" else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
