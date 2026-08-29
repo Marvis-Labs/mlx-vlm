@@ -3,10 +3,11 @@ from pathlib import Path
 
 import yaml
 
-from ci.delegator import Delegator, ModelPath, _parse_name_status, main
+from ci.change_rules import ChangeDetector
+from ci.delegator import Delegator, ModelPath, NewModelPath, _parse_name_status, main
 
 
-def write_configs(tmp_path: Path) -> tuple[Path, Path]:
+def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
     model_config = {
         "schema_version": 1,
         "synthetic_profiles": {"dense_vlm": {}},
@@ -26,6 +27,21 @@ def write_configs(tmp_path: Path) -> tuple[Path, Path]:
                     "weight": {"bytes": 1024, "gib": 0.01},
                 },
             },
+            "second": {
+                "capabilities": ["vision_language"],
+                "synthetic": {
+                    "status": "configured",
+                    "adapter": "second",
+                    "profile": "dense_vlm",
+                },
+                "hf_checkpoint": {
+                    "status": "configured",
+                    "repo": "example/second",
+                    "revision": "def456",
+                    "expected_model_type": "second",
+                    "weight": {"bytes": 2048, "gib": 0.01},
+                },
+            },
             "todo": {
                 "synthetic": {"status": "TODO"},
                 "hf_checkpoint": {"status": "TODO"},
@@ -37,16 +53,40 @@ def write_configs(tmp_path: Path) -> tuple[Path, Path]:
         "defaults_by_capability": {"vision_language": "vlm_animal"},
         "scenarios": {"vlm_animal": {}},
     }
+    rules_config = {
+        "schema_version": 1,
+        "rules": {
+            "new_model_path": {
+                "component": "new_model_path",
+                "include": ["mlx_vlm/models/{model}/**"],
+                "exclude": [],
+                "base_path_absent": "mlx_vlm/models/{model}",
+                "head_path_present": "mlx_vlm/models/{model}",
+                "supersedes": ["model_path"],
+            },
+            "model_path": {
+                "component": "model_path",
+                "include": ["mlx_vlm/models/{model}/**"],
+                "exclude": [],
+            },
+        },
+    }
     model_path = tmp_path / "model_path.yaml"
     scenario_path = tmp_path / "model-path-scenario.yaml"
+    rules_path = tmp_path / "change-rules.yaml"
     model_path.write_text(yaml.safe_dump(model_config))
     scenario_path.write_text(yaml.safe_dump(scenario_config))
-    return model_path, scenario_path
+    rules_path.write_text(yaml.safe_dump(rules_config))
+    return model_path, scenario_path, rules_path
 
 
 def make_delegator(tmp_path: Path) -> Delegator:
-    model_config, scenario_config = write_configs(tmp_path)
-    return Delegator([ModelPath(model_config, scenario_config)])
+    model_config, scenario_config, rules_config = write_configs(tmp_path)
+    model_path = ModelPath(model_config, scenario_config)
+    return Delegator(
+        ChangeDetector.from_yaml(rules_config),
+        [NewModelPath(model_path), model_path],
+    )
 
 
 def test_configured_model_emits_synthetic_and_checkpoint_jobs(tmp_path):
@@ -58,6 +98,7 @@ def test_configured_model_emits_synthetic_and_checkpoint_jobs(tmp_path):
         ]
     )
 
+    assert plan["rules"] == ["model_path"]
     assert plan["components"] == ["model_path"]
     assert [job["mode"] for job in plan["jobs"]] == [
         "synthetic",
@@ -69,7 +110,79 @@ def test_configured_model_emits_synthetic_and_checkpoint_jobs(tmp_path):
     ]
     assert plan["jobs"][0]["scenarios"] == ["vlm_animal"]
     assert plan["jobs"][1]["hf_checkpoint"]["weight"]["bytes"] == 1024
+    assert plan["gates"] == []
     assert plan["blocked"] == []
+
+
+def test_multiple_models_emit_independent_jobs(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        [
+            "mlx_vlm/models/ready/model.py",
+            "mlx_vlm/models/second/model.py",
+        ]
+    )
+
+    assert [(job["model"], job["mode"]) for job in plan["jobs"]] == [
+        ("ready", "synthetic"),
+        ("ready", "hf_checkpoint"),
+        ("second", "synthetic"),
+        ("second", "hf_checkpoint"),
+    ]
+
+
+def test_new_model_emits_approval_gate_and_no_jobs(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        [
+            "ci/model_path.yaml",
+            "mlx_vlm/models/ready/__init__.py",
+            "mlx_vlm/models/ready/model.py",
+        ],
+        base_files=["mlx_vlm/models/existing/model.py"],
+        head_files=["mlx_vlm/models/ready/model.py"],
+        head_sha="abc123",
+        tree_state_known=True,
+    )
+
+    assert plan["rules"] == ["new_model_path"]
+    assert plan["components"] == ["new_model_path"]
+    assert plan["jobs"] == []
+    assert plan["blocked"] == []
+    assert len(plan["gates"]) == 1
+    gate = plan["gates"][0]
+    assert gate["status"] == "awaiting_maintainer_approval"
+    assert gate["head_sha"] == "abc123"
+    assert gate["configuration_digest"].startswith("sha256:")
+    assert gate["requested_jobs"] == ["synthetic", "hf_checkpoint"]
+    assert gate["configuration"]["hf_checkpoint"]["repo"] == "example/ready"
+
+
+def test_new_model_without_manifest_entry_is_blocked(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        ["ci/model_path.yaml", "mlx_vlm/models/missing/model.py"],
+        base_files=["mlx_vlm/models/existing/model.py"],
+        head_files=["mlx_vlm/models/missing/model.py"],
+        head_sha="abc123",
+        tree_state_known=True,
+    )
+
+    assert plan["jobs"] == []
+    assert plan["gates"] == []
+    assert plan["blocked"][0]["component"] == "new_model_path"
+    assert plan["blocked"][0]["reason"] == "missing_model_config"
+
+
+def test_new_model_requires_manifest_change_in_same_pr(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        ["mlx_vlm/models/ready/model.py"],
+        base_files=["mlx_vlm/models/existing/model.py"],
+        head_files=["mlx_vlm/models/ready/model.py"],
+        head_sha="abc123",
+        tree_state_known=True,
+    )
+
+    assert plan["jobs"] == []
+    assert plan["gates"] == []
+    assert plan["blocked"][0]["reason"] == "model_manifest_not_updated"
 
 
 def test_todo_model_is_blocked_for_both_modes(tmp_path):
@@ -82,16 +195,14 @@ def test_todo_model_is_blocked_for_both_modes(tmp_path):
     ]
 
 
-def test_unconfigured_new_model_is_not_silently_skipped(tmp_path):
-    plan = make_delegator(tmp_path).plan(["mlx_vlm/models/new_model/model.py"])
-
-    assert plan["jobs"] == []
-    assert plan["blocked"][0]["reason"] == "missing_model_config"
-
-
 def test_invalid_scenario_config_blocks_configured_modes(tmp_path):
     delegator = make_delegator(tmp_path)
-    delegator.components[0].models["ready"]["scenarios"] = [{"invalid": True}]
+    model_path = next(
+        component
+        for component in delegator.components
+        if component.name == "model_path"
+    )
+    model_path.models["ready"]["scenarios"] = [{"invalid": True}]
 
     plan = delegator.plan(["mlx_vlm/models/ready/model.py"])
 
@@ -109,8 +220,10 @@ def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
 
     assert plan == {
         "schema_version": 1,
+        "rules": [],
         "components": [],
         "jobs": [],
+        "gates": [],
         "blocked": [],
     }
 
@@ -129,12 +242,9 @@ def test_rename_includes_old_and_new_paths():
 
 
 def test_cli_writes_json_plan(tmp_path, monkeypatch):
-    model_config, scenario_config = write_configs(tmp_path)
     output = tmp_path / "plan.json"
-    monkeypatch.setattr(
-        "ci.delegator.default_delegator",
-        lambda: Delegator([ModelPath(model_config, scenario_config)]),
-    )
+    delegator = make_delegator(tmp_path)
+    monkeypatch.setattr("ci.delegator.default_delegator", lambda: delegator)
 
     assert (
         main(
@@ -149,6 +259,7 @@ def test_cli_writes_json_plan(tmp_path, monkeypatch):
     )
     plan = json.loads(output.read_text())
     assert len(plan["jobs"]) == 2
+    assert plan["gates"] == []
     assert plan["blocked"] == []
 
 
@@ -164,11 +275,14 @@ def test_repository_configured_models_are_routable():
         if model.get("synthetic", {}).get("status") == "configured"
         and model.get("hf_checkpoint", {}).get("status") == "configured"
     ]
-
-    plan = Delegator([model_path]).plan(
-        [f"mlx_vlm/models/{name}/config.py" for name in configured]
+    delegator = Delegator(
+        ChangeDetector.from_yaml(config_directory / "change-rules.yaml"),
+        [NewModelPath(model_path), model_path],
     )
+
+    plan = delegator.plan([f"mlx_vlm/models/{name}/config.py" for name in configured])
 
     assert len(configured) == 30
     assert len(plan["jobs"]) == 60
+    assert plan["gates"] == []
     assert plan["blocked"] == []

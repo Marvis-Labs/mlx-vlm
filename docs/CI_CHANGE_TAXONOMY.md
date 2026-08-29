@@ -5,7 +5,7 @@ Use this checklist to design and implement CI coverage for each class of change.
 | Status | Change class | Examples | Required validation |
 |---|---|---|---|
 | - [ ] | Existing model | `models/qwen3_vl/**` | Synthetic unit tests, real load/generate, affected component cases |
-| - [ ] | New model | New architecture directory/config | Reference parity, real checkpoint, registry discovery, every supported modality |
+| - [ ] | New model | New architecture directory/config | Require synthetic and checkpoint manifest data, then await maintainer approval before runtime testing |
 | - [ ] | Removed/renamed model | Deleted directory or changed `model_type` | No dangling imports, registry cleanup, compatibility/error behavior |
 | - [ ] | Shared component | Cache, attention, RoPE, sampling, APC, batching | Representatives for every distinct capability signature |
 | - [ ] | Model registry/dispatch | Discovery, `utils.load`, generation dispatch | Registry enumeration plus small load smoke across architecture families |

@@ -18,6 +18,10 @@ After that, add the model file to the
 directory. You can see other examples there. We recommend starting from a model
 that is similar to the model you are porting.
 
+New model pull requests must also add a matching entry to `ci/model_path.yaml`.
+Configure both its synthetic weight profile and a pinned Hugging Face checkpoint;
+CI will wait for maintainer approval before running either configuration.
+
 Make sure the name of the new model file is the same as the `model_type` in the
 `config.json`, for example
 [llava](https://huggingface.co/llava-hf/llava-1.5-7b-hf/blob/main/config.json#L7).

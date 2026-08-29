@@ -1,24 +1,30 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
 from collections import defaultdict
-from pathlib import Path, PurePosixPath
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, Protocol, Sequence
 
 import yaml
+
+from ci.change_rules import ChangeContext, ChangeDetector, ChangeMatch
 
 
 class ChangeComponent(Protocol):
     name: str
 
-    def plan(self, changed_files: Iterable[str]) -> dict[str, Any]: ...
+    def plan(
+        self, matches: Sequence[ChangeMatch], context: ChangeContext
+    ) -> dict[str, Any]: ...
 
 
 class ModelPath:
-    """Build CI jobs for changes below mlx_vlm/models/<model>."""
+    """Build CI jobs for configured existing-model changes."""
 
     name = "model_path"
 
@@ -36,10 +42,12 @@ class ModelPath:
         self._require_schema_version(self.model_data, model_config)
         self._require_schema_version(self.scenario_data, scenario_config)
 
-    def plan(self, changed_files: Iterable[str]) -> dict[str, Any]:
-        changed_models = self._changed_models(changed_files)
+    def plan(
+        self, matches: Sequence[ChangeMatch], context: ChangeContext
+    ) -> dict[str, Any]:
+        changed_models, invalid = self._changed_models(matches)
         jobs: list[dict[str, Any]] = []
-        blocked: list[dict[str, Any]] = []
+        blocked = list(invalid)
 
         for model_name, paths in sorted(changed_models.items()):
             model = self.models.get(model_name)
@@ -107,10 +115,50 @@ class ModelPath:
 
         return {
             "component": self.name,
-            "models": sorted(changed_models),
             "jobs": jobs,
+            "gates": [],
             "blocked": blocked,
         }
+
+    def configuration(
+        self, model_name: str, paths: list[str]
+    ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+        model = self.models.get(model_name)
+        if not isinstance(model, dict):
+            return None, [
+                self._blocker(model_name, paths, None, "missing_model_config")
+            ]
+
+        scenario_ids, scenario_error = self._scenario_ids(model)
+        synthetic = model.get("synthetic")
+        checkpoint = model.get("hf_checkpoint")
+        errors = (
+            ("synthetic", self._synthetic_error(synthetic) or scenario_error),
+            (
+                "hf_checkpoint",
+                self._checkpoint_error(checkpoint) or scenario_error,
+            ),
+        )
+        blockers = [
+            self._blocker(model_name, paths, mode, reason)
+            for mode, reason in errors
+            if reason
+        ]
+        if blockers:
+            return None, blockers
+        return {
+            "synthetic": {
+                "adapter": synthetic["adapter"],
+                "profile": synthetic["profile"],
+            },
+            "hf_checkpoint": {
+                "repo": checkpoint["repo"],
+                "revision": checkpoint["revision"],
+                "expected_model_type": checkpoint["expected_model_type"],
+                "weight": checkpoint["weight"],
+            },
+            "scenarios": scenario_ids,
+        }, []
 
     @staticmethod
     def _load_yaml(path: Path) -> dict[str, Any]:
@@ -132,29 +180,38 @@ class ModelPath:
             raise ValueError(f"{source}: unsupported schema_version")
 
     @staticmethod
-    def _model_name(path: str) -> str | None:
-        normalized = PurePosixPath(path.replace("\\", "/"))
-        if normalized.is_absolute() or ".." in normalized.parts:
-            return None
-        parts = normalized.parts
-        if len(parts) < 4 or parts[:2] != ("mlx_vlm", "models"):
-            return None
-        return parts[2]
-
-    def _changed_models(self, changed_files: Iterable[str]) -> dict[str, list[str]]:
+    def _changed_models(
+        matches: Sequence[ChangeMatch],
+    ) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
         paths_by_model: dict[str, set[str]] = defaultdict(set)
-        for changed_file in changed_files:
-            model_name = self._model_name(changed_file)
-            if model_name:
-                paths_by_model[model_name].add(changed_file)
-        return {model: sorted(paths) for model, paths in paths_by_model.items()}
+        blocked: list[dict[str, Any]] = []
+        for match in matches:
+            model_name = match.captures.get("model")
+            if not model_name:
+                blocked.append(
+                    {
+                        "component": match.component,
+                        "rule": match.rule,
+                        "changed_paths": [match.path],
+                        "reason": "missing_model_capture",
+                    }
+                )
+                continue
+            paths_by_model[model_name].add(match.path)
+        return (
+            {model: sorted(paths) for model, paths in paths_by_model.items()},
+            blocked,
+        )
 
     def _scenario_ids(self, model: dict[str, Any]) -> tuple[list[str], str | None]:
         configured = model.get("scenarios")
         if configured is None:
+            capabilities = model.get("capabilities", [])
+            if not isinstance(capabilities, list):
+                return [], "invalid_capabilities"
             configured = [
                 self.defaults_by_capability.get(capability)
-                for capability in model.get("capabilities", [])
+                for capability in capabilities
             ]
         if not isinstance(configured, list):
             return [], "invalid_scenarios"
@@ -171,7 +228,7 @@ class ModelPath:
     def _synthetic_error(self, synthetic: Any) -> str | None:
         if not isinstance(synthetic, dict) or synthetic.get("status") != "configured":
             return "not_configured"
-        if not isinstance(synthetic.get("adapter"), str):
+        if not isinstance(synthetic.get("adapter"), str) or not synthetic["adapter"]:
             return "invalid_synthetic_adapter"
         profile = synthetic.get("profile")
         if not isinstance(profile, str) or profile not in self.profiles:
@@ -205,27 +262,181 @@ class ModelPath:
         }
 
 
+class NewModelPath:
+    """Require approval before executing contributor-supplied new-model tests."""
+
+    name = "new_model_path"
+
+    def __init__(self, model_path: ModelPath):
+        self.model_path = model_path
+
+    def plan(
+        self, matches: Sequence[ChangeMatch], context: ChangeContext
+    ) -> dict[str, Any]:
+        changed_models, invalid = self.model_path._changed_models(matches)
+        gates: list[dict[str, Any]] = []
+        blocked = list(invalid)
+
+        for model_name, paths in sorted(changed_models.items()):
+            if "ci/model_path.yaml" not in context.changed_files:
+                blocked.append(
+                    {
+                        "component": self.name,
+                        "model": model_name,
+                        "mode": None,
+                        "changed_paths": paths,
+                        "reason": "model_manifest_not_updated",
+                    }
+                )
+                continue
+            configuration, configuration_blockers = self.model_path.configuration(
+                model_name, paths
+            )
+            blocked.extend(
+                {**blocker, "component": self.name}
+                for blocker in configuration_blockers
+            )
+            if configuration is None:
+                continue
+            if not context.head_sha:
+                blocked.append(
+                    {
+                        "component": self.name,
+                        "model": model_name,
+                        "mode": None,
+                        "changed_paths": paths,
+                        "reason": "missing_head_sha",
+                    }
+                )
+                continue
+            configuration_digest = (
+                "sha256:"
+                + hashlib.sha256(
+                    json.dumps(
+                        configuration, sort_keys=True, separators=(",", ":")
+                    ).encode()
+                ).hexdigest()
+            )
+            gates.append(
+                {
+                    "id": f"new_model_path:{model_name}:{context.head_sha}",
+                    "type": "maintainer_approval",
+                    "status": "awaiting_maintainer_approval",
+                    "component": self.name,
+                    "model": model_name,
+                    "head_sha": context.head_sha,
+                    "configuration_digest": configuration_digest,
+                    "changed_paths": paths,
+                    "requested_jobs": ["synthetic", "hf_checkpoint"],
+                    "configuration": configuration,
+                    "message": (
+                        f"New model `{model_name}` detected. Awaiting maintainer "
+                        "approval before synthetic and Hugging Face checkpoint tests "
+                        f"run for `{context.head_sha}`."
+                    ),
+                }
+            )
+
+        return {
+            "component": self.name,
+            "jobs": [],
+            "gates": gates,
+            "blocked": blocked,
+        }
+
+
 class Delegator:
-    """Run independent change components and merge their job plans."""
+    """Detect change ownership and merge independent component plans."""
 
-    def __init__(self, components: Sequence[ChangeComponent]):
+    def __init__(self, detector: ChangeDetector, components: Sequence[ChangeComponent]):
+        self.detector = detector
         self.components = tuple(components)
+        names = [component.name for component in self.components]
+        if len(names) != len(set(names)):
+            raise ValueError("component names must be unique")
 
-    def plan(self, changed_files: Iterable[str]) -> dict[str, Any]:
-        files = tuple(changed_files)
-        component_plans = [component.plan(files) for component in self.components]
-        active = [plan for plan in component_plans if plan["models"]]
+    def plan(
+        self,
+        changed_files: Iterable[str],
+        *,
+        base_files: Iterable[str] = (),
+        head_files: Iterable[str] = (),
+        head_sha: str | None = None,
+        tree_state_known: bool = False,
+    ) -> dict[str, Any]:
+        context = ChangeContext.create(
+            changed_files,
+            base_files,
+            head_files,
+            head_sha,
+            tree_state_known,
+        )
+        return self.plan_context(context)
+
+    def plan_context(self, context: ChangeContext) -> dict[str, Any]:
+        matches = self.detector.detect(context)
+        matches_by_component: dict[str, list[ChangeMatch]] = defaultdict(list)
+        for match in matches:
+            matches_by_component[match.component].append(match)
+
+        plans: list[dict[str, Any]] = []
+        for component in self.components:
+            component_matches = matches_by_component.pop(component.name, [])
+            if component_matches:
+                plans.append(component.plan(component_matches, context))
+
+        unregistered = [
+            {
+                "component": component,
+                "rule": component_matches[0].rule,
+                "changed_paths": sorted(match.path for match in component_matches),
+                "reason": "unregistered_component",
+            }
+            for component, component_matches in sorted(matches_by_component.items())
+        ]
         return {
             "schema_version": 1,
-            "components": [plan["component"] for plan in active],
-            "jobs": [job for plan in active for job in plan["jobs"]],
-            "blocked": [item for plan in active for item in plan["blocked"]],
+            "rules": list(dict.fromkeys(match.rule for match in matches)),
+            "components": [plan["component"] for plan in plans],
+            "jobs": [job for plan in plans for job in plan["jobs"]],
+            "gates": [gate for plan in plans for gate in plan["gates"]],
+            "blocked": [item for plan in plans for item in plan["blocked"]]
+            + unregistered,
         }
+
+
+@dataclass(frozen=True)
+class GitDiff:
+    base_sha: str
+    head_sha: str
+    changed_files: tuple[str, ...]
+    base_files: tuple[str, ...]
+    head_files: tuple[str, ...]
+
+    def context(self) -> ChangeContext:
+        return ChangeContext.create(
+            self.changed_files,
+            self.base_files,
+            self.head_files,
+            self.head_sha,
+            tree_state_known=True,
+        )
 
 
 def _resolve_commit(ref: str, cwd: Path | None) -> str:
     result = subprocess.run(
         ["git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _merge_base(base: str, head: str, cwd: Path | None) -> str:
+    result = subprocess.run(
+        ["git", "merge-base", base, head],
         cwd=cwd,
         check=True,
         capture_output=True,
@@ -249,13 +460,24 @@ def _parse_name_status(output: bytes) -> tuple[str, ...]:
     return tuple(changed)
 
 
-def changed_files_from_git(
-    base: str, head: str, cwd: Path | None = None
-) -> tuple[str, ...]:
-    """Return changed paths between the merge base and head, including rename ends."""
+def _tree_files(commit: str, cwd: Path | None) -> tuple[str, ...]:
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "-z", commit, "--"],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+    )
+    return tuple(
+        os.fsdecode(path) for path in result.stdout.rstrip(b"\0").split(b"\0") if path
+    )
+
+
+def diff_from_git(base: str, head: str, cwd: Path | None = None) -> GitDiff:
+    """Load changed paths and immutable base/head tree snapshots."""
 
     base_commit = _resolve_commit(base, cwd)
     head_commit = _resolve_commit(head, cwd)
+    base_tree = _merge_base(base_commit, head_commit, cwd)
     result = subprocess.run(
         [
             "git",
@@ -264,27 +486,41 @@ def changed_files_from_git(
             "-z",
             "--find-renames",
             "--diff-filter=ACDMRTUXB",
-            f"{base_commit}...{head_commit}",
+            f"{base_tree}..{head_commit}",
             "--",
         ],
         cwd=cwd,
         check=True,
         capture_output=True,
     )
-    return _parse_name_status(result.stdout)
+    return GitDiff(
+        base_sha=base_tree,
+        head_sha=head_commit,
+        changed_files=_parse_name_status(result.stdout),
+        base_files=_tree_files(base_tree, cwd),
+        head_files=_tree_files(head_commit, cwd),
+    )
+
+
+def changed_files_from_git(
+    base: str, head: str, cwd: Path | None = None
+) -> tuple[str, ...]:
+    """Return changed paths between the merge base and head."""
+
+    return diff_from_git(base, head, cwd).changed_files
 
 
 def default_delegator(config_directory: Path | None = None) -> Delegator:
-    """Create the delegator using the repository model and scenario manifests."""
+    """Create the delegator using repository rules and model manifests."""
 
     config_directory = config_directory or Path(__file__).resolve().parent
+    model_path = ModelPath(
+        config_directory / "model_path.yaml",
+        config_directory / "model-path-scenario.yaml",
+    )
     return Delegator(
-        [
-            ModelPath(
-                config_directory / "model_path.yaml",
-                config_directory / "model-path-scenario.yaml",
-            )
-        ]
+        ChangeDetector.from_yaml(config_directory / "change-rules.yaml"),
+        [NewModelPath(model_path), model_path],
     )
 
 
@@ -303,12 +539,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.changed_file and not args.base:
         parser.error("provide --changed-file or --base/--head")
 
-    changed_files = (
-        tuple(args.changed_file)
+    delegator = default_delegator()
+    plan = (
+        delegator.plan(args.changed_file)
         if args.changed_file
-        else changed_files_from_git(args.base, args.head)
+        else delegator.plan_context(diff_from_git(args.base, args.head).context())
     )
-    output = json.dumps(default_delegator().plan(changed_files), indent=2) + "\n"
+    output = json.dumps(plan, indent=2) + "\n"
     if args.output:
         args.output.write_text(output)
     else:
