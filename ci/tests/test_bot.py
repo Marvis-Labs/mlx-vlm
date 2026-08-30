@@ -56,6 +56,23 @@ def test_three_models_render_as_three_model_path_sections():
     )
 
 
+def test_comment_has_no_title_and_identifies_commit():
+    rendered = BotOutput(record(jobs=[job("qwen2_vl", "hf_checkpoint")])).render()
+
+    assert "## MLX-VLM CI" not in rendered
+    assert "Commit: `abc123`" in rendered
+    assert rendered.startswith("<!-- mlx-vlm-ci:plan -->")
+
+
+def test_execution_comment_has_attempt_specific_marker():
+    value = record(jobs=[job("qwen2_vl", "hf_checkpoint")], kind="ci_execution")
+    value["attempt_id"] = "123456"
+
+    rendered = BotOutput(value).render()
+
+    assert rendered.startswith("<!-- mlx-vlm-ci:attempt:123456 -->")
+
+
 def test_model_result_metrics_stay_inside_its_section():
     jobs = [job("qwen2_vl", mode) for mode in ("synthetic", "hf_checkpoint")]
     results = [

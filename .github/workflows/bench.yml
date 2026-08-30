@@ -11,10 +11,6 @@ permissions:
   pull-requests: write
   statuses: write
 
-concurrency:
-  group: benchmark-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   prepare:
     if: >
@@ -161,25 +157,38 @@ jobs:
 
   report:
     needs: [prepare, execute]
-    if: always() && needs.prepare.result == 'success'
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ needs.prepare.outputs.base }}
+          ref: ${{ github.workflow_sha }}
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        continue-on-error: true
         with:
           name: dispatch-${{ github.run_id }}
           path: dispatch
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        if: needs.execute.result == 'success'
+        continue-on-error: true
         with:
           name: execution-${{ github.run_id }}
           path: execution
+      - name: Resolve attempt commit
+        id: attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREPARED_HEAD: ${{ needs.prepare.outputs.head }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          head_sha="$PREPARED_HEAD"
+          if [[ -z "$head_sha" ]]; then
+            head_sha="$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .head.sha)"
+          fi
+          printf 'head=%s\n' "$head_sha" >> "$GITHUB_OUTPUT"
       - name: Render final bot output
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -189,21 +198,26 @@ jobs:
             --dispatch dispatch/dispatch.json \
             --result execution/result.json \
             --run-url "$RUN_URL" \
+            --attempt-id "${{ github.run_id }}" \
+            --head-sha "${{ steps.attempt.outputs.head }}" \
+            --execution-status "${{ needs.execute.result }}" \
             --record final-record.json \
             --markdown summary.md
-      - name: Update pull request comment
+      - name: Post attempt result
         env:
           GH_TOKEN: ${{ github.token }}
           CI_REPOSITORY: ${{ github.repository }}
           CI_PR: ${{ github.event.issue.number }}
           CI_SUMMARY: summary.md
-        run: bash .github/scripts/upsert-mlx-vlm-ci-comment.sh
+          CI_ATTEMPT_ID: ${{ github.run_id }}
+        run: bash .github/scripts/post-mlx-vlm-ci-attempt.sh
       - name: Set commit status
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           state=$(python -c 'import json; r=json.load(open("final-record.json")); print("success" if r["outcome"] in {"passed", "improved"} else "failure")')
-          gh api --method POST repos/${{ github.repository }}/statuses/${{ needs.prepare.outputs.head }} \
+          sha=$(python -c 'import json; print(json.load(open("final-record.json"))["head_sha"])')
+          gh api --method POST repos/${{ github.repository }}/statuses/$sha \
             -f state="$state" -f context=mlx-vlm-ci \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
