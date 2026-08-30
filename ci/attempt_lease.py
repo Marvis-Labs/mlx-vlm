@@ -82,16 +82,16 @@ class AttemptLeaseStore:
             expires_at=_format_time(instant + timedelta(seconds=ttl_seconds)),
             generation=uuid.uuid4().hex,
         )
-        tag_oid = self._create_tag(candidate)
+        commit_oid = self._create_payload_commit(candidate)
         before_oid = current.token if current is not None else ZERO_OID
         try:
-            self._update_ref(candidate, before_oid, tag_oid)
+            self._update_ref(candidate, before_oid, commit_oid)
         except GitHubApiError:
             refreshed = self.get(pr_number, head_sha)
             if refreshed is not None and refreshed.token != before_oid:
                 return refreshed, False
             raise
-        return AttemptLease(**candidate.payload(), token=tag_oid), True
+        return AttemptLease(**candidate.payload(), token=commit_oid), True
 
     def get(self, pr_number: int, head_sha: str) -> AttemptLease | None:
         ref = _ref_name(pr_number, head_sha)
@@ -107,8 +107,8 @@ class AttemptLeaseStore:
         if not isinstance(target, Mapping) or not isinstance(target.get("sha"), str):
             raise DeviceLeaseError("attempt lease ref has no target object")
         token = str(target["sha"])
-        tag = self.client.rest(f"repos/{self.repository}/git/tags/{token}")
-        payload = json.loads(str(tag.get("message", "")))
+        commit = self.client.rest(f"repos/{self.repository}/git/commits/{token}")
+        payload = json.loads(str(commit.get("message", "")))
         if not isinstance(payload, Mapping):
             raise DeviceLeaseError("attempt lease payload must be an object")
         lease = AttemptLease(**payload, token=token)
@@ -132,22 +132,27 @@ class AttemptLeaseStore:
             return False
         return True
 
-    def _create_tag(self, lease: AttemptLease) -> str:
+    def _create_payload_commit(self, lease: AttemptLease) -> str:
+        target = self.client.rest(
+            f"repos/{self.repository}/git/commits/{lease.target_sha}"
+        )
+        tree = target.get("tree")
+        if not isinstance(tree, Mapping) or not isinstance(tree.get("sha"), str):
+            raise DeviceLeaseError("attempt target commit has no tree")
         value = self.client.rest(
-            f"repos/{self.repository}/git/tags",
+            f"repos/{self.repository}/git/commits",
             method="POST",
             body={
-                "tag": f"ci-attempt-{lease.pr_number}-{lease.attempt_id}-{lease.generation[:12]}",
                 "message": json.dumps(
                     lease.payload(), sort_keys=True, separators=(",", ":")
                 ),
-                "object": lease.target_sha,
-                "type": "commit",
+                "tree": tree["sha"],
+                "parents": [lease.target_sha],
             },
         )
         oid = value.get("sha")
         if not isinstance(oid, str) or not oid:
-            raise DeviceLeaseError("GitHub did not return an attempt tag object ID")
+            raise DeviceLeaseError("GitHub did not return an attempt commit object ID")
         return oid
 
     def _update_ref(self, lease: AttemptLease, before_oid: str, after_oid: str) -> None:

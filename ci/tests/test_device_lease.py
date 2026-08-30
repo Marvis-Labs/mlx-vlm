@@ -27,7 +27,7 @@ class FakeGitHubClient:
         with self.lock:
             if endpoint == "repos/org/repo":
                 return {"node_id": "repository-node"}
-            if endpoint == "repos/org/repo/git/tags" and method == "POST":
+            if endpoint == "repos/org/repo/git/commits" and method == "POST":
                 oid = f"{len(self.tags) + 1:040x}"
                 self.tags[oid] = dict(body)
                 return {"sha": oid}
@@ -37,9 +37,11 @@ class FakeGitHubClient:
                 if name not in self.refs:
                     raise GitHubApiError("missing", "HTTP 404: Not Found")
                 return {"object": {"sha": self.refs[name], "type": "tag"}}
-            tag_prefix = "repos/org/repo/git/tags/"
-            if endpoint.startswith(tag_prefix):
-                oid = endpoint.removeprefix(tag_prefix)
+            commit_prefix = "repos/org/repo/git/commits/"
+            if endpoint.startswith(commit_prefix):
+                oid = endpoint.removeprefix(commit_prefix)
+                if oid not in self.tags:
+                    return {"sha": oid, "tree": {"sha": "tree"}}
                 return {"sha": oid, "message": self.tags[oid]["message"]}
         raise AssertionError((method, endpoint, body))
 

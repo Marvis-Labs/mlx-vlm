@@ -147,16 +147,16 @@ class GitHubRefLeaseStore:
             ttl_seconds=ttl_seconds,
             now=instant,
         )
-        tag_oid = self._create_tag(candidate)
+        commit_oid = self._create_payload_commit(candidate)
         before_oid = current.token if current is not None else ZERO_OID
         try:
-            self._update_ref(device, before_oid, tag_oid)
+            self._update_ref(device, before_oid, commit_oid)
         except GitHubApiError:
             refreshed = self.get(device)
             if refreshed is not None and refreshed.token != before_oid:
                 return None
             raise
-        return replace(candidate, token=tag_oid)
+        return replace(candidate, token=commit_oid)
 
     def get(self, device: str) -> DeviceLease | None:
         ref = _ref_name(device)
@@ -172,8 +172,8 @@ class GitHubRefLeaseStore:
         if not isinstance(target, Mapping) or not isinstance(target.get("sha"), str):
             raise DeviceLeaseError("lease ref has no target object")
         token = str(target["sha"])
-        tag = self.client.rest(f"repos/{self.repository}/git/tags/{token}")
-        message = tag.get("message")
+        commit = self.client.rest(f"repos/{self.repository}/git/commits/{token}")
+        message = commit.get("message")
         if not isinstance(message, str):
             raise DeviceLeaseError("lease tag has no message")
         payload = json.loads(message)
@@ -202,9 +202,9 @@ class GitHubRefLeaseStore:
             generation=uuid.uuid4().hex,
             token="",
         )
-        tag_oid = self._create_tag(updated)
-        self._update_ref(device, current.token, tag_oid)
-        return replace(updated, token=tag_oid)
+        commit_oid = self._create_payload_commit(updated)
+        self._update_ref(device, current.token, commit_oid)
+        return replace(updated, token=commit_oid)
 
     def release(self, device: str, attempt_id: str) -> bool:
         current = self.get(device)
@@ -218,22 +218,27 @@ class GitHubRefLeaseStore:
             return False
         return True
 
-    def _create_tag(self, lease: DeviceLease) -> str:
+    def _create_payload_commit(self, lease: DeviceLease) -> str:
+        target = self.client.rest(
+            f"repos/{self.repository}/git/commits/{lease.target_sha}"
+        )
+        tree = target.get("tree")
+        if not isinstance(tree, Mapping) or not isinstance(tree.get("sha"), str):
+            raise DeviceLeaseError("lease target commit has no tree")
         value = self.client.rest(
-            f"repos/{self.repository}/git/tags",
+            f"repos/{self.repository}/git/commits",
             method="POST",
             body={
-                "tag": f"ci-lease-{lease.device}-{lease.attempt_id}-{lease.generation[:12]}",
                 "message": json.dumps(
                     lease.payload(), sort_keys=True, separators=(",", ":")
                 ),
-                "object": lease.target_sha,
-                "type": "commit",
+                "tree": tree["sha"],
+                "parents": [lease.target_sha],
             },
         )
         oid = value.get("sha")
         if not isinstance(oid, str) or not oid:
-            raise DeviceLeaseError("GitHub did not return a lease tag object ID")
+            raise DeviceLeaseError("GitHub did not return a lease commit object ID")
         return oid
 
     def _update_ref(self, device: str, before_oid: str, after_oid: str) -> None:
