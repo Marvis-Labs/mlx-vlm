@@ -172,7 +172,7 @@ def test_status_renderer_is_centralized_and_suppresses_mentions():
 
     rendered = render_status(record)
 
-    assert rendered.startswith("<!-- mlx-vlm-ci:status -->")
+    assert rendered.startswith("<!-- mlx-vlm-ci:plan -->")
     assert "Awaiting maintainer approval" in rendered
     assert "@\u200breviewer\\|model" in rendered
     assert "No Apple Silicon job starts" in rendered

@@ -399,9 +399,7 @@ class BotOutput:
         )
         self._reject_unknown_components()
         lines = [
-            "<!-- mlx-vlm-ci:status -->",
-            "## MLX-VLM CI",
-            "",
+            self._marker(),
             f"Commit: `{_cell(self.record['head_sha'])}`  ",
             f"Status: **{_cell(self._status(sections))}**",
         ]
@@ -418,6 +416,12 @@ class BotOutput:
         else:
             lines.extend(self._empty_output())
         return "\n".join(lines) + "\n"
+
+    def _marker(self) -> str:
+        attempt_id = self.record.get("attempt_id")
+        if self.record.get("kind") == "ci_execution" and attempt_id:
+            return f"<!-- mlx-vlm-ci:attempt:{_cell(attempt_id)} -->"
+        return "<!-- mlx-vlm-ci:plan -->"
 
     def _status(self, sections: Sequence[BotSection]) -> str:
         if not sections:

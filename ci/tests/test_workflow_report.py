@@ -42,6 +42,9 @@ def test_execution_result_is_attached_to_approved_plan():
         dispatch(),
         {"outcome": "passed", "component": "model_path"},
         "https://example.com/run",
+        "123",
+        "abc123",
+        "success",
     )
 
     assert result["kind"] == "ci_execution"
@@ -50,5 +53,36 @@ def test_execution_result_is_attached_to_approved_plan():
 
 
 def test_exhausted_dispatch_becomes_no_runner_result():
-    result = report(plan(), dispatch("no_eligible_runner"), None, "run")
+    result = report(
+        plan(),
+        dispatch("no_eligible_runner"),
+        None,
+        "run",
+        "123",
+        "abc123",
+        "skipped",
+    )
     assert result["outcome"] == "no_eligible_runner"
+
+
+def test_missing_runner_artifact_is_infrastructure_failure():
+    result = report(plan(), dispatch(), None, "run", "456", "abc123", "failure")
+
+    execution = result["results"][0]
+    assert result["attempt_id"] == "456"
+    assert execution["outcome"] == "infrastructure_failure"
+    assert execution["selected_device"] is None
+    assert execution["findings"]["execution_status"] == "failure"
+
+
+def test_cancelled_runner_attempt_is_reported_as_cancelled():
+    result = report(plan(), dispatch(), None, "run", "789", "abc123", "cancelled")
+    assert result["results"][0]["outcome"] == "cancelled"
+
+
+def test_prepare_failure_builds_renderable_fallback():
+    result = report(None, None, None, "run", "999", "new-head", "skipped")
+
+    assert result["head_sha"] == "new-head"
+    assert result["results"] == []
+    assert result["errors"][0]["code"] == "attempt_preparation_failed"
