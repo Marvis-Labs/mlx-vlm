@@ -1,0 +1,56 @@
+name: Runner migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: amelia-m4-16gb
+            label: device-amelia-m4-16gb
+          - runner: lexie-m4-16gb
+            label: device-lexie-m4-16gb
+    runs-on: [self-hosted, "${{ matrix.label }}"]
+    timeout-minutes: 5
+    env:
+      MIGRATION_PAYLOAD: ${{ inputs.payload }}
+      RUNNER_REGISTRATION_TOKEN: ${{ secrets.CI_RUNNER_REGISTRATION_TOKEN }}
+    steps:
+      - name: Schedule migration after the worker exits
+        env:
+          CI_RUNNER_LABELS: mlx-vlm,apple-silicon,memory-16gb,${{ matrix.label }}
+        run: |
+          migration_dir="$(mktemp -d /tmp/marvis-ci-migration.XXXXXX)"
+          chmod 700 "$migration_dir"
+          printf '%s' "$MIGRATION_PAYLOAD" | /usr/bin/base64 -D | tar -xzf - -C "$migration_dir"
+          printf '%s' "$RUNNER_REGISTRATION_TOKEN" > "$migration_dir/registration-token"
+          cat > "$migration_dir/launch.sh" <<'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          while pgrep -f '/bin/Runner.Worker' >/dev/null; do
+              sleep 2
+          done
+          token="$(<"$1/registration-token")"
+          GITHUB_URL=https://github.com/Marvis-Labs/mlx-vlm \
+          RUNNER_REMOVE_TOKEN=renamed-repository \
+          RUNNER_TOKEN="$token" \
+          ALLOW_RENAMED_REPOSITORY_RECOVERY=true \
+          LEGACY_CI_INSTALL_MANIFEST="$HOME/.local/state/marvis-mlx-vlm-ci/install.json" \
+          LEGACY_OWNERSHIP_MARKER=marvis-mlx-vlm-ci-v1 \
+          LEGACY_RUNNER_DIR="$HOME/mlx-vlm-ci-runner" \
+          RUNNER_LABELS="$2" \
+          "$1/MIGRATE.sh"
+          rm -f "$1/registration-token"
+          SCRIPT
+          chmod 700 "$migration_dir/launch.sh"
+          RUNNER_TRACKING_ID='' nohup "$migration_dir/launch.sh" "$migration_dir" "$CI_RUNNER_LABELS" > "$HOME/.local/state/marvis-ci-migration.log" 2>&1 < /dev/null &
