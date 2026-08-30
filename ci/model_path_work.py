@@ -39,10 +39,24 @@ def _phase(findings: Mapping[str, Any], returncode: int) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     output = Path(os.environ.get("CI_JOB_FINDINGS", "findings.json"))
-    synthetic_path = output.with_name(output.stem + "-synthetic.json")
-    checkpoint_path = output.with_name(output.stem + "-hf.json")
-    synthetic_code, synthetic_findings = _run(
-        [
+    job = json.loads(args.job.read_text())
+    configured = job.get("phases", [])
+    if not isinstance(configured, list) or not configured:
+        raise ValueError("ModelPath work has no phases")
+    commands = {
+        "mlp_contract": [
+            sys.executable,
+            str(args.mlp_compare),
+            "--job",
+            str(args.job),
+            "--base",
+            str(args.base),
+            "--head",
+            str(args.head),
+            "--probe",
+            str(args.mlp_probe),
+        ],
+        "synthetic": [
             sys.executable,
             str(args.synthetic_compare),
             "--job",
@@ -56,20 +70,7 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "--probe",
             str(args.synthetic_probe),
         ],
-        synthetic_path,
-    )
-    phases: dict[str, Any] = {"synthetic": _phase(synthetic_findings, synthetic_code)}
-    if phases["synthetic"]["outcome"] == "test_failure":
-        phases["hf_checkpoint"] = {
-            "outcome": "skipped",
-            "findings": {"reason": "synthetic_failed"},
-        }
-        result = {"verdict": "test_failure", "phases": phases}
-        output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-        return 2, result
-
-    checkpoint_code, checkpoint_findings = _run(
-        [
+        "hf_checkpoint": [
             sys.executable,
             str(args.hf_compare),
             "--job",
@@ -85,9 +86,22 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "--max-tokens",
             str(args.max_tokens),
         ],
-        checkpoint_path,
-    )
-    phases["hf_checkpoint"] = _phase(checkpoint_findings, checkpoint_code)
+    }
+    phases: dict[str, Any] = {}
+    for index, name in enumerate(configured):
+        if name not in commands:
+            raise ValueError(f"unsupported ModelPath phase: {name}")
+        code, findings = _run(
+            commands[name], output.with_name(f"{output.stem}-{name}.json")
+        )
+        phases[name] = _phase(findings, code)
+        if phases[name]["outcome"] == "test_failure":
+            for pending in configured[index + 1 :]:
+                phases[pending] = {
+                    "outcome": "skipped",
+                    "findings": {"reason": f"{name}_failed"},
+                }
+            break
     outcomes = {phase["outcome"] for phase in phases.values()}
     if "test_failure" in outcomes:
         verdict = "test_failure"
@@ -103,6 +117,7 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    directory = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
     parser.add_argument("--job", type=Path, required=True)
     parser.add_argument("--profiles", type=Path, required=True)
@@ -110,6 +125,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--head", type=Path, required=True)
     parser.add_argument("--synthetic-compare", type=Path, required=True)
     parser.add_argument("--synthetic-probe", type=Path, required=True)
+    parser.add_argument(
+        "--mlp-compare", type=Path, default=directory / "mlp_contract_compare.py"
+    )
+    parser.add_argument(
+        "--mlp-probe", type=Path, default=directory / "mlp_contract_probe.py"
+    )
     parser.add_argument("--hf-compare", type=Path, required=True)
     parser.add_argument("--hf-probe", type=Path, required=True)
     parser.add_argument("--image", type=Path, required=True)

@@ -95,7 +95,7 @@ class ModelPathOutput:
     """Render one independent bot section for every touched model family."""
 
     component_names = frozenset({"model_path", "new_model_path"})
-    stage_order = ("synthetic", "hf_checkpoint")
+    stage_order = ("mlp_contract", "synthetic", "hf_checkpoint")
 
     def sections(self, record: Mapping[str, Any]) -> Sequence[BotSection]:
         models = self._models(record)
@@ -121,7 +121,7 @@ class ModelPathOutput:
         status = self._status(record, jobs, gates, errors, results)
         stages = self._stages(jobs, gates, errors, results)
         metrics = self._metrics(results)
-        messages = self._messages(gates, errors, results)
+        messages = self._messages(jobs, gates, errors, results)
         return BotSection(
             title=model,
             component="ModelPath",
@@ -303,6 +303,10 @@ class ModelPathOutput:
                     for value in (config.get("adapter"), config.get("profile"))
                     if value
                 )
+        if mode == "mlp_contract":
+            config = job.get("mlp_contract", {})
+            if isinstance(config, Mapping):
+                return ", ".join(str(value) for value in config.get("symbols", []))
         if mode == "hf_checkpoint":
             config = job.get("hf_checkpoint", {})
             if isinstance(config, Mapping):
@@ -353,11 +357,21 @@ class ModelPathOutput:
 
     def _messages(
         self,
+        jobs: Sequence[Mapping[str, Any]],
         gates: Sequence[Mapping[str, Any]],
         errors: Sequence[Mapping[str, Any]],
         results: Sequence[Mapping[str, Any]],
     ) -> tuple[str, ...]:
         messages = [str(error.get("code", "unknown_error")) for error in errors]
+        messages.extend(
+            f"{_stage_name(str(phase))} unavailable: {reason}."
+            for job in jobs
+            for phase, reason in (
+                job.get("unavailable_phases", {}).items()
+                if isinstance(job.get("unavailable_phases"), Mapping)
+                else ()
+            )
+        )
         messages.extend(
             message
             for result in results
@@ -444,6 +458,8 @@ class ModelPathOutput:
             return f"{_stage_name(phase)} comparison failed: {error}."
         correctness = findings.get("correctness", {})
         if isinstance(correctness, Mapping) and correctness.get("match") is False:
+            if phase == "mlp_contract":
+                return "MLP output, parameter structure, or reference formula did not match main."
             if phase == "synthetic":
                 return "Synthetic output or parameter structure did not match main."
             cache = result.get("cache", {})
@@ -454,9 +470,13 @@ class ModelPathOutput:
                 f"{correctness.get('head_output_hash')}. Performance measurements "
                 f"are advisory because correctness failed ({cache_state})."
             )
-        if phase == "synthetic":
+        if phase in {"mlp_contract", "synthetic"}:
             if isinstance(correctness, Mapping) and correctness.get("match") is True:
-                return "Synthetic structure and output match main."
+                return (
+                    "MLP structure, output, and reference formula match main."
+                    if phase == "mlp_contract"
+                    else "Synthetic structure and output match main."
+                )
             return None
         cache = result.get("cache", {})
         cache_state = "cache reused" if cache.get("reused") else "downloaded"
@@ -509,6 +529,80 @@ class ModelPathOutput:
         return f"{prefix}: leased by attempt {owner} until {expiry}"
 
 
+class MLPChangeOutput:
+    """Summarize the MLP symbols that expanded into ModelPath work."""
+
+    component_names = frozenset({"mlp_change"})
+
+    def sections(self, record: Mapping[str, Any]) -> Sequence[BotSection]:
+        jobs = [
+            job
+            for job in _items(record, "jobs")
+            if job.get("component") == "model_path"
+            and isinstance(job.get("origins"), Sequence)
+        ]
+        results = {
+            str(result.get("job_id")): result for result in _items(record, "results")
+        }
+        by_symbol: dict[str, list[Mapping[str, Any]]] = {}
+        for job in jobs:
+            for origin in job.get("origins", []):
+                if (
+                    not isinstance(origin, Mapping)
+                    or origin.get("change_type") != "MLPChange"
+                ):
+                    continue
+                by_symbol.setdefault(str(origin.get("symbol")), []).append(job)
+        return tuple(
+            self._section(symbol, symbol_jobs, results)
+            for symbol, symbol_jobs in sorted(by_symbol.items())
+        )
+
+    def _section(
+        self,
+        symbol: str,
+        jobs: Sequence[Mapping[str, Any]],
+        results: Mapping[str, Mapping[str, Any]],
+    ) -> BotSection:
+        outcomes = {
+            str(results[str(job.get("id"))].get("outcome"))
+            for job in jobs
+            if str(job.get("id")) in results
+        }
+        status = "Awaiting /ci run"
+        for outcome in (
+            "test_failure",
+            "regressed",
+            "no_eligible_runner",
+            "infrastructure_failure",
+            "cancelled",
+            "running",
+            "queued",
+            "improved",
+            "passed",
+        ):
+            if outcome in outcomes:
+                status = _label(outcome)
+                break
+        models = sorted(str(job.get("model")) for job in jobs)
+        checkpoint_count = sum("hf_checkpoint" in job.get("phases", []) for job in jobs)
+        return BotSection(
+            title=symbol,
+            component="MLPChange",
+            status=status,
+            paths=("mlx_vlm/models/mlp.py",),
+            stages=(
+                BotStage(
+                    "Selected consumers",
+                    "Planned",
+                    f"{len(models)} ModelPath jobs; {checkpoint_count} with HF checkpoints",
+                ),
+            ),
+            metrics=(),
+            messages=("Models: " + ", ".join(models),),
+        )
+
+
 class BotOutput:
     """Compose one GitHub comment from independent CI component sections."""
 
@@ -518,7 +612,7 @@ class BotOutput:
         components: Sequence[ComponentOutput] | None = None,
     ):
         self.record = record
-        self.components = tuple(components or (ModelPathOutput(),))
+        self.components = tuple(components or (MLPChangeOutput(), ModelPathOutput()))
 
     def render(self) -> str:
         sections = tuple(
@@ -639,6 +733,7 @@ def _items(record: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
 
 def _stage_name(mode: str) -> str:
     return {
+        "mlp_contract": "MLP contract",
         "synthetic": "Synthetic",
         "hf_checkpoint": "HF checkpoint",
     }.get(mode, mode.replace("_", " ").title())

@@ -13,6 +13,7 @@ from typing import Any, Iterable, Mapping, Protocol, Sequence
 import yaml
 
 from ci.change_rules import ChangeContext, ChangeDetector, ChangeMatch
+from ci.mlp_change import GitSource, MLPChange
 
 
 class ChangeComponent(Protocol):
@@ -354,6 +355,7 @@ class Delegator:
         base_files: Iterable[str] = (),
         head_files: Iterable[str] = (),
         head_sha: str | None = None,
+        base_sha: str | None = None,
         tree_state_known: bool = False,
     ) -> dict[str, Any]:
         context = ChangeContext.create(
@@ -361,6 +363,7 @@ class Delegator:
             base_files,
             head_files,
             head_sha,
+            base_sha,
             tree_state_known,
         )
         return self.plan_context(context)
@@ -411,7 +414,8 @@ class GitDiff:
             self.changed_files,
             self.base_files,
             self.head_files,
-            self.head_sha,
+            head_sha=self.head_sha,
+            base_sha=self.base_sha,
             tree_state_known=True,
         )
 
@@ -504,7 +508,11 @@ def changed_files_from_git(
 
 
 def create_delegator(
-    rules_config: Path, model_config: Path, scenario_config: Path
+    rules_config: Path,
+    model_config: Path,
+    scenario_config: Path,
+    mlp_config: Path | None = None,
+    repository: Path | None = None,
 ) -> Delegator:
     """Create a delegator from explicit trusted rules and manifest paths."""
 
@@ -512,10 +520,17 @@ def create_delegator(
         model_config,
         scenario_config,
     )
-    return Delegator(
-        ChangeDetector.from_yaml(rules_config),
-        [NewModelPath(model_path), model_path],
-    )
+    components: list[ChangeComponent] = [NewModelPath(model_path), model_path]
+    if mlp_config is not None:
+        components.insert(
+            0,
+            MLPChange(
+                mlp_config,
+                model_path,
+                GitSource(repository or rules_config.parent.parent),
+            ),
+        )
+    return Delegator(ChangeDetector.from_yaml(rules_config), components)
 
 
 def default_delegator(config_directory: Path | None = None) -> Delegator:
@@ -526,6 +541,8 @@ def default_delegator(config_directory: Path | None = None) -> Delegator:
         config_directory / "change-rules.yaml",
         config_directory / "model_path.yaml",
         config_directory / "model-path-scenario.yaml",
+        config_directory / "components" / "mlp.yaml",
+        config_directory.parent,
     )
 
 

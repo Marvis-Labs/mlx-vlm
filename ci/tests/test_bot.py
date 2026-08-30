@@ -228,6 +228,25 @@ def test_unknown_component_requires_its_own_renderer():
         BotOutput(record(jobs=[unknown])).render()
 
 
+def test_mlp_change_renders_symbol_summary_and_model_path_provenance():
+    work = job("qwen2_vl")
+    work["phases"] = ["mlp_contract", "hf_checkpoint"]
+    work["mlp_contract"] = {
+        "symbols": ["SwiGLUMLP"],
+        "consumer": "qwen2_vl",
+    }
+    work["origins"] = [{"change_type": "MLPChange", "symbol": "SwiGLUMLP"}]
+    value = record(jobs=[work])
+    value["components"] = ["mlp_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>SwiGLUMLP</strong> · MLPChange · Awaiting /ci run" in rendered
+    assert "1 ModelPath jobs; 1 with HF checkpoints" in rendered
+    assert "<strong>qwen2_vl</strong> · ModelPath · Awaiting /ci run" in rendered
+    assert "| MLP contract | Planned | SwiGLUMLP |" in rendered
+
+
 def test_no_eligible_runner_is_reported_inside_affected_model_section():
     jobs = [job(model, "hf_checkpoint") for model in ("pixtral", "qwen2_vl")]
     results = [

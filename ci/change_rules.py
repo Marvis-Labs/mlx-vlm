@@ -78,6 +78,7 @@ class ChangeContext:
     changed_files: tuple[str, ...]
     base_files: frozenset[str] = frozenset()
     head_files: frozenset[str] = frozenset()
+    base_sha: str | None = None
     head_sha: str | None = None
     tree_state_known: bool = False
 
@@ -88,6 +89,7 @@ class ChangeContext:
         base_files: Iterable[str] = (),
         head_files: Iterable[str] = (),
         head_sha: str | None = None,
+        base_sha: str | None = None,
         tree_state_known: bool = False,
     ) -> ChangeContext:
         return cls(
@@ -95,6 +97,7 @@ class ChangeContext:
             base_files=frozenset(_tree_paths(base_files)),
             head_files=frozenset(_tree_paths(head_files)),
             head_sha=head_sha,
+            base_sha=base_sha,
             tree_state_known=tree_state_known,
         )
 

@@ -5,10 +5,13 @@ from datetime import datetime, timedelta, timezone
 
 from ci.device_lease import (
     ZERO_OID,
+    DeviceLease,
     GitHubApiError,
     GitHubRefLeaseStore,
     acquire_dispatch_lease,
     acquire_plan_leases,
+    release_batch,
+    release_job,
     retry_batch,
     write_batch,
 )
@@ -294,9 +297,34 @@ def test_batch_assigns_largest_work_first_then_uses_smallest_fit(tmp_path):
         "small-b": "mini-2",
     }
     assert len(matrix["include"]) == 3
+    assert all(item["work"]["required_memory_gib"] > 0 for item in batch["items"])
+    assert all(item["work"]["required_disk_gib"] > 0 for item in batch["items"])
+    assert all(item["lease"]["release_on_job_end"] is False for item in batch["items"])
 
 
-def test_batch_reports_unassigned_work_when_all_devices_are_leased():
+def test_queued_job_release_defers_to_attempt_cleanup():
+    client = FakeGitHubClient()
+    store = GitHubRefLeaseStore("org/repo", client)
+    batch = acquire_plan_leases(
+        {"jobs": [model_work("one", 1), model_work("two", 1)]},
+        [Device("mini", "device-mini", 16)],
+        store,
+        attempt_id="attempt",
+        head_sha="head",
+        target_sha="target",
+        run_url="run",
+        ttl_seconds=300,
+        now=NOW,
+    )
+    lease = DeviceLease(**batch["items"][0]["lease"])
+
+    assert release_job(lease, store) is True
+    assert store.get("mini") is not None
+    assert release_batch(batch, store) == {"mini": True}
+    assert store.get("mini") is None
+
+
+def test_batch_queues_additional_work_on_attempt_owned_devices():
     plan = {
         "jobs": [
             model_work("one", 1),
@@ -323,10 +351,11 @@ def test_batch_reports_unassigned_work_when_all_devices_are_leased():
         now=NOW,
     )
 
-    assert len([item for item in batch["items"] if item["lease"]]) == 3
-    unassigned = [item for item in batch["items"] if not item["lease"]]
-    assert len(unassigned) == 1
-    assert unassigned[0]["dispatch"]["outcome"] == "no_eligible_runner"
+    assert len([item for item in batch["items"] if item["lease"]]) == 4
+    assignments = [item["lease"]["device"] for item in batch["items"]]
+    assert assignments.count("mini-1") == 2
+    assert assignments.count("mini-2") == 1
+    assert assignments.count("m5") == 1
 
 
 def test_declined_small_runner_is_retried_on_next_larger_device():

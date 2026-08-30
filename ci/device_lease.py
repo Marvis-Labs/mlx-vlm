@@ -49,6 +49,7 @@ class DeviceLease:
     expires_at: str
     generation: str
     token: str = ""
+    release_on_job_end: bool = True
 
     def payload(self) -> dict[str, Any]:
         value = asdict(self)
@@ -349,13 +350,22 @@ def acquire_plan_leases(
         enumerate(work_items),
         key=lambda item: (-required_memory_gib(item[1]), item[0]),
     )
-    available = list(devices)
+    leases_by_label: dict[str, DeviceLease] = {}
+    queue_depth = {device.label: 0 for device in devices}
     records: list[dict[str, Any]] = []
     for sequence, (_, work_item) in enumerate(ordered):
-        dispatch = create_dispatch(work_item, available)
-        dispatch, lease = acquire_dispatch_lease(
+        dispatch = create_dispatch(work_item, devices)
+        dispatch["candidates"] = sorted(
+            dispatch["candidates"],
+            key=lambda candidate: (
+                queue_depth.get(str(candidate.get("label")), 0),
+                int(candidate.get("memory_gib", 0)),
+            ),
+        )
+        dispatch, lease = _acquire_or_reuse_dispatch(
             dispatch,
             store,
+            leases_by_label,
             attempt_id=attempt_id,
             head_sha=head_sha,
             target_sha=target_sha,
@@ -368,13 +378,18 @@ def acquire_plan_leases(
             {
                 "key": key,
                 "execute": lease is not None,
-                "work": dict(work_item),
+                "work": dict(dispatch["job"]),
                 "dispatch": dispatch,
-                "lease": asdict(lease) if lease is not None else None,
+                "lease": (
+                    asdict(replace(lease, release_on_job_end=False))
+                    if lease is not None
+                    else None
+                ),
             }
         )
         if lease is not None:
-            available = [device for device in available if device.label != lease.label]
+            leases_by_label[lease.label] = lease
+            queue_depth[lease.label] += 1
     return {
         "schema_version": 1,
         "kind": "device_dispatch_batch",
@@ -438,6 +453,12 @@ def release_batch(
     return released
 
 
+def release_job(lease: DeviceLease, store: GitHubRefLeaseStore) -> bool:
+    if not lease.release_on_job_end:
+        return True
+    return store.release(lease.device, lease.attempt_id)
+
+
 def retry_batch(
     batch: Mapping[str, Any],
     results: Mapping[str, Mapping[str, Any]],
@@ -451,6 +472,13 @@ def retry_batch(
     ttl_seconds: int,
     now: datetime | None = None,
 ) -> dict[str, Any]:
+    leases_by_label = {
+        str(lease["label"]): DeviceLease(**lease)
+        for raw_item in batch.get("items", [])
+        if isinstance(raw_item, Mapping)
+        and isinstance((lease := raw_item.get("lease")), Mapping)
+        and lease
+    }
     items: list[dict[str, Any]] = []
     for raw_item in batch.get("items", []):
         if not isinstance(raw_item, Mapping):
@@ -467,7 +495,6 @@ def retry_batch(
         minimum_memory = 0
         if isinstance(lease, Mapping) and lease:
             old_lease = DeviceLease(**lease)
-            store.release(old_lease.device, old_lease.attempt_id)
             minimum_memory = next(
                 (
                     device.memory_gib
@@ -510,9 +537,10 @@ def retry_batch(
             raise DeviceLeaseError("dispatch batch item has no work object")
         dispatch = create_dispatch(work, candidates)
         dispatch["attempts"] = tried
-        dispatch, new_lease = acquire_dispatch_lease(
+        dispatch, new_lease = _acquire_or_reuse_dispatch(
             dispatch,
             store,
+            leases_by_label,
             attempt_id=attempt_id,
             head_sha=head_sha,
             target_sha=target_sha,
@@ -524,9 +552,15 @@ def retry_batch(
             {
                 "execute": new_lease is not None,
                 "dispatch": dispatch,
-                "lease": asdict(new_lease) if new_lease is not None else None,
+                "lease": (
+                    asdict(replace(new_lease, release_on_job_end=False))
+                    if new_lease is not None
+                    else None
+                ),
             }
         )
+        if new_lease is not None:
+            leases_by_label[new_lease.label] = new_lease
         items.append(item)
     return {
         "schema_version": 1,
@@ -535,6 +569,63 @@ def retry_batch(
         "head_sha": head_sha,
         "items": items,
     }
+
+
+def _acquire_or_reuse_dispatch(
+    dispatch: Mapping[str, Any],
+    store: GitHubRefLeaseStore,
+    leases_by_label: Mapping[str, DeviceLease],
+    *,
+    attempt_id: str,
+    head_sha: str,
+    target_sha: str,
+    run_url: str,
+    ttl_seconds: int,
+    now: datetime | None,
+) -> tuple[dict[str, Any], DeviceLease | None]:
+    candidates = dispatch.get("candidates")
+    if not isinstance(candidates, list):
+        raise DeviceLeaseError("dispatch has no candidate list")
+    updated = dict(dispatch)
+    unavailable = list(dispatch.get("unavailable", []))
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            raise DeviceLeaseError("dispatch candidate must be an object")
+        label = str(candidate.get("label", ""))
+        lease = leases_by_label.get(label)
+        if lease is None:
+            lease = store.acquire(
+                attempt_id=attempt_id,
+                device=str(candidate.get("name", "")),
+                label=label,
+                head_sha=head_sha,
+                target_sha=target_sha,
+                run_url=run_url,
+                ttl_seconds=ttl_seconds,
+                now=now,
+            )
+        if lease is not None:
+            updated["next_device"] = dict(candidate)
+            updated["lease"] = asdict(lease)
+            updated["outcome"] = "dispatching"
+            updated["unavailable"] = unavailable
+            return updated, lease
+        owner = store.get(str(candidate.get("name", "")))
+        record = {
+            "device": candidate.get("name"),
+            "memory_gib": candidate.get("memory_gib"),
+            "reason": "leased",
+        }
+        if owner is not None:
+            record.update(
+                {"attempt_id": owner.attempt_id, "expires_at": owner.expires_at}
+            )
+        unavailable.append(record)
+    updated["next_device"] = None
+    updated["lease"] = None
+    updated["outcome"] = "no_eligible_runner"
+    updated["unavailable"] = unavailable
+    return updated, None
 
 
 def _safe_key(value: str) -> str:
@@ -791,7 +882,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.parent_pid,
             args.stop_file,
         )
-    store.release(lease.device, lease.attempt_id)
+    release_job(lease, store)
     return 0
 
 
