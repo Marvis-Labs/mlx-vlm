@@ -3,21 +3,20 @@ import pytest
 from ci.bot import BotOutput, BotOutputError
 
 
-def job(model, mode):
+def job(model, mode=None):
     value = {
-        "id": f"model_path:{model}:{mode}",
+        "id": f"model_path:{model}",
+        "work_type": "ModelPath",
         "component": "model_path",
         "model": model,
-        "mode": mode,
+        "phases": ["synthetic", "hf_checkpoint"],
         "changed_paths": [f"mlx_vlm/models/{model}/model.py"],
-    }
-    if mode == "synthetic":
-        value["synthetic"] = {"adapter": model, "profile": "dense_vlm"}
-    else:
-        value["hf_checkpoint"] = {
+        "synthetic": {"adapter": model, "profile": "dense_vlm"},
+        "hf_checkpoint": {
             "repo": f"mlx-community/{model}-4bit",
             "revision": "abcdef1234567890",
-        }
+        },
+    }
     return value
 
 
@@ -59,9 +58,9 @@ def test_three_models_render_as_three_model_path_sections():
 def test_comment_has_no_title_and_identifies_commit():
     rendered = BotOutput(record(jobs=[job("qwen2_vl", "hf_checkpoint")])).render()
 
-    assert "## MLX-VLM CI" not in rendered
+    assert not rendered.startswith("## ")
     assert "Commit: `abc123`" in rendered
-    assert rendered.startswith("<!-- mlx-vlm-ci:plan -->")
+    assert rendered.startswith("<!-- mlx-vlm:ci:plan -->")
 
 
 def test_execution_comment_has_attempt_specific_marker():
@@ -70,7 +69,58 @@ def test_execution_comment_has_attempt_specific_marker():
 
     rendered = BotOutput(value).render()
 
-    assert rendered.startswith("<!-- mlx-vlm-ci:attempt:123456 -->")
+    assert rendered.startswith("<!-- mlx-vlm:ci:attempt:123456 -->")
+    assert "Attempt: `123456`" in rendered
+
+
+def test_correctness_failure_makes_performance_advisory_and_lists_runner_cache():
+    result = {
+        "component": "model_path",
+        "model": "qwen2_vl",
+        "outcome": "test_failure",
+        "device": "mini-1",
+        "cache": {"before": "complete", "after": "complete", "reused": True},
+        "phases": {
+            "synthetic": {
+                "outcome": "passed",
+                "findings": {"correctness": {"match": True}},
+            },
+            "hf_checkpoint": {
+                "outcome": "test_failure",
+                "findings": {
+                    "correctness": {
+                        "match": False,
+                        "base_output_hash": "base",
+                        "head_output_hash": "head",
+                    },
+                    "metrics": {
+                        "decode_tps": {
+                            "base": 10,
+                            "head": 12,
+                            "change_pct": 20,
+                            "verdict": "improved",
+                            "unit": "tok/s",
+                        }
+                    },
+                },
+            },
+        },
+    }
+    value = record(jobs=[job("qwen2_vl")], results=[result], kind="ci_execution")
+    value["attempt_id"] = "42"
+
+    rendered = BotOutput(value).render()
+
+    assert "· ModelPath · Test failed" in rendered
+    assert (
+        "| HF checkpoint | decode_tps | 10 tok/s | 12 tok/s | +20.00% | advisory |"
+        in rendered
+    )
+    assert (
+        "Performance measurements are advisory because correctness failed" in rendered
+    )
+    assert "Runner: mini-1" in rendered
+    assert "cache reused" in rendered
 
 
 def test_model_result_metrics_stay_inside_its_section():
@@ -138,16 +188,14 @@ def test_model_failure_does_not_change_sibling_section_state():
 
 
 def test_new_model_uses_model_path_section_and_approval_state():
-    pending = [job("new_family", mode) for mode in ("synthetic", "hf_checkpoint")]
-    for item in pending:
-        item["component"] = "new_model_path"
+    pending = job("new_family")
     gate = {
         "id": "new_model_path:new_family:abc123",
         "component": "new_model_path",
         "model": "new_family",
         "status": "awaiting_maintainer_approval",
         "changed_paths": ["mlx_vlm/models/new_family/model.py"],
-        "pending_jobs": pending,
+        "pending_work": pending,
     }
 
     rendered = BotOutput(record(jobs=[], gates=[gate], kind="ci_control")).render()
@@ -202,7 +250,14 @@ def test_no_eligible_runner_is_reported_inside_affected_model_section():
                     "device": "studio",
                     "memory_gib": 32,
                     "reason": "declined_busy",
-                }
+                },
+                {
+                    "device": "m5",
+                    "memory_gib": 128,
+                    "reason": "leased",
+                    "attempt_id": "12345",
+                    "expires_at": "2026-08-30T00:05:00Z",
+                },
             ],
         }
     ]
@@ -214,6 +269,9 @@ def test_no_eligible_runner_is_reported_inside_affected_model_section():
     assert "Required: 64 GiB memory and 24 GiB disk" in rendered
     assert "mini (16 GiB): declined_memory" in rendered
     assert "studio (32 GiB): declined_busy" in rendered
+    assert (
+        "m5 (128 GiB): leased by attempt 12345 until 2026-08-30T00:05:00Z" in rendered
+    )
     assert "Retry with /ci run" in rendered
 
 

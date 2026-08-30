@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-marker="<!-- mlx-vlm-ci:attempt:${CI_ATTEMPT_ID} -->"
+marker="<!-- mlx-vlm:ci:attempt:${CI_ATTEMPT_ID} -->"
 grep -Fq "$marker" "$CI_SUMMARY"
 comment_id="$(
   gh api "repos/$CI_REPOSITORY/issues/$CI_PR/comments?per_page=100" \

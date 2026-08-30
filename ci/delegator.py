@@ -8,7 +8,7 @@ import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Protocol, Sequence
+from typing import Any, Iterable, Mapping, Protocol, Sequence
 
 import yaml
 
@@ -49,6 +49,25 @@ class ModelPath:
         jobs: list[dict[str, Any]] = []
         blocked = list(invalid)
 
+        if {"ci/model_path.yaml", "ci/model-path-scenario.yaml"} & set(
+            context.changed_files
+        ):
+            blocked.extend(
+                self._blocker(
+                    model_name,
+                    paths,
+                    None,
+                    "existing_model_ci_configuration_changed",
+                )
+                for model_name, paths in sorted(changed_models.items())
+            )
+            return {
+                "component": self.name,
+                "jobs": [],
+                "gates": [],
+                "blocked": blocked,
+            }
+
         for model_name, paths in sorted(changed_models.items()):
             model = self.models.get(model_name)
             if not isinstance(model, dict):
@@ -57,67 +76,38 @@ class ModelPath:
                 )
                 continue
 
-            scenario_ids, scenario_error = self._scenario_ids(model)
-
-            synthetic = model.get("synthetic")
-            synthetic_error = self._synthetic_error(synthetic)
-            if synthetic_error:
-                blocked.append(
-                    self._blocker(model_name, paths, "synthetic", synthetic_error)
-                )
-            elif scenario_error:
-                blocked.append(
-                    self._blocker(model_name, paths, "synthetic", scenario_error)
-                )
-            else:
-                jobs.append(
-                    {
-                        "id": f"model_path:{model_name}:synthetic",
-                        "component": self.name,
-                        "model": model_name,
-                        "mode": "synthetic",
-                        "changed_paths": paths,
-                        "scenarios": scenario_ids,
-                        "synthetic": {
-                            "adapter": synthetic["adapter"],
-                            "profile": synthetic["profile"],
-                        },
-                    }
-                )
-
-            checkpoint = model.get("hf_checkpoint")
-            checkpoint_error = self._checkpoint_error(checkpoint)
-            if checkpoint_error:
-                blocked.append(
-                    self._blocker(model_name, paths, "hf_checkpoint", checkpoint_error)
-                )
-            elif scenario_error:
-                blocked.append(
-                    self._blocker(model_name, paths, "hf_checkpoint", scenario_error)
-                )
-            else:
-                jobs.append(
-                    {
-                        "id": f"model_path:{model_name}:hf_checkpoint",
-                        "component": self.name,
-                        "model": model_name,
-                        "mode": "hf_checkpoint",
-                        "changed_paths": paths,
-                        "scenarios": scenario_ids,
-                        "hf_checkpoint": {
-                            "repo": checkpoint["repo"],
-                            "revision": checkpoint["revision"],
-                            "expected_model_type": checkpoint["expected_model_type"],
-                            "weight": checkpoint["weight"],
-                        },
-                    }
-                )
+            configuration, configuration_blockers = self.configuration(
+                model_name, paths
+            )
+            blocked.extend(configuration_blockers)
+            if configuration is not None:
+                jobs.append(self.work_item(model_name, paths, configuration))
 
         return {
             "component": self.name,
             "jobs": jobs,
             "gates": [],
             "blocked": blocked,
+        }
+
+    def work_item(
+        self,
+        model_name: str,
+        paths: list[str],
+        configuration: Mapping[str, Any],
+        *,
+        component: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "id": f"model_path:{model_name}",
+            "work_type": "ModelPath",
+            "component": component or self.name,
+            "model": model_name,
+            "changed_paths": paths,
+            "phases": ["synthetic", "hf_checkpoint"],
+            "scenarios": list(configuration["scenarios"]),
+            "synthetic": dict(configuration["synthetic"]),
+            "hf_checkpoint": dict(configuration["hf_checkpoint"]),
         }
 
     def configuration(
@@ -329,28 +319,13 @@ class NewModelPath:
                     "head_sha": context.head_sha,
                     "configuration_digest": configuration_digest,
                     "changed_paths": paths,
-                    "requested_jobs": ["synthetic", "hf_checkpoint"],
+                    "requested_phases": ["synthetic", "hf_checkpoint"],
                     "configuration": configuration,
-                    "pending_jobs": [
-                        {
-                            "id": f"new_model_path:{model_name}:synthetic",
-                            "component": self.name,
-                            "model": model_name,
-                            "mode": "synthetic",
-                            "changed_paths": paths,
-                            "scenarios": configuration["scenarios"],
-                            "synthetic": configuration["synthetic"],
-                        },
-                        {
-                            "id": f"new_model_path:{model_name}:hf_checkpoint",
-                            "component": self.name,
-                            "model": model_name,
-                            "mode": "hf_checkpoint",
-                            "changed_paths": paths,
-                            "scenarios": configuration["scenarios"],
-                            "hf_checkpoint": configuration["hf_checkpoint"],
-                        },
-                    ],
+                    "pending_work": self.model_path.work_item(
+                        model_name,
+                        paths,
+                        configuration,
+                    ),
                 }
             )
 

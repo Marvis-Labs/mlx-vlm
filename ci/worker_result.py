@@ -13,7 +13,6 @@ def finalize(
         return {
             "component": str(job.get("component", "runner")),
             "model": job.get("model"),
-            "mode": str(job.get("mode", "default")),
             "job_id": str(job.get("id", "")),
             "outcome": "infrastructure_failure",
             "findings": {"error": "runner produced no result"},
@@ -22,6 +21,9 @@ def finalize(
     output = dict(result)
     findings = output.get("findings")
     if isinstance(findings, Mapping):
+        phases = findings.get("phases")
+        if isinstance(phases, Mapping):
+            output["phases"] = dict(phases)
         metrics = findings.get("metrics")
         if isinstance(metrics, Mapping):
             output["metrics"] = dict(metrics)

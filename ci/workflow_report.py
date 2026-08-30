@@ -18,45 +18,192 @@ def report(
     head_sha: str,
     execution_status: str,
 ) -> dict[str, Any]:
+    execution = _execution(plan, dispatch, result, execution_status)
+    return _record(
+        plan,
+        [execution],
+        run_url,
+        attempt_id,
+        head_sha,
+        [dispatch.get("lease")] if dispatch is not None else [],
+    )
+
+
+def report_batch(
+    plan: Mapping[str, Any] | None,
+    batch: Mapping[str, Any] | None,
+    results: Mapping[str, Mapping[str, Any]],
+    run_url: str,
+    attempt_id: str,
+    head_sha: str,
+    execution_status: str,
+) -> dict[str, Any]:
+    if batch is None:
+        return _record(
+            plan,
+            [],
+            run_url,
+            attempt_id,
+            head_sha,
+            [],
+        )
+    executions: list[dict[str, Any]] = []
+    leases: list[Any] = []
+    for item in batch.get("items", []):
+        if not isinstance(item, Mapping):
+            continue
+        key = str(item.get("key", ""))
+        dispatch = item.get("dispatch")
+        work = item.get("work")
+        dispatch_value = dict(dispatch) if isinstance(dispatch, Mapping) else None
+        plan_value = {"jobs": [work]} if isinstance(work, Mapping) else plan
+        executions.append(
+            _execution(
+                plan_value,
+                dispatch_value,
+                results.get(key),
+                execution_status,
+            )
+        )
+        if isinstance(item.get("lease"), Mapping):
+            leases.append(item["lease"])
+    return _record(
+        plan,
+        executions,
+        run_url,
+        attempt_id,
+        head_sha,
+        leases,
+    )
+
+
+def report_coalesced(
+    plan: Mapping[str, Any] | None,
+    run_url: str,
+    attempt_id: str,
+    head_sha: str,
+    owner_attempt_id: str,
+    owner_run_url: str,
+) -> dict[str, Any]:
+    jobs = plan.get("jobs", []) if isinstance(plan, Mapping) else []
+    executions = [
+        {
+            "component": str(job.get("component", "model_path")),
+            "model": job.get("model"),
+            "job_id": str(job.get("id", "")),
+            "outcome": "coalesced",
+            "owner_attempt_id": owner_attempt_id,
+            "owner_run_url": owner_run_url,
+        }
+        for job in jobs
+        if isinstance(job, Mapping)
+    ]
+    record = _record(
+        plan,
+        executions,
+        run_url,
+        attempt_id,
+        head_sha,
+        [],
+    )
+    record["outcome"] = "coalesced"
+    record["coalesced_with"] = {
+        "attempt_id": owner_attempt_id,
+        "run_url": owner_run_url,
+    }
+    return record
+
+
+def _execution(
+    plan: Mapping[str, Any] | None,
+    dispatch: Mapping[str, Any] | None,
+    result: Mapping[str, Any] | None,
+    execution_status: str,
+) -> dict[str, Any]:
+    if dispatch is not None and dispatch.get("outcome") == "no_eligible_runner":
+        if result is None or result.get("decision") != "accepted":
+            return bot_result(dispatch)
+    if result is not None and dispatch is not None:
+        lease = dispatch.get("lease")
+        if (
+            isinstance(lease, Mapping)
+            and result.get("device")
+            and result.get("device") != lease.get("device")
+        ):
+            result = None
     if result is not None:
         execution = dict(result)
-    elif dispatch is not None and dispatch.get("outcome") == "no_eligible_runner":
-        execution = bot_result(dispatch)
-    else:
-        job = dispatch.get("job", {}) if dispatch is not None else _job(plan)
-        outcome = (
-            "cancelled" if execution_status == "cancelled" else "infrastructure_failure"
-        )
-        selected_device = dispatch.get("next_device") if dispatch is not None else None
-        device_name = (
-            selected_device.get("name")
-            if isinstance(selected_device, Mapping)
-            else "selected runner"
-        )
-        execution = {
-            "component": str(job.get("component", "runner")),
-            "model": job.get("model"),
-            "mode": str(job.get("mode", "default")),
-            "job_id": str(job.get("id", "")),
-            "outcome": outcome,
-            "selected_device": selected_device,
-            "findings": {
-                "error": f"{device_name} did not produce a result artifact",
-                "execution_status": execution_status,
-            },
-        }
+        if dispatch is not None:
+            execution.setdefault("attempts", list(dispatch.get("attempts", [])))
+            execution.setdefault("unavailable", list(dispatch.get("unavailable", [])))
+        return execution
+    job = dispatch.get("job", {}) if dispatch is not None else _job(plan)
+    outcome = (
+        "cancelled" if execution_status == "cancelled" else "infrastructure_failure"
+    )
+    selected_device = dispatch.get("next_device") if dispatch is not None else None
+    device_name = (
+        selected_device.get("name")
+        if isinstance(selected_device, Mapping)
+        else "selected runner"
+    )
+    return {
+        "component": str(job.get("component", "runner")),
+        "model": job.get("model"),
+        "job_id": str(job.get("id", "")),
+        "outcome": outcome,
+        "selected_device": selected_device,
+        "findings": {
+            "error": f"{device_name} did not produce a result artifact",
+            "execution_status": execution_status,
+        },
+    }
+
+
+def _record(
+    plan: Mapping[str, Any] | None,
+    executions: Sequence[Mapping[str, Any]],
+    run_url: str,
+    attempt_id: str,
+    head_sha: str,
+    leases: Sequence[Any],
+) -> dict[str, Any]:
     record = dict(plan or _fallback_plan(head_sha))
-    results = [execution] if execution.get("component") != "runner" else []
+    results = [
+        dict(execution)
+        for execution in executions
+        if execution.get("component") != "runner"
+    ]
+    outcomes = {str(result.get("outcome", "")) for result in results}
+    outcome = next(
+        (
+            value
+            for value in (
+                "test_failure",
+                "regressed",
+                "no_eligible_runner",
+                "infrastructure_failure",
+                "cancelled",
+                "improved",
+                "passed",
+            )
+            if value in outcomes
+        ),
+        "infrastructure_failure" if record.get("errors") else "passed",
+    )
     record.update(
         {
             "kind": "ci_execution",
-            "outcome": execution["outcome"],
+            "outcome": outcome,
             "run_url": run_url,
             "attempt_id": attempt_id,
             "head_sha": str(record.get("head_sha") or head_sha),
             "results": results,
         }
     )
+    record["device_leases"] = [
+        dict(lease) for lease in leases if isinstance(lease, Mapping)
+    ]
     return record
 
 
@@ -67,7 +214,7 @@ def _job(plan: Mapping[str, Any] | None) -> Mapping[str, Any]:
     if not isinstance(jobs, list):
         return {}
     for job in jobs:
-        if isinstance(job, Mapping) and job.get("mode") == "hf_checkpoint":
+        if isinstance(job, Mapping) and job.get("work_type") == "ModelPath":
             return job
     return {}
 
@@ -104,6 +251,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--dispatch", type=Path)
     parser.add_argument("--result", type=Path)
+    parser.add_argument("--batch", type=Path)
+    parser.add_argument("--results-directory", type=Path)
+    parser.add_argument("--coalesced-owner")
+    parser.add_argument("--coalesced-url")
     parser.add_argument("--run-url", required=True)
     parser.add_argument("--attempt-id", required=True)
     parser.add_argument("--head-sha", required=True)
@@ -113,20 +264,51 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     plan = _load(args.plan)
-    dispatch = _load(args.dispatch)
-    result = _load(args.result)
-    record = report(
-        plan,
-        dispatch,
-        result,
-        args.run_url,
-        args.attempt_id,
-        args.head_sha,
-        args.execution_status,
-    )
+    if args.coalesced_owner:
+        record = report_coalesced(
+            plan,
+            args.run_url,
+            args.attempt_id,
+            args.head_sha,
+            args.coalesced_owner,
+            args.coalesced_url or "",
+        )
+    elif args.batch:
+        batch = _load(args.batch)
+        results = _load_results(args.results_directory)
+        record = report_batch(
+            plan,
+            batch,
+            results,
+            args.run_url,
+            args.attempt_id,
+            args.head_sha,
+            args.execution_status,
+        )
+    else:
+        record = report(
+            plan,
+            _load(args.dispatch),
+            _load(args.result),
+            args.run_url,
+            args.attempt_id,
+            args.head_sha,
+            args.execution_status,
+        )
     args.record.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     args.markdown.write_text(BotOutput(record).render())
     return 0
+
+
+def _load_results(directory: Path | None) -> dict[str, Mapping[str, Any]]:
+    if directory is None or not directory.is_dir():
+        return {}
+    results: dict[str, Mapping[str, Any]] = {}
+    for path in sorted(directory.rglob("result-*.json")):
+        value = _load(path)
+        if value is not None:
+            results[path.stem.removeprefix("result-")] = value
+    return results
 
 
 if __name__ == "__main__":

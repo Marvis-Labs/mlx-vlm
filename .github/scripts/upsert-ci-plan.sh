@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-marker='<!-- mlx-vlm-ci:plan -->'
+marker='<!-- mlx-vlm:ci:plan -->'
 comment_id="$(
   gh api "repos/$CI_REPOSITORY/issues/$CI_PR/comments?per_page=100" \
     --jq "[.[] | select(.user.type == \"Bot\" and (.body | contains(\"$marker\")))][0].id // empty"

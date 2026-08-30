@@ -1,4 +1,4 @@
-from ci.workflow_report import report
+from ci.workflow_report import report, report_batch, report_coalesced
 
 
 def plan():
@@ -18,10 +18,11 @@ def dispatch(outcome="dispatching"):
         "schema_version": 1,
         "kind": "device_dispatch",
         "job": {
-            "id": "model_path:qwen2_vl:hf_checkpoint",
+            "id": "model_path:qwen2_vl",
+            "work_type": "ModelPath",
             "component": "model_path",
             "model": "qwen2_vl",
-            "mode": "hf_checkpoint",
+            "phases": ["synthetic", "hf_checkpoint"],
             "required_memory_gib": 8,
             "required_disk_gib": 4,
         },
@@ -37,9 +38,12 @@ def dispatch(outcome="dispatching"):
 
 
 def test_execution_result_is_attached_to_approved_plan():
+    lease = {"attempt_id": "123", "device": "mini"}
+    selected_dispatch = dispatch()
+    selected_dispatch["lease"] = lease
     result = report(
         plan(),
-        dispatch(),
+        selected_dispatch,
         {"outcome": "passed", "component": "model_path"},
         "https://example.com/run",
         "123",
@@ -50,6 +54,7 @@ def test_execution_result_is_attached_to_approved_plan():
     assert result["kind"] == "ci_execution"
     assert result["outcome"] == "passed"
     assert result["run_url"] == "https://example.com/run"
+    assert result["device_leases"] == [lease]
 
 
 def test_exhausted_dispatch_becomes_no_runner_result():
@@ -86,3 +91,85 @@ def test_prepare_failure_builds_renderable_fallback():
     assert result["head_sha"] == "new-head"
     assert result["results"] == []
     assert result["errors"][0]["code"] == "attempt_preparation_failed"
+
+
+def test_batch_reports_each_model_independently():
+    first = dispatch()
+    first["job"]["model"] = "first"
+    first["job"]["id"] = "model_path:first"
+    second = dispatch()
+    second["job"]["model"] = "second"
+    second["job"]["id"] = "model_path:second"
+    batch = {
+        "items": [
+            {"key": "first", "work": first["job"], "dispatch": first, "lease": {}},
+            {"key": "second", "work": second["job"], "dispatch": second, "lease": {}},
+        ]
+    }
+
+    result = report_batch(
+        plan(),
+        batch,
+        {
+            "first": {"component": "model_path", "model": "first", "outcome": "passed"},
+            "second": {
+                "component": "model_path",
+                "model": "second",
+                "outcome": "regressed",
+            },
+        },
+        "run",
+        "123",
+        "abc123",
+        "success",
+    )
+
+    assert [item["model"] for item in result["results"]] == ["first", "second"]
+    assert result["outcome"] == "regressed"
+
+
+def test_final_exhausted_dispatch_overrides_prior_decline_result():
+    exhausted = dispatch("no_eligible_runner")
+    exhausted["attempts"] = [
+        {
+            "device": "mini",
+            "label": "device-mini",
+            "memory_gib": 16,
+            "decision": "declined",
+            "reason": "declined_memory",
+            "details": {},
+        }
+    ]
+    batch = {
+        "items": [
+            {
+                "key": "qwen",
+                "work": exhausted["job"],
+                "dispatch": exhausted,
+                "lease": None,
+            }
+        ]
+    }
+
+    result = report_batch(
+        plan(),
+        batch,
+        {"qwen": {"decision": "declined", "outcome": "declined", "device": "mini"}},
+        "run",
+        "123",
+        "abc123",
+        "success",
+    )
+
+    assert result["outcome"] == "no_eligible_runner"
+
+
+def test_coalesced_attempt_is_immutable_terminal_record():
+    value = plan()
+    value["jobs"] = [dispatch()["job"]]
+
+    result = report_coalesced(value, "run-2", "two", "abc123", "one", "run-1")
+
+    assert result["outcome"] == "coalesced"
+    assert result["attempt_id"] == "two"
+    assert result["coalesced_with"] == {"attempt_id": "one", "run_url": "run-1"}

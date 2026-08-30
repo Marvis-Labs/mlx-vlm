@@ -89,7 +89,7 @@ def make_delegator(tmp_path: Path) -> Delegator:
     )
 
 
-def test_configured_model_emits_synthetic_and_checkpoint_jobs(tmp_path):
+def test_configured_model_emits_one_model_path_work_item(tmp_path):
     plan = make_delegator(tmp_path).plan(
         [
             "mlx_vlm/models/ready/vision.py",
@@ -100,18 +100,27 @@ def test_configured_model_emits_synthetic_and_checkpoint_jobs(tmp_path):
 
     assert plan["rules"] == ["model_path"]
     assert plan["components"] == ["model_path"]
-    assert [job["mode"] for job in plan["jobs"]] == [
-        "synthetic",
-        "hf_checkpoint",
-    ]
-    assert plan["jobs"][0]["changed_paths"] == [
+    assert len(plan["jobs"]) == 1
+    work = plan["jobs"][0]
+    assert work["work_type"] == "ModelPath"
+    assert work["phases"] == ["synthetic", "hf_checkpoint"]
+    assert work["changed_paths"] == [
         "mlx_vlm/models/ready/config.py",
         "mlx_vlm/models/ready/vision.py",
     ]
-    assert plan["jobs"][0]["scenarios"] == ["vlm_animal"]
-    assert plan["jobs"][1]["hf_checkpoint"]["weight"]["bytes"] == 1024
+    assert work["scenarios"] == ["vlm_animal"]
+    assert work["hf_checkpoint"]["weight"]["bytes"] == 1024
     assert plan["gates"] == []
     assert plan["blocked"] == []
+
+
+def test_existing_model_manifest_change_cannot_redefine_its_own_job(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        ["mlx_vlm/models/ready/vision.py", "ci/model_path.yaml"]
+    )
+
+    assert plan["jobs"] == []
+    assert plan["blocked"][0]["reason"] == "existing_model_ci_configuration_changed"
 
 
 def test_multiple_models_emit_independent_jobs(tmp_path):
@@ -122,12 +131,8 @@ def test_multiple_models_emit_independent_jobs(tmp_path):
         ]
     )
 
-    assert [(job["model"], job["mode"]) for job in plan["jobs"]] == [
-        ("ready", "synthetic"),
-        ("ready", "hf_checkpoint"),
-        ("second", "synthetic"),
-        ("second", "hf_checkpoint"),
-    ]
+    assert [job["model"] for job in plan["jobs"]] == ["ready", "second"]
+    assert all(job["work_type"] == "ModelPath" for job in plan["jobs"])
 
 
 def test_new_model_emits_approval_gate_and_no_jobs(tmp_path):
@@ -152,11 +157,9 @@ def test_new_model_emits_approval_gate_and_no_jobs(tmp_path):
     assert gate["status"] == "awaiting_maintainer_approval"
     assert gate["head_sha"] == "abc123"
     assert gate["configuration_digest"].startswith("sha256:")
-    assert gate["requested_jobs"] == ["synthetic", "hf_checkpoint"]
-    assert [job["mode"] for job in gate["pending_jobs"]] == [
-        "synthetic",
-        "hf_checkpoint",
-    ]
+    assert gate["requested_phases"] == ["synthetic", "hf_checkpoint"]
+    assert gate["pending_work"]["work_type"] == "ModelPath"
+    assert gate["pending_work"]["phases"] == ["synthetic", "hf_checkpoint"]
     assert gate["configuration"]["hf_checkpoint"]["repo"] == "example/ready"
 
 
@@ -263,7 +266,7 @@ def test_cli_writes_json_plan(tmp_path, monkeypatch):
         == 0
     )
     plan = json.loads(output.read_text())
-    assert len(plan["jobs"]) == 2
+    assert len(plan["jobs"]) == 1
     assert plan["gates"] == []
     assert plan["blocked"] == []
 
@@ -288,6 +291,6 @@ def test_repository_configured_models_are_routable():
     plan = delegator.plan([f"mlx_vlm/models/{name}/config.py" for name in configured])
 
     assert len(configured) == 30
-    assert len(plan["jobs"]) == 60
+    assert len(plan["jobs"]) == 30
     assert plan["gates"] == []
     assert plan["blocked"] == []

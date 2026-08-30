@@ -34,7 +34,7 @@ STATUS = {
 
 
 def marker(pr: str) -> str:
-    return f"<!-- mlx-vlm-ci:{pr} -->"
+    return f"<!-- mlx-vlm:ci:{pr} -->"
 
 
 def _cell_state(delta: dict) -> str:

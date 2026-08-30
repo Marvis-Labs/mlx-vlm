@@ -155,12 +155,12 @@ class ModelPathOutput:
     def _jobs(self, record: Mapping[str, Any], model: str) -> list[Mapping[str, Any]]:
         jobs = self._matching(record, "jobs", model)
         for gate in self._matching(record, "gates", model):
-            jobs.extend(
-                job for job in gate.get("pending_jobs", []) if isinstance(job, Mapping)
-            )
+            pending = gate.get("pending_work")
+            if isinstance(pending, Mapping):
+                jobs.append(pending)
         unique: dict[str, Mapping[str, Any]] = {}
         for job in jobs:
-            identifier = str(job.get("id", f"{model}:{job.get('mode', 'default')}"))
+            identifier = str(job.get("id", model))
             unique[identifier] = job
         return list(unique.values())
 
@@ -198,6 +198,7 @@ class ModelPathOutput:
             "cancelled",
             "running",
             "queued",
+            "coalesced",
             "improved",
             "passed",
         ):
@@ -218,10 +219,17 @@ class ModelPathOutput:
         errors: Sequence[Mapping[str, Any]],
         results: Sequence[Mapping[str, Any]],
     ) -> tuple[BotStage, ...]:
-        jobs_by_mode = {str(job.get("mode", "default")): job for job in jobs}
+        jobs_by_mode = {phase: job for job in jobs for phase in self._job_phases(job)}
         results_by_mode = {
-            str(result.get("mode", "default")): result for result in results
+            str(result["phase"]): result
+            for result in self._phase_results(results)
+            if result.get("phase")
         }
+        for result in results:
+            if result.get("phases") or result.get("mode"):
+                continue
+            for phase in jobs_by_mode:
+                results_by_mode.setdefault(phase, result)
         error_modes = {
             str(error.get("details", {}).get("mode"))
             for error in errors
@@ -254,6 +262,36 @@ class ModelPathOutput:
             )
         return tuple(stages)
 
+    def _job_phases(self, job: Mapping[str, Any]) -> tuple[str, ...]:
+        phases = job.get("phases")
+        if isinstance(phases, Sequence) and not isinstance(phases, (str, bytes)):
+            return tuple(str(phase) for phase in phases)
+        mode = job.get("mode")
+        return (str(mode),) if mode else ()
+
+    def _phase_results(
+        self, results: Sequence[Mapping[str, Any]]
+    ) -> tuple[dict[str, Any], ...]:
+        expanded: list[dict[str, Any]] = []
+        for result in results:
+            phases = result.get("phases")
+            if isinstance(phases, Mapping):
+                for name, phase_result in phases.items():
+                    if not isinstance(phase_result, Mapping):
+                        continue
+                    item = dict(phase_result)
+                    item["phase"] = str(name)
+                    if name == "hf_checkpoint" and "cache" not in item:
+                        item["cache"] = result.get("cache", {})
+                    expanded.append(item)
+                continue
+            mode = result.get("mode")
+            if mode:
+                item = dict(result)
+                item["phase"] = str(mode)
+                expanded.append(item)
+        return tuple(expanded)
+
     def _detail(self, job: Mapping[str, Any] | None, mode: str) -> str:
         if not job:
             return ""
@@ -275,11 +313,24 @@ class ModelPathOutput:
 
     def _metrics(self, results: Sequence[Mapping[str, Any]]) -> tuple[BotMetric, ...]:
         metrics: list[BotMetric] = []
-        for result in sorted(results, key=lambda item: str(item.get("mode", ""))):
-            mode = str(result.get("mode", "default"))
+        for result in sorted(
+            self._phase_results(results), key=lambda item: str(item.get("phase", ""))
+        ):
+            mode = str(result.get("phase", "default"))
             values = result.get("metrics", {})
+            findings = result.get("findings", {})
+            if not isinstance(values, Mapping) or not values:
+                values = (
+                    findings.get("metrics", {}) if isinstance(findings, Mapping) else {}
+                )
             if not isinstance(values, Mapping):
                 continue
+            correctness = (
+                findings.get("correctness", {}) if isinstance(findings, Mapping) else {}
+            )
+            advisory = (
+                isinstance(correctness, Mapping) and correctness.get("match") is False
+            )
             for name, measurement in sorted(values.items()):
                 if not isinstance(measurement, Mapping):
                     continue
@@ -290,7 +341,11 @@ class ModelPathOutput:
                         base=measurement.get("base"),
                         head=measurement.get("head"),
                         change_pct=measurement.get("change_pct"),
-                        verdict=str(measurement.get("verdict", "")),
+                        verdict=(
+                            "advisory"
+                            if advisory
+                            else str(measurement.get("verdict", ""))
+                        ),
                         unit=str(measurement.get("unit", "")),
                     )
                 )
@@ -304,13 +359,19 @@ class ModelPathOutput:
     ) -> tuple[str, ...]:
         messages = [str(error.get("code", "unknown_error")) for error in errors]
         messages.extend(
-            self._no_runner_message(result)
+            message
             for result in results
-            if result.get("outcome") == "no_eligible_runner"
+            for message in self._execution_metadata(result)
         )
         messages.extend(
             message
             for result in results
+            if result.get("outcome") == "no_eligible_runner"
+            for message in self._no_runner_messages(result)
+        )
+        messages.extend(
+            message
+            for result in self._phase_results(results)
             if (message := self._findings_message(result)) is not None
         )
         if any(gate.get("status") == "awaiting_maintainer_approval" for gate in gates):
@@ -322,20 +383,81 @@ class ModelPathOutput:
             )
         return tuple(messages)
 
+    def _execution_metadata(self, result: Mapping[str, Any]) -> tuple[str, ...]:
+        selected = result.get("selected_device")
+        runner = (
+            selected.get("name", "unknown")
+            if isinstance(selected, Mapping)
+            else result.get("device", "not allocated")
+        )
+        if result.get("outcome") == "coalesced":
+            runner = (
+                "not allocated; coalesced with attempt "
+                f"{result.get('owner_attempt_id', 'unknown')}"
+            )
+        cache = result.get("cache", {})
+        if isinstance(cache, Mapping) and cache:
+            cache_state = (
+                "reused"
+                if cache.get("reused")
+                else str(cache.get("after", cache.get("before", "not checked")))
+            )
+        else:
+            cache_state = "not checked"
+        correctness_values: list[bool] = []
+        has_metrics = False
+        for phase in self._phase_results((result,)):
+            findings = phase.get("findings", {})
+            if not isinstance(findings, Mapping):
+                continue
+            correctness = findings.get("correctness", {})
+            if isinstance(correctness, Mapping) and isinstance(
+                correctness.get("match"), bool
+            ):
+                correctness_values.append(correctness["match"])
+            has_metrics = has_metrics or isinstance(findings.get("metrics"), Mapping)
+        correctness_state = (
+            "failed"
+            if False in correctness_values
+            else "passed" if correctness_values else "not reported"
+        )
+        performance_state = (
+            "advisory"
+            if False in correctness_values and has_metrics
+            else "reported" if has_metrics else "not run"
+        )
+        return (
+            f"Runner: {runner}.",
+            f"Cache: {cache_state}.",
+            f"Correctness: {correctness_state}.",
+            f"Performance: {performance_state}.",
+            f"Terminal state: {_label(str(result.get('outcome', 'unknown')))}.",
+        )
+
     def _findings_message(self, result: Mapping[str, Any]) -> str | None:
         findings = result.get("findings")
         if not isinstance(findings, Mapping):
             return None
+        phase = str(result.get("phase", "hf_checkpoint"))
         error = findings.get("error")
         if error:
-            return f"Checkpoint comparison failed: {error}."
+            return f"{_stage_name(phase)} comparison failed: {error}."
         correctness = findings.get("correctness", {})
         if isinstance(correctness, Mapping) and correctness.get("match") is False:
+            if phase == "synthetic":
+                return "Synthetic output or parameter structure did not match main."
+            cache = result.get("cache", {})
+            cache_state = "cache reused" if cache.get("reused") else "downloaded"
             return (
                 "Checkpoint output mismatch: main "
                 f"{correctness.get('base_output_hash')} versus PR "
-                f"{correctness.get('head_output_hash')}."
+                f"{correctness.get('head_output_hash')}. Performance measurements "
+                f"are advisory because correctness failed ({cache_state})."
             )
+        if phase == "synthetic":
+            if isinstance(correctness, Mapping) and correctness.get("match") is True:
+                return "Synthetic structure and output match main."
+            return None
         cache = result.get("cache", {})
         cache_state = "cache reused" if cache.get("reused") else "downloaded"
         head = findings.get("head", findings)
@@ -356,7 +478,7 @@ class ModelPathOutput:
         suffix = f"; output {output_hash}" if output_hash else ""
         return f"HF checkpoint findings ({cache_state}): {measurements}{suffix}."
 
-    def _no_runner_message(self, result: Mapping[str, Any]) -> str:
+    def _no_runner_messages(self, result: Mapping[str, Any]) -> tuple[str, ...]:
         required = result.get("required_memory_gib", "unknown")
         required_disk = result.get("required_disk_gib")
         records = [
@@ -365,19 +487,26 @@ class ModelPathOutput:
             for item in result.get(key, [])
             if isinstance(item, Mapping)
         ]
-        summaries = [
-            f"{item.get('device', 'unknown')} ({item.get('memory_gib', '?')} GiB): "
-            f"{item.get('reason', 'declined')}"
-            for item in records[:8]
-        ]
-        detail = "; ".join(summaries) if summaries else "no configured candidate"
+        summaries = [self._runner_unavailable_summary(item) for item in records[:8]]
         requirement = f"{required} GiB memory"
         if required_disk is not None:
             requirement += f" and {required_disk} GiB disk"
+        candidates = summaries or ["no configured candidate"]
         return (
-            f"No eligible Apple Silicon runner is available. Required: {requirement}. "
-            f"Candidates: {detail}. Retry with /ci run."
+            f"No eligible Apple Silicon runner is available. Required: {requirement}.",
+            *(f"Candidate: {summary}." for summary in candidates),
+            "Retry with /ci run.",
         )
+
+    def _runner_unavailable_summary(self, item: Mapping[str, Any]) -> str:
+        prefix = (
+            f"{item.get('device', 'unknown')} " f"({item.get('memory_gib', '?')} GiB)"
+        )
+        if item.get("reason") != "leased":
+            return f"{prefix}: {item.get('reason', 'declined')}"
+        owner = item.get("attempt_id", "unknown")
+        expiry = item.get("expires_at", "unknown")
+        return f"{prefix}: leased by attempt {owner} until {expiry}"
 
 
 class BotOutput:
@@ -403,6 +532,8 @@ class BotOutput:
             f"Commit: `{_cell(self.record['head_sha'])}`  ",
             f"Status: **{_cell(self._status(sections))}**",
         ]
+        if self.record.get("kind") == "ci_execution" and self.record.get("attempt_id"):
+            lines.insert(2, f"Attempt: `{_cell(self.record['attempt_id'])}`  ")
         run_url = self.record.get("run_url")
         if run_url:
             lines[-1] += f" · [workflow run]({_url(run_url)})"
@@ -420,10 +551,12 @@ class BotOutput:
     def _marker(self) -> str:
         attempt_id = self.record.get("attempt_id")
         if self.record.get("kind") == "ci_execution" and attempt_id:
-            return f"<!-- mlx-vlm-ci:attempt:{_cell(attempt_id)} -->"
-        return "<!-- mlx-vlm-ci:plan -->"
+            return f"<!-- mlx-vlm:ci:attempt:{_cell(attempt_id)} -->"
+        return "<!-- mlx-vlm:ci:plan -->"
 
     def _status(self, sections: Sequence[BotSection]) -> str:
+        if self.record.get("outcome") == "blocked":
+            return "Blocked"
         if not sections:
             return _label(str(self.record.get("outcome", "unknown")))
         statuses = {section.status for section in sections}
@@ -436,6 +569,7 @@ class BotOutput:
             "Cancelled",
             "Running",
             "Queued",
+            "Coalesced",
             "Awaiting maintainer approval",
             "Awaiting /ci run",
             "Ready for runner dispatch",
@@ -516,6 +650,7 @@ def _label(value: str) -> str:
         "awaiting_approval": "Awaiting maintainer approval",
         "ready": "Ready",
         "queued": "Queued",
+        "coalesced": "Coalesced",
         "running": "Running",
         "passed": "Passed",
         "regressed": "Regressed",

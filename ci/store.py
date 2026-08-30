@@ -17,7 +17,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-DEFAULT_DB = Path.home() / ".mlx-vlm-ci" / "results.db"
+DEFAULT_DB = Path.home() / ".local" / "state" / "marvis-ci" / "results.db"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS results (

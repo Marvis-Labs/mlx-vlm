@@ -1,4 +1,4 @@
-name: MLX-VLM CI control
+name: CI control
 
 on:
   pull_request_target:
@@ -9,7 +9,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: mlx-vlm-ci-control-${{ github.event.pull_request.number }}
+  group: ci-control-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -60,13 +60,14 @@ jobs:
             --rules-config ci/change-rules.yaml \
             --model-config "$RUNNER_TEMP/pr-ci/model_path.yaml" \
             --scenario-config "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml" \
+            --protected-config ci/protected_paths.yaml \
             --run-url "$RUN_URL" \
             --output control.json \
             --markdown summary.md \
             --github-output "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: mlx-vlm-ci-control-${{ github.run_id }}
+          name: ci-control-${{ github.run_id }}
           path: |
             control.json
             summary.md
@@ -76,7 +77,7 @@ jobs:
           CI_REPOSITORY: ${{ github.repository }}
           CI_PR: ${{ github.event.pull_request.number }}
           CI_SUMMARY: summary.md
-        run: bash .github/scripts/upsert-mlx-vlm-ci-comment.sh
+        run: bash .github/scripts/upsert-ci-plan.sh
       - name: Enforce planning blockers
         if: steps.control.outputs.outcome == 'blocked'
         run: exit 1
@@ -101,7 +102,7 @@ jobs:
         run: python -m pip install --quiet pyyaml==6.0.3
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: mlx-vlm-ci-control-${{ github.run_id }}
+          name: ci-control-${{ github.run_id }}
       - name: Release immutable job manifest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,7 +116,7 @@ jobs:
             --markdown approved-summary.md
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: mlx-vlm-ci-runner-plan-${{ github.run_id }}
+          name: ci-runner-plan-${{ github.run_id }}
           path: runner-plan.json
 
   approve-new-model:
@@ -139,7 +140,7 @@ jobs:
         run: python -m pip install --quiet pyyaml==6.0.3
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: mlx-vlm-ci-control-${{ github.run_id }}
+          name: ci-control-${{ github.run_id }}
       - name: Verify protected environment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -155,11 +156,12 @@ jobs:
           python -m ci.control release \
             --control control.json \
             --current-head "$current_head" \
+            --approve-gates \
             --output runner-plan.json \
             --markdown approved-summary.md
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: mlx-vlm-ci-runner-plan-${{ github.run_id }}
+          name: ci-runner-plan-${{ github.run_id }}
           path: runner-plan.json
       - name: Update pull request status
         env:
@@ -167,4 +169,4 @@ jobs:
           CI_REPOSITORY: ${{ github.repository }}
           CI_PR: ${{ github.event.pull_request.number }}
           CI_SUMMARY: approved-summary.md
-        run: bash .github/scripts/upsert-mlx-vlm-ci-comment.sh
+        run: bash .github/scripts/upsert-ci-plan.sh

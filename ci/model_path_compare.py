@@ -26,6 +26,7 @@ def run_probe(
     command = [
         "uv",
         "run",
+        "--frozen",
         "--project",
         str(project),
         "--python",

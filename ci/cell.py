@@ -391,7 +391,7 @@ def main() -> int:
     ap.add_argument("--head", help="head revision")
     ap.add_argument(
         "--repo-url",
-        default="https://github.com/Marvis-Labs/mlx-vlm-ci",
+        default="https://github.com/Blaizzy/mlx-vlm",
         help="source repo to fetch revision tarballs from",
     )
     ap.add_argument("--work", default=None, help="scratch dir for worktrees")

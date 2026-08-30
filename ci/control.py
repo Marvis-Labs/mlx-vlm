@@ -91,26 +91,31 @@ def control_record(
 
 
 def release_control(
-    control: Mapping[str, Any], current_head_sha: str
+    control: Mapping[str, Any],
+    current_head_sha: str,
+    *,
+    approve_gates: bool = False,
 ) -> dict[str, Any]:
     _validate_control(control)
     if control["outcome"] == PlanningOutcome.BLOCKED.value:
         raise ControlError("a blocked plan cannot be released")
     if control["head_sha"] != current_head_sha:
         raise ControlError("the pull request head changed before approval")
+    if control["gates"] and not approve_gates:
+        raise ControlError("maintainer approval gates have not been released")
 
     jobs = list(control["jobs"])
     resolved_gates: list[dict[str, Any]] = []
     gate_ids: list[str] = []
     for gate in control["gates"]:
         _validate_gate(gate, current_head_sha)
-        jobs.extend(gate["pending_jobs"])
+        jobs.append(gate["pending_work"])
         gate_ids.append(gate["id"])
         resolved_gates.append(
             {
                 key: value
                 for key, value in gate.items()
-                if key not in {"configuration", "pending_jobs"}
+                if key not in {"configuration", "pending_work"}
             }
             | {"status": "approved"}
         )
@@ -196,19 +201,19 @@ def _validate_gate(gate: Mapping[str, Any], current_head_sha: str) -> None:
         raise ControlError("approval gate has no configuration")
     if gate.get("configuration_digest") != configuration_digest(configuration):
         raise ControlError("approval gate configuration digest does not match")
-    pending_jobs = gate.get("pending_jobs")
-    if not isinstance(pending_jobs, list) or not pending_jobs:
-        raise ControlError("approval gate has no pending jobs")
-    requested = gate.get("requested_jobs")
+    pending_work = gate.get("pending_work")
+    if not isinstance(pending_work, Mapping):
+        raise ControlError("approval gate has no pending work")
+    requested = gate.get("requested_phases")
     if not isinstance(requested, list) or not requested:
-        raise ControlError("approval gate has no requested job modes")
-    if any(
-        job.get("component") != gate.get("component")
-        or job.get("model") != gate.get("model")
-        or job.get("mode") not in requested
-        for job in pending_jobs
+        raise ControlError("approval gate has no requested phases")
+    if (
+        pending_work.get("work_type") != "ModelPath"
+        or pending_work.get("component") != "model_path"
+        or pending_work.get("model") != gate.get("model")
+        or pending_work.get("phases") != requested
     ):
-        raise ControlError("approval gate pending jobs exceed its scope")
+        raise ControlError("approval gate pending work exceeds its scope")
 
 
 def _require_unique_job_ids(jobs: Sequence[Mapping[str, Any]]) -> None:
@@ -223,6 +228,21 @@ def _require_unique_job_ids(jobs: Sequence[Mapping[str, Any]]) -> None:
 
 def _canonical(value: Mapping[str, Any]) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _refused_paths(paths: Sequence[str], config: Path) -> list[str]:
+    data = yaml.safe_load(config.read_text())
+    if not isinstance(data, Mapping) or not isinstance(data.get("refuse"), list):
+        raise ControlError("protected path configuration is invalid")
+    patterns = [str(pattern).split(" #", 1)[0].rstrip() for pattern in data["refuse"]]
+    return sorted(
+        path
+        for path in paths
+        if any(
+            path == pattern or (pattern.endswith("/") and path.startswith(pattern))
+            for pattern in patterns
+        )
+    )
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -267,9 +287,17 @@ def _plan_command(args: argparse.Namespace) -> int:
         delegator = create_delegator(
             args.rules_config, args.model_config, args.scenario_config
         )
-        plan = delegator.plan_context(
-            diff_from_git(args.base, args.head, args.repository_path).context()
-        )
+        diff = diff_from_git(args.base, args.head, args.repository_path)
+        plan = delegator.plan_context(diff.context())
+        refused = _refused_paths(diff.changed_files, args.protected_config)
+        if refused:
+            plan["blocked"].append(
+                {
+                    "component": "planner",
+                    "reason": "protected_ci_files_changed",
+                    "changed_paths": refused,
+                }
+            )
     except (FileNotFoundError, OSError, ValueError, yaml.YAMLError) as error:
         plan = _blocked_plan(args.head, "invalid_ci_configuration", str(error))
     except subprocess.CalledProcessError as error:
@@ -280,7 +308,11 @@ def _plan_command(args: argparse.Namespace) -> int:
 
 
 def _release_command(args: argparse.Namespace) -> int:
-    released = release_control(_load_json(args.control), args.current_head)
+    released = release_control(
+        _load_json(args.control),
+        args.current_head,
+        approve_gates=args.approve_gates,
+    )
     _write_record(released, args.output, args.markdown, args.github_output)
     return 0
 
@@ -298,6 +330,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_parser.add_argument("--rules-config", type=Path, required=True)
     plan_parser.add_argument("--model-config", type=Path, required=True)
     plan_parser.add_argument("--scenario-config", type=Path, required=True)
+    plan_parser.add_argument("--protected-config", type=Path, required=True)
     plan_parser.add_argument("--run-url")
     plan_parser.add_argument("--output", type=Path, required=True)
     plan_parser.add_argument("--markdown", type=Path, required=True)
@@ -310,6 +343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     release_parser.add_argument("--output", type=Path, required=True)
     release_parser.add_argument("--markdown", type=Path, required=True)
     release_parser.add_argument("--github-output", type=Path)
+    release_parser.add_argument("--approve-gates", action="store_true")
     release_parser.set_defaults(handler=_release_command)
 
     args = parser.parse_args(argv)

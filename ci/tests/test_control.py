@@ -29,12 +29,13 @@ def plan(*, jobs=None, gates=None, blocked=None, head_sha="abc123"):
     }
 
 
-def pending_job(mode):
+def pending_work():
     return {
-        "id": f"new_model_path:example:{mode}",
-        "component": "new_model_path",
+        "id": "model_path:example",
+        "work_type": "ModelPath",
+        "component": "model_path",
         "model": "example",
-        "mode": mode,
+        "phases": ["synthetic", "hf_checkpoint"],
     }
 
 
@@ -58,9 +59,9 @@ def approval_gate():
         "head_sha": "abc123",
         "configuration_digest": configuration_digest(configuration),
         "changed_paths": ["mlx_vlm/models/example/model.py"],
-        "requested_jobs": ["synthetic", "hf_checkpoint"],
+        "requested_phases": ["synthetic", "hf_checkpoint"],
         "configuration": configuration,
-        "pending_jobs": [pending_job("synthetic"), pending_job("hf_checkpoint")],
+        "pending_work": pending_work(),
     }
 
 
@@ -90,7 +91,7 @@ def test_control_record_normalizes_blockers():
                 }
             ]
         ),
-        "Marvis-Labs/mlx-vlm-ci",
+        "example/repository",
         8,
     )
 
@@ -109,16 +110,13 @@ def test_control_record_normalizes_blockers():
 
 
 def test_release_turns_approved_gate_into_jobs():
-    record = control_record(plan(gates=[approval_gate()]), "Marvis-Labs/mlx-vlm-ci", 8)
+    record = control_record(plan(gates=[approval_gate()]), "example/repository", 8)
 
-    released = release_control(record, "abc123")
+    released = release_control(record, "abc123", approve_gates=True)
 
     assert released["kind"] == "approved_job_plan"
     assert released["outcome"] == "ready"
-    assert [job["mode"] for job in released["jobs"]] == [
-        "synthetic",
-        "hf_checkpoint",
-    ]
+    assert released["jobs"] == [pending_work()]
     assert released["gates"][0]["status"] == "approved"
     assert released["approval"] == {
         "mechanism": "github_environment",
@@ -129,50 +127,57 @@ def test_release_turns_approved_gate_into_jobs():
 
 
 def test_release_rejects_stale_head():
-    record = control_record(plan(gates=[approval_gate()]), "Marvis-Labs/mlx-vlm-ci", 8)
+    record = control_record(plan(gates=[approval_gate()]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="head changed"):
         release_control(record, "different")
 
 
+def test_release_requires_explicit_gate_approval():
+    record = control_record(plan(gates=[approval_gate()]), "example/repository", 8)
+
+    with pytest.raises(ControlError, match="approval gates"):
+        release_control(record, "abc123")
+
+
 def test_release_rejects_tampered_configuration():
     gate = approval_gate()
     gate["configuration"]["hf_checkpoint"]["repo"] = "attacker/model"
-    record = control_record(plan(gates=[gate]), "Marvis-Labs/mlx-vlm-ci", 8)
+    record = control_record(plan(gates=[gate]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="digest does not match"):
-        release_control(record, "abc123")
+        release_control(record, "abc123", approve_gates=True)
 
 
 def test_release_rejects_duplicate_job_ids():
-    duplicate = pending_job("synthetic")
     gate = approval_gate()
-    gate["pending_jobs"] = [duplicate, duplicate]
-    record = control_record(plan(gates=[gate]), "Marvis-Labs/mlx-vlm-ci", 8)
+    duplicate_gate = approval_gate()
+    duplicate_gate["id"] = "new_model_path:example:abc123:duplicate"
+    record = control_record(plan(gates=[gate, duplicate_gate]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="job ids must be unique"):
-        release_control(record, "abc123")
+        release_control(record, "abc123", approve_gates=True)
 
 
 def test_release_rejects_job_outside_gate_scope():
     gate = approval_gate()
-    gate["pending_jobs"][0]["model"] = "different"
-    record = control_record(plan(gates=[gate]), "Marvis-Labs/mlx-vlm-ci", 8)
+    gate["pending_work"]["model"] = "different"
+    record = control_record(plan(gates=[gate]), "example/repository", 8)
 
-    with pytest.raises(ControlError, match="exceed its scope"):
-        release_control(record, "abc123")
+    with pytest.raises(ControlError, match="exceeds its scope"):
+        release_control(record, "abc123", approve_gates=True)
 
 
 def test_status_renderer_is_centralized_and_suppresses_mentions():
     gate = approval_gate()
     gate["model"] = "@reviewer|model"
     record = control_record(
-        plan(gates=[gate]), "Marvis-Labs/mlx-vlm-ci", 8, "https://example.com/run"
+        plan(gates=[gate]), "example/repository", 8, "https://example.com/run"
     )
 
     rendered = render_status(record)
 
-    assert rendered.startswith("<!-- mlx-vlm-ci:plan -->")
+    assert rendered.startswith("<!-- mlx-vlm:ci:plan -->")
     assert "Awaiting maintainer approval" in rendered
     assert "@\u200breviewer\\|model" in rendered
     assert "No Apple Silicon job starts" in rendered
@@ -200,7 +205,7 @@ def test_execution_outcomes(exit_code, cancelled, infrastructure_failure, expect
 
 
 def test_release_cli_writes_runner_manifest(tmp_path):
-    record = control_record(plan(gates=[approval_gate()]), "Marvis-Labs/mlx-vlm-ci", 8)
+    record = control_record(plan(gates=[approval_gate()]), "example/repository", 8)
     source = tmp_path / "control.json"
     output = tmp_path / "runner-plan.json"
     markdown = tmp_path / "summary.md"
@@ -214,6 +219,7 @@ def test_release_cli_writes_runner_manifest(tmp_path):
                 str(source),
                 "--current-head",
                 "abc123",
+                "--approve-gates",
                 "--output",
                 str(output),
                 "--markdown",
@@ -240,7 +246,7 @@ def test_plan_cli_uses_immutable_repository_head(tmp_path):
                 "--head",
                 "HEAD",
                 "--repository",
-                "Marvis-Labs/mlx-vlm-ci",
+                "example/repository",
                 "--repository-path",
                 str(repository_root),
                 "--pr",
@@ -251,6 +257,8 @@ def test_plan_cli_uses_immutable_repository_head(tmp_path):
                 str(repository_root / "ci/model_path.yaml"),
                 "--scenario-config",
                 str(repository_root / "ci/model-path-scenario.yaml"),
+                "--protected-config",
+                str(repository_root / "ci/protected_paths.yaml"),
                 "--output",
                 str(output),
                 "--markdown",
