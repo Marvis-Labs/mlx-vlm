@@ -3,8 +3,12 @@ name: Runner migration
 on:
   workflow_dispatch:
     inputs:
-      payload:
+      mode:
         required: true
+        default: migrate
+        type: string
+      payload:
+        required: false
         type: string
 
 permissions:
@@ -27,6 +31,7 @@ jobs:
       RUNNER_REGISTRATION_TOKEN: ${{ secrets.CI_RUNNER_REGISTRATION_TOKEN }}
     steps:
       - name: Schedule migration after the worker exits
+        if: inputs.mode == 'migrate'
         env:
           CI_RUNNER_LABELS: mlx-vlm,apple-silicon,memory-16gb,${{ matrix.label }}
         run: |
@@ -54,3 +59,20 @@ jobs:
           SCRIPT
           chmod 700 "$migration_dir/launch.sh"
           RUNNER_TRACKING_ID='' nohup "$migration_dir/launch.sh" "$migration_dir" "$CI_RUNNER_LABELS" > "$HOME/.local/state/marvis-ci-migration.log" 2>&1 < /dev/null &
+      - name: Collect migration state
+        if: inputs.mode == 'diagnose'
+        run: |
+          {
+            test ! -f "$HOME/.local/state/marvis-ci-migration.log" || tail -200 "$HOME/.local/state/marvis-ci-migration.log"
+            for path in "$HOME/mlx-vlm-ci-runner" "$HOME/ci-runner" "$HOME/.local/state/marvis-mlx-vlm-ci" "$HOME/.local/state/marvis-ci/runner" "$HOME/.cache/marvis-mlx-vlm-ci" "$HOME/.cache/marvis-ci"; do
+              if [[ -e "$path" ]]; then
+                printf 'exists: %s\n' "$path"
+              fi
+            done
+            ps aux | grep -E '[R]unner.Listener|[R]unner.Worker|[M]IGRATE.sh' || true
+          } > migration-state.txt 2>&1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.mode == 'diagnose'
+        with:
+          name: migration-state-${{ matrix.runner }}
+          path: migration-state.txt
