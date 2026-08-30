@@ -84,6 +84,7 @@ def control_record(
         "run_url": run_url,
         "rules": plan["rules"],
         "components": plan["components"],
+        "checks": plan["checks"],
         "jobs": plan["jobs"],
         "gates": plan["gates"],
         "errors": [_error_record(item) for item in plan["blocked"]],
@@ -172,7 +173,7 @@ def _error_record(blocker: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _validate_plan(plan: Mapping[str, Any]) -> None:
-    required_lists = ("rules", "components", "jobs", "gates", "blocked")
+    required_lists = ("rules", "components", "checks", "jobs", "gates", "blocked")
     if plan.get("schema_version") != 1:
         raise ControlError("unsupported plan schema_version")
     if not isinstance(plan.get("head_sha"), str) or not plan["head_sha"]:
@@ -180,6 +181,7 @@ def _validate_plan(plan: Mapping[str, Any]) -> None:
     if any(not isinstance(plan.get(key), list) for key in required_lists):
         raise ControlError("plan collections must be lists")
     _require_unique_job_ids(plan["jobs"])
+    _require_unique_check_ids(plan["checks"])
 
 
 def _validate_control(control: Mapping[str, Any]) -> None:
@@ -226,6 +228,16 @@ def _require_unique_job_ids(jobs: Sequence[Mapping[str, Any]]) -> None:
         raise ControlError("job ids must be unique")
 
 
+def _require_unique_check_ids(checks: Sequence[Mapping[str, Any]]) -> None:
+    identifiers = [check.get("id") for check in checks]
+    if any(
+        not isinstance(identifier, str) or not identifier for identifier in identifiers
+    ):
+        raise ControlError("every hosted check requires an id")
+    if len(identifiers) != len(set(identifiers)):
+        raise ControlError("hosted check ids must be unique")
+
+
 def _canonical(value: Mapping[str, Any]) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
@@ -262,6 +274,7 @@ def _write_record(
             stream.write(f"outcome={record['outcome']}\n")
             stream.write(f"has_gates={str(bool(record['gates'])).lower()}\n")
             stream.write(f"has_jobs={str(bool(record['jobs'])).lower()}\n")
+            stream.write(f"has_hosted_checks={str(bool(record['checks'])).lower()}\n")
 
 
 def _blocked_plan(head_sha: str, reason: str, detail: str) -> dict[str, Any]:
@@ -270,6 +283,7 @@ def _blocked_plan(head_sha: str, reason: str, detail: str) -> dict[str, Any]:
         "head_sha": head_sha,
         "rules": [],
         "components": [],
+        "checks": [],
         "jobs": [],
         "gates": [],
         "blocked": [

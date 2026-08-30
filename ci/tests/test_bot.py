@@ -20,13 +20,16 @@ def job(model, mode=None):
     return value
 
 
-def record(*, jobs=None, gates=None, errors=None, results=None, kind="ci_control"):
+def record(
+    *, checks=None, jobs=None, gates=None, errors=None, results=None, kind="ci_control"
+):
     return {
         "schema_version": 1,
         "kind": kind,
         "head_sha": "abc123",
         "outcome": "ready",
         "run_url": "https://example.com/run",
+        "checks": checks or [],
         "jobs": jobs or [],
         "gates": gates or [],
         "errors": errors or [],
@@ -226,6 +229,55 @@ def test_unknown_component_requires_its_own_renderer():
 
     with pytest.raises(BotOutputError, match="component_path"):
         BotOutput(record(jobs=[unknown])).render()
+
+
+def test_docs_check_renders_queued_then_passed():
+    check = {
+        "id": "docs",
+        "work_type": "Docs",
+        "component": "docs_change",
+        "changed_paths": ["README.md"],
+    }
+
+    queued = BotOutput(record(checks=[check])).render()
+    passed = BotOutput(
+        record(
+            checks=[check],
+            results=[
+                {
+                    "component": "docs_change",
+                    "check_id": "docs",
+                    "outcome": "passed",
+                    "changed_paths": ["README.md"],
+                    "findings": {"new_errors": []},
+                }
+            ],
+        )
+    ).render()
+
+    assert "Documentation</strong> · DocsChange · Queued" in queued
+    assert "Documentation</strong> · DocsChange · Passed" in passed
+
+
+def test_docs_failure_lists_new_diagnostics():
+    check = {
+        "id": "docs",
+        "work_type": "Docs",
+        "component": "docs_change",
+        "changed_paths": ["docs/usage.md"],
+    }
+    result = {
+        "component": "docs_change",
+        "check_id": "docs",
+        "outcome": "test_failure",
+        "changed_paths": ["docs/usage.md"],
+        "findings": {"new_errors": ["docs/usage.md: missing local target nope.md"]},
+    }
+
+    rendered = BotOutput(record(checks=[check], results=[result])).render()
+
+    assert "Documentation</strong> · DocsChange · Test failed" in rendered
+    assert "missing local target nope.md" in rendered
 
 
 def test_no_eligible_runner_is_reported_inside_affected_model_section():

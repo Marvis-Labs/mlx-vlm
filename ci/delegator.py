@@ -23,6 +23,32 @@ class ChangeComponent(Protocol):
     ) -> dict[str, Any]: ...
 
 
+class DocsChange:
+    """Plan trusted, GitHub-hosted validation for documentation changes."""
+
+    name = "docs_change"
+
+    def plan(
+        self, matches: Sequence[ChangeMatch], context: ChangeContext
+    ) -> dict[str, Any]:
+        paths = sorted({match.path for match in matches})
+        return {
+            "component": self.name,
+            "checks": [
+                {
+                    "id": "docs",
+                    "work_type": "Docs",
+                    "component": self.name,
+                    "execution_target": "github_hosted",
+                    "changed_paths": paths,
+                }
+            ],
+            "jobs": [],
+            "gates": [],
+            "blocked": [],
+        }
+
+
 class ModelPath:
     """Build CI jobs for configured existing-model changes."""
 
@@ -391,6 +417,7 @@ class Delegator:
             "head_sha": context.head_sha,
             "rules": list(dict.fromkeys(match.rule for match in matches)),
             "components": [plan["component"] for plan in plans],
+            "checks": [check for plan in plans for check in plan.get("checks", [])],
             "jobs": [job for plan in plans for job in plan["jobs"]],
             "gates": [gate for plan in plans for gate in plan["gates"]],
             "blocked": [item for plan in plans for item in plan["blocked"]]
@@ -514,7 +541,7 @@ def create_delegator(
     )
     return Delegator(
         ChangeDetector.from_yaml(rules_config),
-        [NewModelPath(model_path), model_path],
+        [DocsChange(), NewModelPath(model_path), model_path],
     )
 
 

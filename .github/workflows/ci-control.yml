@@ -19,6 +19,7 @@ jobs:
       outcome: ${{ steps.control.outputs.outcome }}
       has_gates: ${{ steps.control.outputs.has_gates }}
       has_jobs: ${{ steps.control.outputs.has_jobs }}
+      has_hosted_checks: ${{ steps.control.outputs.has_hosted_checks }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -82,9 +83,75 @@ jobs:
         if: steps.control.outputs.outcome == 'blocked'
         run: exit 1
 
-  release:
+  hosted_checks:
     needs: plan
-    if: needs.plan.outputs.outcome == 'ready'
+    if: needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.hosted.outputs.outcome }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ci-control-${{ github.run_id }}
+      - name: Resolve plan without hosted work
+        if: needs.plan.outputs.has_hosted_checks != 'true'
+        run: cp control.json resolved-control.json
+      - name: Fetch immutable pull request head
+        if: needs.plan.outputs.has_hosted_checks == 'true'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch --no-tags origin "pull/$PR_NUMBER/head"
+          test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA"
+      - name: Install pinned hosted-check dependency
+        if: needs.plan.outputs.has_hosted_checks == 'true'
+        run: python -m pip install --quiet pyyaml==6.0.3
+      - name: Run trusted hosted checks
+        id: hosted
+        if: needs.plan.outputs.has_hosted_checks == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python -m ci.hosted_checks \
+            --control control.json \
+            --repository-path . \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --output resolved-control.json \
+            --markdown hosted-summary.md \
+            --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-hosted-control-${{ github.run_id }}
+          path: resolved-control.json
+      - name: Update pull request status
+        if: needs.plan.outputs.has_hosted_checks == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_REPOSITORY: ${{ github.repository }}
+          CI_PR: ${{ github.event.pull_request.number }}
+          CI_SUMMARY: hosted-summary.md
+        run: bash .github/scripts/upsert-ci-plan.sh
+      - name: Enforce hosted-check result
+        if: steps.hosted.outputs.outcome == 'test_failure' || steps.hosted.outputs.outcome == 'infrastructure_failure'
+        run: exit 1
+
+  release:
+    needs: [plan, hosted_checks]
+    if: needs.plan.outputs.outcome == 'ready' && needs.plan.outputs.has_jobs == 'true' && needs.hosted_checks.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -102,7 +169,7 @@ jobs:
         run: python -m pip install --quiet pyyaml==6.0.3
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: ci-control-${{ github.run_id }}
+          name: ci-hosted-control-${{ github.run_id }}
       - name: Release immutable job manifest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,7 +177,7 @@ jobs:
         run: |
           current_head="$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .head.sha)"
           python -m ci.control release \
-            --control control.json \
+            --control resolved-control.json \
             --current-head "$current_head" \
             --output runner-plan.json \
             --markdown approved-summary.md
@@ -120,8 +187,8 @@ jobs:
           path: runner-plan.json
 
   approve-new-model:
-    needs: plan
-    if: needs.plan.outputs.outcome == 'awaiting_approval'
+    needs: [plan, hosted_checks]
+    if: needs.plan.outputs.outcome == 'awaiting_approval' && needs.hosted_checks.result == 'success'
     environment: apple-silicon-ci
     runs-on: ubuntu-latest
     permissions:
@@ -140,7 +207,7 @@ jobs:
         run: python -m pip install --quiet pyyaml==6.0.3
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: ci-control-${{ github.run_id }}
+          name: ci-hosted-control-${{ github.run_id }}
       - name: Verify protected environment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -154,7 +221,7 @@ jobs:
         run: |
           current_head="$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .head.sha)"
           python -m ci.control release \
-            --control control.json \
+            --control resolved-control.json \
             --current-head "$current_head" \
             --approve-gates \
             --output runner-plan.json \

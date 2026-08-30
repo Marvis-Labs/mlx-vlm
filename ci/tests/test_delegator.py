@@ -4,7 +4,14 @@ from pathlib import Path
 import yaml
 
 from ci.change_rules import ChangeDetector
-from ci.delegator import Delegator, ModelPath, NewModelPath, _parse_name_status, main
+from ci.delegator import (
+    Delegator,
+    DocsChange,
+    ModelPath,
+    NewModelPath,
+    _parse_name_status,
+    main,
+)
 
 
 def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -56,10 +63,18 @@ def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
     rules_config = {
         "schema_version": 1,
         "rules": {
+            "docs_change": {
+                "component": "docs_change",
+                "include": ["*.md", "**/*.md", "mkdocs.yml", "docs/**"],
+                "exclude": [],
+            },
             "new_model_path": {
                 "component": "new_model_path",
                 "include": ["mlx_vlm/models/{model}/**"],
-                "exclude": [],
+                "exclude": [
+                    "mlx_vlm/models/{model}/*.md",
+                    "mlx_vlm/models/{model}/**/*.md",
+                ],
                 "base_path_absent": "mlx_vlm/models/{model}",
                 "head_path_present": "mlx_vlm/models/{model}",
                 "supersedes": ["model_path"],
@@ -67,7 +82,10 @@ def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
             "model_path": {
                 "component": "model_path",
                 "include": ["mlx_vlm/models/{model}/**"],
-                "exclude": [],
+                "exclude": [
+                    "mlx_vlm/models/{model}/*.md",
+                    "mlx_vlm/models/{model}/**/*.md",
+                ],
             },
         },
     }
@@ -85,8 +103,66 @@ def make_delegator(tmp_path: Path) -> Delegator:
     model_path = ModelPath(model_config, scenario_config)
     return Delegator(
         ChangeDetector.from_yaml(rules_config),
-        [NewModelPath(model_path), model_path],
+        [DocsChange(), NewModelPath(model_path), model_path],
     )
+
+
+def test_docs_emit_one_hosted_check(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        ["README.md", "docs/usage.md", "docs/usage.md"], head_sha="abc123"
+    )
+
+    assert plan["rules"] == ["docs_change"]
+    assert plan["components"] == ["docs_change"]
+    assert plan["jobs"] == []
+    assert plan["checks"] == [
+        {
+            "id": "docs",
+            "work_type": "Docs",
+            "component": "docs_change",
+            "execution_target": "github_hosted",
+            "changed_paths": ["README.md", "docs/usage.md"],
+        }
+    ]
+
+
+def test_model_readme_is_docs_only(tmp_path):
+    plan = make_delegator(tmp_path).plan(["mlx_vlm/models/ready/README.md"])
+
+    assert plan["components"] == ["docs_change"]
+    assert plan["checks"][0]["component"] == "docs_change"
+    assert plan["jobs"] == []
+
+
+def test_model_code_and_readme_plan_docs_and_model_work(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        [
+            "mlx_vlm/models/ready/README.md",
+            "mlx_vlm/models/ready/vision.py",
+        ]
+    )
+
+    assert plan["components"] == ["docs_change", "model_path"]
+    assert plan["checks"][0]["component"] == "docs_change"
+    assert plan["jobs"][0]["model"] == "ready"
+    assert plan["jobs"][0]["changed_paths"] == ["mlx_vlm/models/ready/vision.py"]
+
+
+def test_each_changed_path_is_routed_independently(tmp_path):
+    plan = make_delegator(tmp_path).plan(
+        [
+            "docs/usage.md",
+            "mlx_vlm/models/ready/vision.py",
+            "mlx_vlm/models/second/language.py",
+        ]
+    )
+
+    assert plan["rules"] == ["docs_change", "model_path"]
+    assert plan["components"] == ["docs_change", "model_path"]
+    assert plan["checks"][0]["changed_paths"] == ["docs/usage.md"]
+    assert [job["model"] for job in plan["jobs"]] == ["ready", "second"]
+    assert plan["jobs"][0]["changed_paths"] == ["mlx_vlm/models/ready/vision.py"]
+    assert plan["jobs"][1]["changed_paths"] == ["mlx_vlm/models/second/language.py"]
 
 
 def test_configured_model_emits_one_model_path_work_item(tmp_path):
@@ -220,7 +296,7 @@ def test_invalid_scenario_config_blocks_configured_modes(tmp_path):
     ]
 
 
-def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
+def test_docs_are_classified_while_unregistered_code_is_ignored(tmp_path):
     plan = make_delegator(tmp_path).plan(
         ["mlx_vlm/models/attention.py", "mlx_vlm/server/app.py", "README.md"]
     )
@@ -228,8 +304,17 @@ def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
     assert plan == {
         "schema_version": 1,
         "head_sha": None,
-        "rules": [],
-        "components": [],
+        "rules": ["docs_change"],
+        "components": ["docs_change"],
+        "checks": [
+            {
+                "id": "docs",
+                "work_type": "Docs",
+                "component": "docs_change",
+                "execution_target": "github_hosted",
+                "changed_paths": ["README.md"],
+            }
+        ],
         "jobs": [],
         "gates": [],
         "blocked": [],

@@ -509,6 +509,94 @@ class ModelPathOutput:
         return f"{prefix}: leased by attempt {owner} until {expiry}"
 
 
+class DocsChangeOutput:
+    """Render the repository documentation validation result."""
+
+    component_names = frozenset({"docs_change"})
+
+    def sections(self, record: Mapping[str, Any]) -> Sequence[BotSection]:
+        checks = [
+            check
+            for check in _items(record, "checks")
+            if check.get("component") in self.component_names
+        ]
+        results = [
+            result
+            for result in _items(record, "results")
+            if result.get("component") in self.component_names
+        ]
+        errors = [
+            error
+            for error in _items(record, "errors")
+            if error.get("component") in self.component_names
+        ]
+        if not checks and not results and not errors:
+            return ()
+        paths = {
+            str(path)
+            for item in (*checks, *results)
+            for path in item.get("changed_paths", [])
+        }
+        for error in errors:
+            details = error.get("details", {})
+            if isinstance(details, Mapping):
+                paths.update(str(path) for path in details.get("changed_paths", []))
+        status = self._status(checks, results, errors)
+        findings = results[-1].get("findings", {}) if results else {}
+        messages = (
+            tuple(
+                str(message)
+                for message in findings.get("new_errors", [])[:8]
+                if isinstance(message, str)
+            )
+            if isinstance(findings, Mapping)
+            else ()
+        )
+        stage_status = "Planned"
+        if errors:
+            stage_status = "Blocked"
+        elif results:
+            stage_status = status
+        return (
+            BotSection(
+                title="Documentation",
+                component="DocsChange",
+                status=status,
+                paths=tuple(sorted(paths)),
+                stages=(
+                    BotStage(
+                        name="Documentation",
+                        status=stage_status,
+                        detail="local links and MkDocs navigation",
+                    ),
+                ),
+                metrics=(),
+                messages=messages,
+            ),
+        )
+
+    @staticmethod
+    def _status(
+        checks: Sequence[Mapping[str, Any]],
+        results: Sequence[Mapping[str, Any]],
+        errors: Sequence[Mapping[str, Any]],
+    ) -> str:
+        if errors:
+            return "Blocked"
+        outcomes = {str(result.get("outcome", "")) for result in results}
+        for outcome in (
+            "test_failure",
+            "infrastructure_failure",
+            "cancelled",
+            "running",
+            "queued",
+            "passed",
+        ):
+            if outcome in outcomes:
+                return _label(outcome)
+        return "Queued" if checks else "No checks"
+
+
 class BotOutput:
     """Compose one GitHub comment from independent CI component sections."""
 
@@ -518,7 +606,7 @@ class BotOutput:
         components: Sequence[ComponentOutput] | None = None,
     ):
         self.record = record
-        self.components = tuple(components or (ModelPathOutput(),))
+        self.components = tuple(components or (ModelPathOutput(), DocsChangeOutput()))
 
     def render(self) -> str:
         sections = tuple(
@@ -609,7 +697,7 @@ class BotOutput:
         )
         encountered = {
             str(item.get("component"))
-            for key in ("jobs", "gates", "results")
+            for key in ("checks", "jobs", "gates", "results")
             for item in _items(self.record, key)
             if item.get("component")
         }

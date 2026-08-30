@@ -17,12 +17,13 @@ from ci.control import (
 )
 
 
-def plan(*, jobs=None, gates=None, blocked=None, head_sha="abc123"):
+def plan(*, checks=None, jobs=None, gates=None, blocked=None, head_sha="abc123"):
     return {
         "schema_version": 1,
         "head_sha": head_sha,
         "rules": [],
         "components": [],
+        "checks": checks or [],
         "jobs": jobs or [],
         "gates": gates or [],
         "blocked": blocked or [],
@@ -157,6 +158,20 @@ def test_release_rejects_duplicate_job_ids():
 
     with pytest.raises(ControlError, match="job ids must be unique"):
         release_control(record, "abc123", approve_gates=True)
+
+
+def test_control_preserves_hosted_checks():
+    check = {
+        "id": "docs",
+        "work_type": "Docs",
+        "component": "docs_change",
+        "execution_target": "github_hosted",
+        "changed_paths": ["README.md"],
+    }
+
+    record = control_record(plan(checks=[check]), "example/repository", 8)
+
+    assert record["checks"] == [check]
 
 
 def test_release_rejects_job_outside_gate_scope():
