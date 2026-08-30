@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import argparse
-import json
-from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from ci.runner_selection import Device
-from ci.scheduler import create_dispatch
 
 
 class DeviceInventoryError(ValueError):
@@ -125,39 +121,3 @@ def model_path_work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if len(identifiers) != len(set(identifiers)):
         raise DeviceInventoryError("ModelPath work item ids must be unique")
     return selected
-
-
-def checkpoint_job(plan: Mapping[str, Any]) -> Mapping[str, Any]:
-    selected = model_path_work_items(plan)
-    if len(selected) != 1:
-        raise DeviceInventoryError("exactly one ModelPath work item is required")
-    return selected[0]
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--plan", type=Path, required=True)
-    parser.add_argument("--devices", type=Path, required=True)
-    parser.add_argument("--busy", type=Path, required=True)
-    parser.add_argument("--dispatch", type=Path, required=True)
-    parser.add_argument("--job", type=Path, required=True)
-    args = parser.parse_args(argv)
-
-    plan = json.loads(args.plan.read_text())
-    device_config = json.loads(args.devices.read_text())
-    busy = json.loads(args.busy.read_text())
-    if not isinstance(plan, Mapping) or not isinstance(device_config, list):
-        raise DeviceInventoryError("plan must be an object and devices must be a list")
-    if not isinstance(busy, list) or any(not isinstance(name, str) for name in busy):
-        raise DeviceInventoryError("busy runner inventory must be a list of names")
-
-    state = create_dispatch(
-        checkpoint_job(plan), configured_devices(device_config, set(busy))
-    )
-    args.dispatch.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
-    args.job.write_text(json.dumps(state["job"], indent=2, sort_keys=True) + "\n")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

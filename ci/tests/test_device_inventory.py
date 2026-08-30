@@ -1,13 +1,10 @@
-import json
-
 import pytest
 
 from ci.device_inventory import (
     DeviceInventoryError,
-    checkpoint_job,
     configured_devices,
     devices_from_github,
-    main,
+    model_path_work_items,
 )
 
 
@@ -51,12 +48,22 @@ def test_github_inventory_preserves_order_and_runner_state():
     assert devices[-1].busy is True
 
 
-def test_checkpoint_job_requires_exactly_one_model():
+def test_model_path_inventory_accepts_multiple_independent_work_items():
     second = job()
     second["id"] = "model_path:second"
     second["model"] = "second"
-    with pytest.raises(DeviceInventoryError, match="exactly one"):
-        checkpoint_job({"jobs": [job(), second]})
+
+    selected = model_path_work_items({"jobs": [job(), second]})
+
+    assert [item["model"] for item in selected] == ["qwen2_vl", "second"]
+
+
+def test_model_path_inventory_rejects_unsupported_work():
+    unsupported = job()
+    unsupported["work_type"] = "ComponentPath"
+
+    with pytest.raises(DeviceInventoryError, match="unsupported work"):
+        model_path_work_items({"jobs": [unsupported]})
 
 
 def test_configured_devices_marks_active_runner_busy():
@@ -86,40 +93,3 @@ def test_configured_devices_uses_live_online_state():
     assert devices[0].online is True
     assert devices[1].online is False
     assert devices[2].online is False
-
-
-def test_cli_selects_smallest_idle_device(tmp_path):
-    plan = tmp_path / "plan.json"
-    devices = tmp_path / "devices.json"
-    busy = tmp_path / "busy.json"
-    dispatch = tmp_path / "dispatch.json"
-    selected_job = tmp_path / "job.json"
-    plan.write_text(json.dumps({"jobs": [job()]}))
-    devices.write_text(
-        json.dumps(
-            [
-                {"name": "m5", "label": "device-m5", "memory_gib": 128},
-                {"name": "mini", "label": "device-mini", "memory_gib": 16},
-            ]
-        )
-    )
-    busy.write_text("[]")
-
-    assert (
-        main(
-            [
-                "--plan",
-                str(plan),
-                "--devices",
-                str(devices),
-                "--busy",
-                str(busy),
-                "--dispatch",
-                str(dispatch),
-                "--job",
-                str(selected_job),
-            ]
-        )
-        == 0
-    )
-    assert json.loads(dispatch.read_text())["next_device"]["name"] == "mini"
