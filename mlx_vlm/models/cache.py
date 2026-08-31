@@ -372,7 +372,7 @@ class KVCache(_BaseCache):
         return self.keys[..., : self.offset, :], self.values[..., : self.offset, :]
 
     def size(self):
-        return self.offset
+        return int(self.offset)
 
     @property
     def state(self):
