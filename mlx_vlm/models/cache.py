@@ -340,6 +340,8 @@ class QuantizedKVCache(_BaseCache):
 
 
 class KVCache(_BaseCache):
+    """Store dense key-value states for autoregressive generation."""
+
     step = 256
 
     def __init__(self):
