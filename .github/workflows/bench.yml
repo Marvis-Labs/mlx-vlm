@@ -99,7 +99,7 @@ jobs:
         run: |
           test -n "$CI_DEVICES"
           printf '%s\n' "$CI_DEVICES" > devices.json
-          gh api "repos/${{ github.repository }}/actions/runners?per_page=100" > live-runners.json
+          jq '{runners: map({name, status: "online", busy: false})}' devices.json > live-runners.json
           : > busy-runners.txt
           gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
             --jq '.workflow_runs[].id' | while read -r run_id; do
@@ -231,7 +231,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ needs.prepare.outputs.base || github.workflow_sha }}
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -249,8 +249,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           printf '%s\n' "$CI_DEVICES" > devices.json
-          gh api "repos/${{ github.repository }}/actions/runners?per_page=100" > live-runners.json
-          jq '[.runners[] | select(.busy == true) | .name]' live-runners.json > busy.json
+          jq '{runners: map({name, status: "online", busy: false})}' devices.json > live-runners.json
+          : > busy-runners.txt
+          gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
+            --jq '.workflow_runs[].id' | while read -r run_id; do
+              gh api "repos/${{ github.repository }}/actions/runs/$run_id/jobs?filter=latest&per_page=100" \
+                --jq '.jobs[] | select(.status == "in_progress") | .runner_name'
+            done >> busy-runners.txt
+          jq -Rsc 'split("\n") | map(select(length > 0))' busy-runners.txt > busy.json
       - name: Escalate declined or missing work
         id: dispatch
         env:
@@ -366,7 +372,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ needs.prepare.outputs.base || github.workflow_sha }}
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -470,3 +476,12 @@ jobs:
           path: |
             final-record.json
             summary.md
+      - name: Enforce terminal result
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+
+          outcome = json.load(open("final-record.json"))["outcome"]
+          raise SystemExit(0 if outcome in {"passed", "improved", "coalesced"} else 1)
+          PY

@@ -106,7 +106,11 @@ def run_probe(
         ]
         for profile in profiles:
             command.extend(("--profile", profile))
-        subprocess.run(command, check=True, env=environment)
+        completed = subprocess.run(command, env=environment)
+        if completed.returncode not in {0, 2}:
+            raise subprocess.CalledProcessError(completed.returncode, command)
+        if not output.is_file():
+            raise RuntimeError("KV cache contract probe produced no findings")
     value = json.loads(output.read_text())
     if not isinstance(value, Mapping):
         raise RuntimeError("KV cache contract probe output must be an object")
