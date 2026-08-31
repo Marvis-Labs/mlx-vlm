@@ -99,7 +99,7 @@ jobs:
         run: |
           test -n "$CI_DEVICES"
           printf '%s\n' "$CI_DEVICES" > devices.json
-          gh api "repos/${{ github.repository }}/actions/runners?per_page=100" > live-runners.json
+          jq '{runners: map({name, status: "online", busy: false})}' devices.json > live-runners.json
           : > busy-runners.txt
           gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
             --jq '.workflow_runs[].id' | while read -r run_id; do
@@ -249,8 +249,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           printf '%s\n' "$CI_DEVICES" > devices.json
-          gh api "repos/${{ github.repository }}/actions/runners?per_page=100" > live-runners.json
-          jq '[.runners[] | select(.busy == true) | .name]' live-runners.json > busy.json
+          jq '{runners: map({name, status: "online", busy: false})}' devices.json > live-runners.json
+          : > busy-runners.txt
+          gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
+            --jq '.workflow_runs[].id' | while read -r run_id; do
+              gh api "repos/${{ github.repository }}/actions/runs/$run_id/jobs?filter=latest&per_page=100" \
+                --jq '.jobs[] | select(.status == "in_progress") | .runner_name'
+            done >> busy-runners.txt
+          jq -Rsc 'split("\n") | map(select(length > 0))' busy-runners.txt > busy.json
       - name: Escalate declined or missing work
         id: dispatch
         env:
