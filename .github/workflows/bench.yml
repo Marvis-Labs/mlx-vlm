@@ -476,3 +476,12 @@ jobs:
           path: |
             final-record.json
             summary.md
+      - name: Enforce terminal result
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+
+          outcome = json.load(open("final-record.json"))["outcome"]
+          raise SystemExit(0 if outcome in {"passed", "improved", "coalesced"} else 1)
+          PY
