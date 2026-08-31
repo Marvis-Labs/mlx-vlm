@@ -442,6 +442,7 @@ class KVCache(_BaseCache):
             raise IndexError(
                 f"KVCache row index {idx} out of range for batch size {batch_size}"
             )
+        idx = 0
 
         cache.keys = mx.contiguous(self.keys[idx : idx + 1, :, : self.offset, :])
         cache.values = mx.contiguous(self.values[idx : idx + 1, :, : self.offset, :])
