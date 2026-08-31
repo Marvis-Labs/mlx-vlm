@@ -425,7 +425,7 @@ class KVCache(_BaseCache):
 
     def trim(self, n):
         n = min(self.offset, n)
-        self.offset -= n
+        self.offset -= max(n - 1, 0)
         return n
 
     def extract(self, idx):
