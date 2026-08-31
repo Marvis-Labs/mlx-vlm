@@ -603,6 +603,149 @@ class MLPChangeOutput:
         )
 
 
+class KVCacheChangeOutput:
+    """Render one independently scheduled section per KV-cache storage profile."""
+
+    component_names = frozenset({"kv_cache_change"})
+
+    def sections(self, record: Mapping[str, Any]) -> Sequence[BotSection]:
+        jobs = [
+            job
+            for job in _items(record, "jobs")
+            if job.get("component") == "kv_cache_change"
+        ]
+        results = {
+            str(result.get("job_id")): result
+            for result in _items(record, "results")
+            if result.get("component") == "kv_cache_change"
+        }
+        return tuple(
+            self._section(record, job, results.get(str(job.get("id")))) for job in jobs
+        )
+
+    def _section(
+        self,
+        record: Mapping[str, Any],
+        job: Mapping[str, Any],
+        result: Mapping[str, Any] | None,
+    ) -> BotSection:
+        profile = str(job.get("profile", "unknown"))
+        contract = job.get("kv_cache_contract", {})
+        implementations = (
+            contract.get("implementations", []) if isinstance(contract, Mapping) else []
+        )
+        phase = self._phase(result)
+        status = self._status(record, result, bool(job))
+        phase_status = (
+            _label(str(phase.get("outcome", "unknown")))
+            if phase is not None
+            else (
+                _label(str(result.get("outcome", "unknown")))
+                if result is not None
+                else "Planned"
+            )
+        )
+        detail = ", ".join(str(value) for value in implementations)
+        return BotSection(
+            title=profile,
+            component="KVCacheChange",
+            status=status,
+            paths=tuple(sorted(str(path) for path in job.get("changed_paths", []))),
+            stages=(BotStage("KV cache contract", phase_status, detail),),
+            metrics=(),
+            messages=self._messages(job, result, phase),
+        )
+
+    @staticmethod
+    def _phase(result: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+        if result is None:
+            return None
+        phases = result.get("phases")
+        if not isinstance(phases, Mapping):
+            return None
+        phase = phases.get("kv_cache_contract")
+        return phase if isinstance(phase, Mapping) else None
+
+    @staticmethod
+    def _status(
+        record: Mapping[str, Any], result: Mapping[str, Any] | None, has_job: bool
+    ) -> str:
+        if result is not None:
+            return _label(str(result.get("outcome", "unknown")))
+        if record.get("kind") == "approved_job_plan" and has_job:
+            return "Ready for runner dispatch"
+        return "Awaiting /ci run" if has_job else "No jobs"
+
+    def _messages(
+        self,
+        job: Mapping[str, Any],
+        result: Mapping[str, Any] | None,
+        phase: Mapping[str, Any] | None,
+    ) -> tuple[str, ...]:
+        messages = [
+            f"Head: {job.get('head_sha', 'unknown')}; trusted contract: {job.get('contract_sha', 'unknown')}."
+        ]
+        if result is None:
+            return tuple(messages)
+        if result.get("outcome") == "no_eligible_runner":
+            messages.append(
+                f"No eligible runner; requires {result.get('required_memory_gib', 'unknown')} GiB memory."
+            )
+            return tuple(messages)
+        selected = result.get("selected_device")
+        runner = (
+            selected.get("name", "unknown")
+            if isinstance(selected, Mapping)
+            else result.get("device", "not reported")
+        )
+        messages.append(f"Runner: {runner}.")
+        findings = (
+            phase.get("findings") if phase is not None else result.get("findings")
+        )
+        if isinstance(findings, Mapping):
+            messages.extend(self._run_messages(findings))
+            error = findings.get("error")
+            if error:
+                messages.append(f"Contract execution failed: {error}.")
+        messages.append(
+            f"Terminal state: {_label(str(result.get('outcome', 'unknown')))}."
+        )
+        return tuple(messages)
+
+    @staticmethod
+    def _run_messages(findings: Mapping[str, Any]) -> tuple[str, ...]:
+        messages: list[str] = []
+        for case in findings.get("cases", []):
+            if not isinstance(case, Mapping):
+                continue
+            runs = [
+                str(run.get("sequence"))
+                for run in case.get("runs", [])
+                if isinstance(run, Mapping) and run.get("sequence")
+            ]
+            deterministic = [name for name in runs if "-state-machine-" not in name]
+            state_machines = len(runs) - len(deterministic)
+            run_summary = ", ".join(deterministic)
+            if state_machines:
+                suffix = f"{state_machines} seeded state-machine runs"
+                run_summary = f"{run_summary}, {suffix}" if run_summary else suffix
+            messages.append(
+                f"{case.get('case', 'cache')}: {case.get('checks', 0)} checks; "
+                + (run_summary if runs else "no runs reported")
+                + "."
+            )
+            failures = case.get("failures", [])
+            if isinstance(failures, Sequence) and failures:
+                first = failures[0]
+                if isinstance(first, Mapping):
+                    messages.append(
+                        "First failure: "
+                        f"{first.get('sequence', 'unknown')} step {first.get('step', '?')} "
+                        f"{first.get('characteristic', first.get('reason', 'unknown'))}."
+                    )
+        return tuple(messages)
+
+
 class BotOutput:
     """Compose one GitHub comment from independent CI component sections."""
 
@@ -612,7 +755,9 @@ class BotOutput:
         components: Sequence[ComponentOutput] | None = None,
     ):
         self.record = record
-        self.components = tuple(components or (MLPChangeOutput(), ModelPathOutput()))
+        self.components = tuple(
+            components or (KVCacheChangeOutput(), MLPChangeOutput(), ModelPathOutput())
+        )
 
     def render(self) -> str:
         sections = tuple(
@@ -733,6 +878,7 @@ def _items(record: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
 
 def _stage_name(mode: str) -> str:
     return {
+        "kv_cache_contract": "KV cache contract",
         "mlp_contract": "MLP contract",
         "synthetic": "Synthetic",
         "hf_checkpoint": "HF checkpoint",

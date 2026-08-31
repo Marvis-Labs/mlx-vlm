@@ -13,12 +13,15 @@ def work_args(tmp_path, phases):
         synthetic_probe=tmp_path / "synthetic-probe.py",
         mlp_compare=tmp_path / "mlp-compare.py",
         mlp_probe=tmp_path / "mlp-probe.py",
+        kv_cache_compare=tmp_path / "kv-cache-compare.py",
+        kv_cache_probe=tmp_path / "kv-cache-probe.py",
         hf_compare=tmp_path / "hf-compare.py",
         hf_probe=tmp_path / "hf-probe.py",
         job=job,
         profiles=tmp_path / "profiles.yaml",
         base=tmp_path / "base",
         head=tmp_path / "head",
+        control=tmp_path / "control",
         image=tmp_path / "cat.jpg",
         max_tokens=16,
     )
@@ -107,3 +110,24 @@ def test_mlp_contract_runs_before_optional_checkpoint(monkeypatch, tmp_path):
     assert list(result["phases"]) == ["mlp_contract", "hf_checkpoint"]
     assert "mlp-compare.py" in calls[0][1]
     assert "hf-compare.py" in calls[1][1]
+
+
+def test_kv_cache_contract_runs_only_against_head(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(command, path):
+        calls.append(command)
+        return 0, {"verdict": "passed", "correctness": {"match": True}}
+
+    monkeypatch.setattr("ci.model_path_work._run", fake_run)
+    monkeypatch.setenv("CI_JOB_FINDINGS", str(tmp_path / "findings.json"))
+
+    code, result = run(work_args(tmp_path, ["kv_cache_contract"]))
+
+    assert code == 0
+    assert result["verdict"] == "passed"
+    command = calls[0]
+    assert "kv-cache-compare.py" in command[1]
+    assert "--head" in command
+    assert "--control" in command
+    assert "--base" not in command

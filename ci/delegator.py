@@ -13,6 +13,7 @@ from typing import Any, Iterable, Mapping, Protocol, Sequence
 import yaml
 
 from ci.change_rules import ChangeContext, ChangeDetector, ChangeMatch
+from ci.kv_cache_change import KVCacheChange
 from ci.mlp_change import GitSource, MLPChange
 
 
@@ -356,6 +357,7 @@ class Delegator:
         head_files: Iterable[str] = (),
         head_sha: str | None = None,
         base_sha: str | None = None,
+        target_sha: str | None = None,
         tree_state_known: bool = False,
     ) -> dict[str, Any]:
         context = ChangeContext.create(
@@ -364,6 +366,7 @@ class Delegator:
             head_files,
             head_sha,
             base_sha,
+            target_sha,
             tree_state_known,
         )
         return self.plan_context(context)
@@ -404,6 +407,7 @@ class Delegator:
 @dataclass(frozen=True)
 class GitDiff:
     base_sha: str
+    target_sha: str
     head_sha: str
     changed_files: tuple[str, ...]
     base_files: tuple[str, ...]
@@ -416,6 +420,7 @@ class GitDiff:
             self.head_files,
             head_sha=self.head_sha,
             base_sha=self.base_sha,
+            target_sha=self.target_sha,
             tree_state_known=True,
         )
 
@@ -492,6 +497,7 @@ def diff_from_git(base: str, head: str, cwd: Path | None = None) -> GitDiff:
     )
     return GitDiff(
         base_sha=base_tree,
+        target_sha=base_commit,
         head_sha=head_commit,
         changed_files=_parse_name_status(result.stdout),
         base_files=_tree_files(base_tree, cwd),
@@ -520,7 +526,11 @@ def create_delegator(
         model_config,
         scenario_config,
     )
-    components: list[ChangeComponent] = [NewModelPath(model_path), model_path]
+    components: list[ChangeComponent] = [
+        KVCacheChange(),
+        NewModelPath(model_path),
+        model_path,
+    ]
     if mlp_config is not None:
         components.insert(
             0,

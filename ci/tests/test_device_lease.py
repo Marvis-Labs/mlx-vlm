@@ -261,6 +261,110 @@ def model_work(model, weight_bytes):
     }
 
 
+def cache_work():
+    return {
+        "id": "kv_cache_change:dense",
+        "work_type": "KVCacheChange",
+        "component": "kv_cache_change",
+        "profile": "dense",
+        "phases": ["kv_cache_contract"],
+        "minimum_memory_gib": 8,
+        "required_disk_gib": 2,
+    }
+
+
+def test_ten_back_to_back_cache_prs_fan_out_then_report_capacity():
+    client = FakeGitHubClient()
+    devices = [
+        Device("mini-1", "device-mini-1", 16),
+        Device("mini-2", "device-mini-2", 16),
+        Device("m5", "device-m5", 128),
+    ]
+    batches = [
+        acquire_plan_leases(
+            {"jobs": [cache_work()]},
+            devices,
+            GitHubRefLeaseStore("org/repo", client),
+            attempt_id=f"pr-{index}",
+            head_sha=f"head-{index}",
+            target_sha="target",
+            run_url=f"run-{index}",
+            ttl_seconds=300,
+            now=NOW,
+        )
+        for index in range(10)
+    ]
+
+    assigned = [
+        batch["items"][0]["lease"]["device"]
+        for batch in batches
+        if batch["items"][0]["lease"] is not None
+    ]
+    waiting = [
+        batch["items"][0] for batch in batches if batch["items"][0]["lease"] is None
+    ]
+
+    assert assigned == ["mini-1", "mini-2", "m5"]
+    assert len(waiting) == 7
+    assert all(item["dispatch"]["outcome"] == "no_eligible_runner" for item in waiting)
+    assert all(item["work"]["profile"] == "dense" for item in batches[0]["items"])
+
+
+def test_cache_contract_decline_retries_larger_device_with_profile_intact():
+    client = FakeGitHubClient()
+    store = GitHubRefLeaseStore("org/repo", client)
+    devices = [
+        Device("mini", "device-mini", 16),
+        Device("m5", "device-m5", 128),
+    ]
+    first = acquire_plan_leases(
+        {"jobs": [cache_work()]},
+        devices,
+        store,
+        attempt_id="cache-attempt",
+        head_sha="head",
+        target_sha="target",
+        run_url="run",
+        ttl_seconds=300,
+        now=NOW,
+    )
+    key = first["items"][0]["key"]
+
+    second = retry_batch(
+        first,
+        {
+            key: {
+                "decision": "declined",
+                "reason": "declined_disk",
+                "observed": {"available_disk_gib": 1},
+            }
+        },
+        devices,
+        store,
+        attempt_id="cache-attempt",
+        head_sha="head",
+        target_sha="target",
+        run_url="run",
+        ttl_seconds=300,
+        now=NOW,
+    )
+
+    item = second["items"][0]
+    assert item["execute"] is True
+    assert item["work"]["profile"] == "dense"
+    assert item["lease"]["device"] == "m5"
+    assert item["dispatch"]["attempts"] == [
+        {
+            "device": "mini",
+            "label": "device-mini",
+            "memory_gib": 16,
+            "decision": "declined",
+            "reason": "declined_disk",
+            "details": {"available_disk_gib": 1},
+        }
+    ]
+
+
 def test_batch_assigns_largest_work_first_then_uses_smallest_fit(tmp_path):
     plan = {
         "jobs": [

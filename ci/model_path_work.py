@@ -42,8 +42,20 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     job = json.loads(args.job.read_text())
     configured = job.get("phases", [])
     if not isinstance(configured, list) or not configured:
-        raise ValueError("ModelPath work has no phases")
+        raise ValueError("work item has no phases")
     commands = {
+        "kv_cache_contract": [
+            sys.executable,
+            str(args.kv_cache_compare),
+            "--job",
+            str(args.job),
+            "--control",
+            str(args.control),
+            "--head",
+            str(args.head),
+            "--probe",
+            str(args.kv_cache_probe),
+        ],
         "mlp_contract": [
             sys.executable,
             str(args.mlp_compare),
@@ -90,7 +102,7 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     phases: dict[str, Any] = {}
     for index, name in enumerate(configured):
         if name not in commands:
-            raise ValueError(f"unsupported ModelPath phase: {name}")
+            raise ValueError(f"unsupported work phase: {name}")
         code, findings = _run(
             commands[name], output.with_name(f"{output.stem}-{name}.json")
         )
@@ -131,6 +143,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--mlp-probe", type=Path, default=directory / "mlp_contract_probe.py"
     )
+    parser.add_argument(
+        "--kv-cache-compare",
+        type=Path,
+        default=directory / "kv_cache_contract_compare.py",
+    )
+    parser.add_argument(
+        "--kv-cache-probe",
+        type=Path,
+        default=directory / "kv_cache_contract_probe.py",
+    )
+    parser.add_argument("--control", type=Path, default=directory.parent)
     parser.add_argument("--hf-compare", type=Path, required=True)
     parser.add_argument("--hf-probe", type=Path, required=True)
     parser.add_argument("--image", type=Path, required=True)

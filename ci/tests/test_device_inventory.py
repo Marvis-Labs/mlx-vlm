@@ -5,6 +5,7 @@ from ci.device_inventory import (
     configured_devices,
     devices_from_github,
     model_path_work_items,
+    work_items,
 )
 
 
@@ -64,6 +65,20 @@ def test_model_path_inventory_rejects_unsupported_work():
 
     with pytest.raises(DeviceInventoryError, match="unsupported work"):
         model_path_work_items({"jobs": [unsupported]})
+
+
+def test_inventory_accepts_kv_cache_change_work():
+    cache = {
+        "id": "kv_cache_change:dense",
+        "work_type": "KVCacheChange",
+        "component": "kv_cache_change",
+        "profile": "dense",
+        "phases": ["kv_cache_contract"],
+        "minimum_memory_gib": 8,
+        "required_disk_gib": 2,
+    }
+
+    assert work_items({"jobs": [cache]}) == [cache]
 
 
 def test_configured_devices_marks_active_runner_busy():

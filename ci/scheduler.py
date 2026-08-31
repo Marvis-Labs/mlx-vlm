@@ -211,6 +211,7 @@ def _result(
     return {
         "component": str(job.get("component", "runner")),
         "model": job.get("model"),
+        "profile": job.get("profile"),
         "job_id": str(job.get("id", "")),
         "outcome": outcome,
         "required_memory_gib": required,

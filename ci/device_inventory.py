@@ -100,7 +100,13 @@ def configured_devices(
     return devices
 
 
-def model_path_work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+SUPPORTED_WORK = {
+    ("ModelPath", "model_path"),
+    ("KVCacheChange", "kv_cache_change"),
+}
+
+
+def work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     jobs = plan.get("jobs")
     if not isinstance(jobs, list):
         raise DeviceInventoryError("approved plan must contain a jobs list")
@@ -108,8 +114,7 @@ def model_path_work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         job
         for job in jobs
         if isinstance(job, Mapping)
-        and job.get("component") == "model_path"
-        and job.get("work_type") == "ModelPath"
+        and (job.get("work_type"), job.get("component")) in SUPPORTED_WORK
     ]
     if len(selected) != len(jobs):
         raise DeviceInventoryError("approved plan contains unsupported work")
@@ -117,7 +122,11 @@ def model_path_work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if any(
         not isinstance(identifier, str) or not identifier for identifier in identifiers
     ):
-        raise DeviceInventoryError("every ModelPath work item requires an id")
+        raise DeviceInventoryError("every work item requires an id")
     if len(identifiers) != len(set(identifiers)):
-        raise DeviceInventoryError("ModelPath work item ids must be unique")
+        raise DeviceInventoryError("work item ids must be unique")
     return selected
+
+
+def model_path_work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    return work_items(plan)

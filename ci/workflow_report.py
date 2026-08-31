@@ -90,6 +90,7 @@ def report_coalesced(
         {
             "component": str(job.get("component", "model_path")),
             "model": job.get("model"),
+            "profile": job.get("profile"),
             "job_id": str(job.get("id", "")),
             "outcome": "coalesced",
             "owner_attempt_id": owner_attempt_id,
@@ -150,6 +151,7 @@ def _execution(
     return {
         "component": str(job.get("component", "runner")),
         "model": job.get("model"),
+        "profile": job.get("profile"),
         "job_id": str(job.get("id", "")),
         "outcome": outcome,
         "selected_device": selected_device,
@@ -214,7 +216,7 @@ def _job(plan: Mapping[str, Any] | None) -> Mapping[str, Any]:
     if not isinstance(jobs, list):
         return {}
     for job in jobs:
-        if isinstance(job, Mapping) and job.get("work_type") == "ModelPath":
+        if isinstance(job, Mapping):
             return job
     return {}
 

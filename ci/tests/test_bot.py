@@ -247,6 +247,132 @@ def test_mlp_change_renders_symbol_summary_and_model_path_provenance():
     assert "| MLP contract | Planned | SwiGLUMLP |" in rendered
 
 
+def cache_job():
+    return {
+        "id": "kv_cache_change:dense",
+        "work_type": "KVCacheChange",
+        "component": "kv_cache_change",
+        "profile": "dense",
+        "changed_paths": ["mlx_vlm/models/cache.py"],
+        "phases": ["kv_cache_contract"],
+        "head_sha": "head-sha",
+        "contract_sha": "contract-sha",
+        "kv_cache_contract": {
+            "profile": "dense",
+            "implementations": ["KVCache", "SimpleKVCache"],
+        },
+    }
+
+
+def test_kv_cache_change_renders_a_profile_section_before_execution():
+    value = record(jobs=[cache_job()])
+    value["components"] = ["kv_cache_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>dense</strong> · KVCacheChange · Awaiting /ci run" in rendered
+    assert "| KV cache contract | Planned | KVCache, SimpleKVCache |" in rendered
+    assert "Head: head-sha; trusted contract: contract-sha" in rendered
+
+
+def test_kv_cache_execution_lists_every_contract_run():
+    result = {
+        "component": "kv_cache_change",
+        "job_id": "kv_cache_change:dense",
+        "outcome": "passed",
+        "device": "mini-1",
+        "phases": {
+            "kv_cache_contract": {
+                "outcome": "passed",
+                "findings": {
+                    "verdict": "passed",
+                    "checks": 168,
+                    "cases": [
+                        {
+                            "case": "KVCache",
+                            "checks": 102,
+                            "runs": [
+                                {"sequence": "append-trim-resume"},
+                                {"sequence": "snapshot-restore-resume"},
+                            ],
+                            "failures": [],
+                        },
+                        {
+                            "case": "SimpleKVCache",
+                            "checks": 66,
+                            "runs": [{"sequence": "append"}],
+                            "failures": [],
+                        },
+                    ],
+                },
+            }
+        },
+    }
+    value = record(jobs=[cache_job()], results=[result], kind="ci_execution")
+    value["components"] = ["kv_cache_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>dense</strong> · KVCacheChange · Passed" in rendered
+    assert (
+        "KVCache: 102 checks; append-trim-resume, snapshot-restore-resume" in rendered
+    )
+    assert "SimpleKVCache: 66 checks; append" in rendered
+    assert "Runner: mini-1" in rendered
+
+
+def test_kv_cache_execution_compacts_seeded_state_machine_runs():
+    runs = [
+        {"sequence": "append-trim-resume"},
+        *({"sequence": f"kv-state-machine-{index}"} for index in range(5)),
+    ]
+    result = {
+        "component": "kv_cache_change",
+        "job_id": "kv_cache_change:dense",
+        "outcome": "passed",
+        "phases": {
+            "kv_cache_contract": {
+                "outcome": "passed",
+                "findings": {
+                    "cases": [
+                        {
+                            "case": "KVCache",
+                            "checks": 774,
+                            "runs": runs,
+                            "failures": [],
+                        }
+                    ]
+                },
+            }
+        },
+    }
+    value = record(jobs=[cache_job()], results=[result], kind="ci_execution")
+    value["components"] = ["kv_cache_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "append-trim-resume, 5 seeded state-machine runs" in rendered
+    assert "kv-state-machine-0" not in rendered
+
+
+def test_kv_cache_runner_crash_is_terminal_not_planned():
+    result = {
+        "component": "kv_cache_change",
+        "job_id": "kv_cache_change:dense",
+        "profile": "dense",
+        "outcome": "infrastructure_failure",
+        "findings": {"error": "runner produced no result"},
+    }
+    value = record(jobs=[cache_job()], results=[result], kind="ci_execution")
+    value["components"] = ["kv_cache_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>dense</strong> · KVCacheChange · Infrastructure failed" in rendered
+    assert "| KV cache contract | Infrastructure failed |" in rendered
+    assert "Contract execution failed: runner produced no result." in rendered
+
+
 def test_no_eligible_runner_is_reported_inside_affected_model_section():
     jobs = [job(model, "hf_checkpoint") for model in ("pixtral", "qwen2_vl")]
     results = [

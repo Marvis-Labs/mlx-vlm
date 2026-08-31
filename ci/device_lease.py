@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
-from ci.device_inventory import configured_devices, model_path_work_items
+from ci.device_inventory import configured_devices, work_items
 from ci.runner_selection import Device, required_memory_gib
 from ci.scheduler import create_dispatch
 
@@ -345,9 +345,9 @@ def acquire_plan_leases(
     ttl_seconds: int,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    work_items = model_path_work_items(plan)
+    planned_work = work_items(plan)
     ordered = sorted(
-        enumerate(work_items),
+        enumerate(planned_work),
         key=lambda item: (-required_memory_gib(item[1]), item[0]),
     )
     leases_by_label: dict[str, DeviceLease] = {}
@@ -373,7 +373,13 @@ def acquire_plan_leases(
             ttl_seconds=ttl_seconds,
             now=now,
         )
-        key = f"{sequence:03d}-{_safe_key(str(work_item.get('model', 'model')))}"
+        subject = (
+            work_item.get("model")
+            or work_item.get("profile")
+            or work_item.get("work_type")
+            or "work"
+        )
+        key = f"{sequence:03d}-{_safe_key(str(subject))}"
         records.append(
             {
                 "key": key,

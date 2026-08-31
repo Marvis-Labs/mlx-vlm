@@ -4,7 +4,14 @@ from pathlib import Path
 import yaml
 
 from ci.change_rules import ChangeDetector
-from ci.delegator import Delegator, ModelPath, NewModelPath, _parse_name_status, main
+from ci.delegator import (
+    Delegator,
+    ModelPath,
+    NewModelPath,
+    _parse_name_status,
+    default_delegator,
+    main,
+)
 
 
 def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -234,6 +241,41 @@ def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
         "gates": [],
         "blocked": [],
     }
+
+
+def test_repository_cache_change_routes_to_trusted_dense_contract():
+    plan = default_delegator().plan(
+        ["mlx_vlm/models/cache.py", "README.md"],
+        base_sha="merge-base",
+        head_sha="head",
+        target_sha="target",
+    )
+
+    assert plan["rules"] == ["kv_cache_change"]
+    assert plan["components"] == ["kv_cache_change"]
+    assert len(plan["jobs"]) == 1
+    assert plan["jobs"][0]["id"] == "kv_cache_change:dense"
+    assert plan["jobs"][0]["head_sha"] == "head"
+    assert plan["jobs"][0]["contract_sha"] == "target"
+    assert plan["blocked"] == []
+
+
+def test_cache_and_model_changes_produce_independent_work_items():
+    plan = default_delegator().plan(
+        [
+            "mlx_vlm/models/cache.py",
+            "mlx_vlm/models/qwen2_vl/vision.py",
+        ],
+        base_sha="merge-base",
+        head_sha="head",
+        target_sha="target",
+    )
+
+    assert plan["components"] == ["kv_cache_change", "model_path"]
+    assert [(job["work_type"], job["id"]) for job in plan["jobs"]] == [
+        ("KVCacheChange", "kv_cache_change:dense"),
+        ("ModelPath", "model_path:qwen2_vl"),
+    ]
 
 
 def test_rename_includes_old_and_new_paths():

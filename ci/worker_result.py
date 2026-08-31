@@ -13,12 +13,17 @@ def finalize(
         return {
             "component": str(job.get("component", "runner")),
             "model": job.get("model"),
+            "profile": job.get("profile"),
             "job_id": str(job.get("id", "")),
             "outcome": "infrastructure_failure",
             "findings": {"error": "runner produced no result"},
         }
 
     output = dict(result)
+    output.setdefault("component", str(job.get("component", "runner")))
+    output.setdefault("model", job.get("model"))
+    output.setdefault("profile", job.get("profile"))
+    output.setdefault("job_id", str(job.get("id", "")))
     findings = output.get("findings")
     if isinstance(findings, Mapping):
         phases = findings.get("phases")
