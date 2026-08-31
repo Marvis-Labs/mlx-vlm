@@ -92,7 +92,7 @@ def test_probe_command_uses_head_project_and_trusted_python_path(tmp_path, monke
         "ci.kv_cache_contract_compare.shutil.copy2", lambda source, destination: None
     )
 
-    def invoke(command, *, check, env):
+    def invoke(command, *, env):
         observed["command"] = command
         observed["environment"] = env
         return subprocess.CompletedProcess(command, 0)
@@ -112,3 +112,44 @@ def test_probe_command_uses_head_project_and_trusted_python_path(tmp_path, monke
     ]
     assert observed["environment"]["PYTHONPATH"] != str(control)
     assert "mlx-vlm-ci-contract-" in observed["environment"]["PYTHONPATH"]
+
+
+def test_probe_preserves_structured_contract_failures(tmp_path, monkeypatch):
+    control = tmp_path / "control"
+    probe = control / "ci/kv_cache_contract_probe.py"
+    probe.parent.mkdir(parents=True)
+    probe.write_text("")
+    output = tmp_path / "result.json"
+    failure = {
+        "verdict": "test_failure",
+        "cases": [
+            {
+                "case": "KVCache",
+                "failures": [
+                    {
+                        "sequence": "append-trim-resume",
+                        "step": 2,
+                        "characteristic": "content",
+                    }
+                ],
+            }
+        ],
+    }
+
+    monkeypatch.setattr(
+        "ci.kv_cache_contract_compare.require_tracked_file",
+        lambda repository, path: None,
+    )
+    monkeypatch.setattr(
+        "ci.kv_cache_contract_compare.shutil.copy2", lambda source, destination: None
+    )
+
+    def invoke(command, *, env):
+        output.write_text(json.dumps(failure))
+        return subprocess.CompletedProcess(command, 2)
+
+    monkeypatch.setattr("ci.kv_cache_contract_compare.subprocess.run", invoke)
+
+    result = run_probe(tmp_path / "head", control, probe, ("dense",), output)
+
+    assert result == failure
