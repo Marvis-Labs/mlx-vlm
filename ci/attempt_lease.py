@@ -13,9 +13,9 @@ from ci.device_lease import (
     UPDATE_REFS_MUTATION,
     ZERO_OID,
     DeviceLeaseError,
-    GhClient,
     GitHubApiError,
     GitHubClient,
+    GitHubHttpClient,
     _format_time,
     _parse_time,
     _utc,
@@ -51,7 +51,7 @@ class AttemptLeaseStore:
         if not re.fullmatch(r"[^/]+/[^/]+", repository):
             raise DeviceLeaseError("repository must use owner/name format")
         self.repository = repository
-        self.client = client or GhClient()
+        self.client = client or GitHubHttpClient()
         self._repository_node_id: str | None = None
 
     def acquire(
