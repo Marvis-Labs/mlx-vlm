@@ -212,7 +212,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PYTHONPATH: ${{ github.workspace }}/control
         run: |
-          python -m ci.device_lease release \
+          /usr/bin/python3 -m ci.device_lease release \
             --lease "dispatch/batch/${{ matrix.key }}/lease.json" \
             --repository "${{ github.repository }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -356,7 +356,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PYTHONPATH: ${{ github.workspace }}/control
         run: |
-          python -m ci.device_lease release \
+          /usr/bin/python3 -m ci.device_lease release \
             --lease "dispatch/${{ matrix.key }}/lease.json" \
             --repository "${{ github.repository }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
