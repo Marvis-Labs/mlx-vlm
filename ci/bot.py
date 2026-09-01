@@ -725,7 +725,11 @@ class KVCacheChangeOutput:
             ]
             deterministic = [name for name in runs if "-state-machine-" not in name]
             state_machines = len(runs) - len(deterministic)
-            run_summary = ", ".join(deterministic)
+            shown = deterministic[:4]
+            run_summary = ", ".join(shown)
+            hidden = len(deterministic) - len(shown)
+            if hidden:
+                run_summary += f", and {hidden} more deterministic runs"
             if state_machines:
                 suffix = f"{state_machines} seeded state-machine runs"
                 run_summary = f"{run_summary}, {suffix}" if run_summary else suffix
