@@ -2780,7 +2780,7 @@ class SimpleKVCache:
 
 
 class StaticPrefixKVCache(_BaseCache):
-    """Fixed-capacity KV cache with prefix fetch semantics.
+    """Fixed-capacity KV cache with immutable-prefix fetch semantics.
 
     ``update_and_fetch`` returns only the populated prefix so normal encoder
     prefill attention sees the same shapes as a dynamic cache. Decoder code can
