@@ -162,6 +162,8 @@ class _BaseCache:
 
 
 class ConcatenateKVCache(_BaseCache):
+    """Grow KV state by concatenating each update."""
+
     def __init__(self):
         self.keys = None
         self.values = None
@@ -236,6 +238,8 @@ def _dequantize_uniform(keys_tuple, values_tuple, length, group_size, bits):
 
 
 class QuantizedKVCache(_BaseCache):
+    """Store growing KV state in quantized form."""
+
     step = 256
 
     def __init__(self, group_size: int = 64, bits: int = 8):
@@ -340,6 +344,8 @@ class QuantizedKVCache(_BaseCache):
 
 
 class KVCache(_BaseCache):
+    """Store dense KV state in a step-allocated buffer."""
+
     step = 256
 
     def __init__(self):
@@ -478,6 +484,8 @@ class KVCache(_BaseCache):
 
 
 class RotatingKVCache(_BaseCache):
+    """Retain a bounded attention window as KV state grows."""
+
     step = 256
 
     def __init__(self, max_size, keep=0):
@@ -662,6 +670,8 @@ class RotatingKVCache(_BaseCache):
 
 
 class ArraysCache(_BaseCache):
+    """Group independently managed recurrent cache arrays."""
+
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
         instance._left_padding = None
@@ -833,6 +843,8 @@ class ArraysCache(_BaseCache):
 
 
 class ChunkedKVCache(_BaseCache):
+    """Retain KV state in a bounded logical chunk."""
+
     step = 256
 
     def __init__(self, chunk_size):
@@ -2077,7 +2089,7 @@ class BatchQuantizedKVCache(_BaseCache):
 
 
 class PoolingCache(_BaseCache):
-    """Cache for pooled (compressed) KV tokens with a remainder buffer.
+    """Store pooled KV tokens with a remainder buffer.
 
     Stores two things:
       1. A growing pool of compressed tokens (step-allocated).
