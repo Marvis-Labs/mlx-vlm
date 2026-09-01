@@ -843,7 +843,7 @@ class ArraysCache(_BaseCache):
 
 
 class ChunkedKVCache(_BaseCache):
-    """Retain KV state in a bounded logical chunk."""
+    """Retain KV state in bounded logical chunks."""
 
     step = 256
 
