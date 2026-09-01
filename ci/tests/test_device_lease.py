@@ -3,12 +3,11 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-import ci.device_lease as device_lease
 from ci.device_lease import (
     ZERO_OID,
     DeviceLease,
-    GhClient,
     GitHubApiError,
+    GitHubHttpClient,
     GitHubRefLeaseStore,
     acquire_dispatch_lease,
     acquire_plan_leases,
@@ -22,15 +21,67 @@ from ci.runner_selection import Device
 NOW = datetime(2026, 8, 30, tzinfo=timezone.utc)
 
 
-def test_gh_client_resolves_homebrew_outside_service_path(monkeypatch, tmp_path):
-    executable = tmp_path / "gh"
-    executable.touch(mode=0o755)
-    monkeypatch.setattr(device_lease.shutil, "which", lambda name: None)
-    monkeypatch.setattr(device_lease, "GH_EXECUTABLE_PATHS", (str(executable),))
+class FakeResponse:
+    def __init__(self, value):
+        self.payload = json.dumps(value).encode()
 
-    client = GhClient()
+    def __enter__(self):
+        return self
 
-    assert client.executable == str(executable)
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def read(self):
+        return self.payload
+
+
+def test_github_http_client_uses_workflow_token_without_cli():
+    requests = []
+
+    def open_request(request, timeout):
+        requests.append((request, timeout))
+        return FakeResponse({"node_id": "repository-node"})
+
+    client = GitHubHttpClient(
+        token="workflow-token",
+        api_url="https://github.example/api/v3",
+        opener=open_request,
+    )
+
+    assert client.rest("repos/org/repo") == {"node_id": "repository-node"}
+    request, timeout = requests[0]
+    assert request.full_url == "https://github.example/api/v3/repos/org/repo"
+    assert request.get_header("Authorization") == "Bearer workflow-token"
+    assert request.get_method() == "GET"
+    assert timeout == 30
+
+
+def test_github_http_client_reports_graphql_errors():
+    client = GitHubHttpClient(
+        token="workflow-token",
+        opener=lambda request, timeout: FakeResponse(
+            {"errors": [{"message": "beforeOid did not match"}]}
+        ),
+    )
+
+    try:
+        client.graphql("mutation Test { test }", {})
+    except GitHubApiError as error:
+        assert "beforeOid did not match" in error.stderr
+    else:
+        raise AssertionError("GraphQL errors must fail the lease request")
+
+
+def test_github_http_client_requires_token(monkeypatch):
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    try:
+        GitHubHttpClient()
+    except GitHubApiError as error:
+        assert str(error) == "GitHub API token is unavailable"
+    else:
+        raise AssertionError("missing workflow token must fail")
 
 
 class FakeGitHubClient:

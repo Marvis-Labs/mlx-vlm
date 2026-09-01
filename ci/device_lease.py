@@ -4,14 +4,14 @@ import argparse
 import json
 import os
 import re
-import shutil
-import subprocess
 import time
 import uuid
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from ci.device_inventory import configured_devices, work_items
 from ci.runner_selection import Device, required_memory_gib
@@ -24,7 +24,6 @@ mutation UpdateLeaseRefs($input: UpdateRefsInput!) {
   updateRefs(input: $input) { clientMutationId }
 }
 """
-GH_EXECUTABLE_PATHS = ("/opt/homebrew/bin/gh", "/usr/local/bin/gh")
 
 
 class DeviceLeaseError(RuntimeError):
@@ -76,9 +75,28 @@ class GitHubClient(Protocol):
     ) -> Mapping[str, Any]: ...
 
 
-class GhClient:
-    def __init__(self, executable: str | None = None):
-        self.executable = executable or _resolve_gh_executable()
+class GitHubHttpClient:
+    def __init__(
+        self,
+        token: str | None = None,
+        api_url: str | None = None,
+        graphql_url: str | None = None,
+        opener=urlopen,
+    ):
+        self.token = (
+            token or os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        )
+        if not self.token:
+            raise GitHubApiError("GitHub API token is unavailable")
+        self.api_url = (
+            api_url or os.environ.get("GITHUB_API_URL") or "https://api.github.com"
+        ).rstrip("/")
+        self.graphql_url = (
+            graphql_url
+            or os.environ.get("GITHUB_GRAPHQL_URL")
+            or f"{self.api_url}/graphql"
+        )
+        self.opener = opener
 
     def rest(
         self,
@@ -87,47 +105,62 @@ class GhClient:
         method: str = "GET",
         body: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
-        command = [self.executable, "api"]
-        if method != "GET":
-            command.extend(["--method", method])
-        command.append(endpoint)
-        return self._run(command, body)
+        return self._request(
+            f"{self.api_url}/{endpoint.lstrip('/')}", method=method, body=body
+        )
 
     def graphql(self, query: str, variables: Mapping[str, Any]) -> Mapping[str, Any]:
-        return self._run(
-            [self.executable, "api", "graphql"],
-            {"query": query, "variables": variables},
+        value = self._request(
+            self.graphql_url,
+            method="POST",
+            body={"query": query, "variables": variables},
         )
+        if value.get("errors"):
+            raise GitHubApiError(
+                "GitHub GraphQL request failed", json.dumps(value["errors"])
+            )
+        return value
 
-    def _run(
-        self, command: list[str], body: Mapping[str, Any] | None
+    def _request(
+        self,
+        url: str,
+        *,
+        method: str,
+        body: Mapping[str, Any] | None,
     ) -> Mapping[str, Any]:
-        if body is not None:
-            command.extend(["--input", "-"])
-        completed = subprocess.run(
-            command,
-            input=json.dumps(body) if body is not None else None,
-            text=True,
-            capture_output=True,
+        request = Request(
+            url,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+                "User-Agent": "mlx-vlm-ci",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            method=method,
         )
-        if completed.returncode:
-            raise GitHubApiError("GitHub API request failed", completed.stderr.strip())
-        if not completed.stdout.strip():
+        try:
+            with self.opener(request, timeout=30) as response:
+                payload = response.read()
+        except HTTPError as error:
+            detail = error.read().decode(errors="replace")
+            raise GitHubApiError(
+                "GitHub API request failed", f"HTTP {error.code}: {detail}"
+            ) from error
+        except URLError as error:
+            raise GitHubApiError(
+                "GitHub API request failed", str(error.reason)
+            ) from error
+        if not payload:
             return {}
-        value = json.loads(completed.stdout)
+        try:
+            value = json.loads(payload)
+        except json.JSONDecodeError as error:
+            raise GitHubApiError("GitHub API response is not valid JSON") from error
         if not isinstance(value, Mapping):
             raise GitHubApiError("GitHub API response must be an object")
         return value
-
-
-def _resolve_gh_executable() -> str:
-    executable = shutil.which("gh")
-    if executable is not None:
-        return executable
-    for candidate in GH_EXECUTABLE_PATHS:
-        if os.access(candidate, os.X_OK):
-            return candidate
-    raise GitHubApiError("GitHub CLI is unavailable")
 
 
 class GitHubRefLeaseStore:
@@ -135,7 +168,7 @@ class GitHubRefLeaseStore:
         if not re.fullmatch(r"[^/]+/[^/]+", repository):
             raise DeviceLeaseError("repository must use owner/name format")
         self.repository = repository
-        self.client = client or GhClient()
+        self.client = client or GitHubHttpClient()
         self._repository_node_id: str | None = None
 
     def acquire(
