@@ -365,6 +365,49 @@ def test_kv_cache_execution_compacts_seeded_state_machine_runs():
     assert "kv-state-machine-0" not in rendered
 
 
+def test_kv_cache_execution_compacts_long_deterministic_run_lists():
+    runs = [
+        {"sequence": name}
+        for name in (
+            "left-padding-prefill-decode",
+            "right-padding-finalize-decode",
+            "block-window-crossing",
+            "filter-and-extract",
+            "merge-and-extend",
+            "snapshot-restore-resume",
+            "trim-before-saturation",
+            "reset-and-reuse",
+        )
+    ]
+    result = {
+        "component": "kv_cache_change",
+        "job_id": "kv_cache_change:dense",
+        "outcome": "passed",
+        "phases": {
+            "kv_cache_contract": {
+                "outcome": "passed",
+                "findings": {
+                    "cases": [
+                        {
+                            "case": "BatchRotatingKVCache",
+                            "checks": 1085,
+                            "runs": runs,
+                            "failures": [],
+                        }
+                    ]
+                },
+            }
+        },
+    }
+    value = record(jobs=[cache_job()], results=[result], kind="ci_execution")
+    value["components"] = ["kv_cache_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "filter-and-extract, and 4 more deterministic runs." in rendered
+    assert "trim-before-saturat\n" not in rendered
+
+
 def test_kv_cache_runner_crash_is_terminal_not_planned():
     result = {
         "component": "kv_cache_change",
