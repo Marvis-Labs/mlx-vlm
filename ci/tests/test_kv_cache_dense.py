@@ -4,19 +4,24 @@ import pytest
 
 pytest.importorskip("mlx.core")
 
+from ci.kv_cache_batch import MLXBatchKVAdapter
 from ci.kv_cache_contract import CacheCharacteristic, ContractRunner
 from ci.kv_cache_contract_probe import run
 from ci.kv_cache_profiles.common import MLXDenseCacheAdapter
 from ci.kv_cache_profiles.dense import dense_contract_cases
-from mlx_vlm.models.cache import KVCache, SimpleKVCache
+from mlx_vlm.models.cache import BatchKVCache, KVCache, SimpleKVCache
 
 
 def test_real_dense_cache_contracts_pass():
     results = [ContractRunner().run(case) for case in dense_contract_cases()]
 
-    assert [result.case for result in results] == ["KVCache", "SimpleKVCache"]
-    assert [len(result.runs) for result in results] == [10, 8]
-    assert sum(result.checks for result in results) == 1668
+    assert [result.case for result in results] == [
+        "KVCache",
+        "SimpleKVCache",
+        "BatchKVCache",
+    ]
+    assert [len(result.runs) for result in results] == [10, 8, 9]
+    assert sum(result.checks for result in results) == 2669
     assert all(result.passed for result in results), [
         result.to_dict() for result in results
     ]
@@ -27,14 +32,15 @@ def test_dense_cases_do_not_claim_storage_parity():
         assert CacheCharacteristic.STORAGE not in case.characteristics
 
 
-def test_dense_probe_reports_both_implementations():
+def test_dense_probe_reports_all_implementations():
     result = run()
 
     assert result["verdict"] == "passed"
-    assert result["checks"] == 1668
+    assert result["checks"] == 2669
     assert [case["case"] for case in result["cases"]] == [
         "KVCache",
         "SimpleKVCache",
+        "BatchKVCache",
     ]
     assert [run["sequence"] for run in result["cases"][0]["runs"]] == [
         "append-trim-resume",
@@ -129,3 +135,36 @@ def test_dense_contract_rejects_lifecycle_mutations(
     assert not result.passed
     assert result.failures[0].sequence == sequence_name
     assert result.failures[0].characteristic == characteristic
+
+
+def test_dense_batch_contract_rejects_a_broken_finalize():
+    class CorruptBatchKVCache(BatchKVCache):
+        def finalize(self):
+            return None
+
+    original = next(
+        case for case in dense_contract_cases() if case.name == "BatchKVCache"
+    )
+    sequence = next(
+        sequence
+        for sequence in original.sequences
+        if sequence.name == "padding-finalize-filter-extract"
+    )
+    mutated = replace(
+        original,
+        name="CorruptBatchKVCache",
+        subject_factory=lambda: MLXBatchKVAdapter(
+            CorruptBatchKVCache,
+            KVCache,
+            BatchKVCache,
+            profile=original.profile,
+            batch_size=3,
+        ),
+        sequences=(sequence,),
+    )
+
+    result = ContractRunner().run(mutated)
+
+    assert not result.passed
+    assert result.failures[0].operation == "finalize_batch"
+    assert result.failures[0].characteristic in {"content", "position"}

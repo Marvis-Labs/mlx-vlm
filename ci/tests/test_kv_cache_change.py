@@ -13,6 +13,10 @@ class RotatingKVCache:
     value = 1
 class BufferedRotatingKVCache:
     value = 1
+class BatchKVCache:
+    value = 1
+class BatchRotatingKVCache:
+    value = 1
 class ArraysCache:
     value = 1
 """
@@ -48,13 +52,18 @@ def component(tmp_path, head=BASE):
                 "source": "mlx_vlm/models/cache.py",
                 "profiles": {
                     "dense": {
-                        "implementations": ["KVCache", "SimpleKVCache"],
+                        "implementations": [
+                            "KVCache",
+                            "SimpleKVCache",
+                            "BatchKVCache",
+                        ],
                         "contract": "ci.kv_cache_profiles.dense:dense_contract_cases",
                     },
                     "windowed": {
                         "implementations": [
                             "RotatingKVCache",
                             "BufferedRotatingKVCache",
+                            "BatchRotatingKVCache",
                         ],
                         "contract": "ci.kv_cache_profiles.windowed:windowed_contract_cases",
                     },
@@ -92,7 +101,7 @@ def test_cache_change_emits_only_the_touched_profile(tmp_path):
     assert job["contract_sha"] == "target"
     assert job["kv_cache_contract"] == {
         "profile": "dense",
-        "implementations": ["KVCache", "SimpleKVCache"],
+        "implementations": ["KVCache", "SimpleKVCache", "BatchKVCache"],
         "oracle": "independent_semantic_contract",
         "entry_point": "ci.kv_cache_profiles.dense:dense_contract_cases",
     }
@@ -137,6 +146,33 @@ def test_different_profiles_emit_one_job_per_profile(tmp_path):
     assert [job["id"] for job in jobs] == [
         "kv_cache_change:dense",
         "kv_cache_change:windowed",
+    ]
+
+
+def test_batch_cache_classes_route_to_their_storage_profiles(tmp_path):
+    planner = component(
+        tmp_path,
+        changed(
+            (
+                "class BatchKVCache:\n    value = 1",
+                "class BatchKVCache:\n    value = 2",
+            ),
+            (
+                "class BatchRotatingKVCache:\n    value = 1",
+                "class BatchRotatingKVCache:\n    value = 2",
+            ),
+        ),
+    )
+
+    plan = planner.plan([match()], context())
+
+    assert [job["id"] for job in plan["jobs"]] == [
+        "kv_cache_change:dense",
+        "kv_cache_change:windowed",
+    ]
+    assert plan["metadata"]["symbols"] == [
+        "BatchKVCache",
+        "BatchRotatingKVCache",
     ]
 
 

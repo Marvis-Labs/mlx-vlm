@@ -5,11 +5,13 @@ profiles:
     implementations:
       - KVCache
       - SimpleKVCache
+      - BatchKVCache
     contract: ci.kv_cache_profiles.dense:dense_contract_cases
   windowed:
     implementations:
       - RotatingKVCache
       - BufferedRotatingKVCache
+      - BatchRotatingKVCache
     contract: ci.kv_cache_profiles.windowed:windowed_contract_cases
   segmented:
     implementations:
