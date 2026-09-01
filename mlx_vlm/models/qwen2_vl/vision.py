@@ -195,6 +195,8 @@ class Qwen2VLVisionBlock(nn.Module):
 
 
 class VisionModel(nn.Module):
+    """Qwen2-VL vision encoder used by the multimodal model path."""
+
     def __init__(self, config: VisionConfig) -> None:
         super().__init__()
         self.config = config

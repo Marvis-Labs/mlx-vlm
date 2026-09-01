@@ -340,6 +340,8 @@ class QuantizedKVCache(_BaseCache):
 
 
 class KVCache(_BaseCache):
+    """Dense key-value cache with capacity growth in fixed-size steps."""
+
     step = 256
 
     def __init__(self):
@@ -476,6 +478,8 @@ class KVCache(_BaseCache):
 
 
 class RotatingKVCache(_BaseCache):
+    """Sliding-window key-value cache backed by rotating storage."""
+
     step = 256
 
     def __init__(self, max_size, keep=0):
@@ -1624,7 +1628,7 @@ class BatchRotatingKVCache(_BaseCache):
 
 
 class BufferedRotatingKVCache(RotatingKVCache):
-    """Temporal sliding-window cache with rollback slack for speculative blocks."""
+    """Sliding-window cache with rollback slack for speculative blocks."""
 
     def __init__(self, max_size: int, keep: int = 0, buffer_size: int = 64):
         super().__init__(max_size=max_size, keep=keep)
@@ -2675,6 +2679,7 @@ class SimpleKVCache:
     """A simple key-value cache for transformer attention layers.
 
     Stores and concatenates key/value tensors along sequence dimension.
+    This implementation keeps its complete logical history.
     """
 
     def __init__(self):
