@@ -10,7 +10,10 @@ def job():
     return {
         "head_sha": "head",
         "contract_sha": "contract",
-        "kv_cache_contract": {"profile": "dense"},
+        "kv_cache_contract": {
+            "profile": "dense",
+            "entry_point": "ci.kv_cache_profiles.dense:dense_contract_cases",
+        },
     }
 
 
@@ -99,7 +102,13 @@ def test_probe_command_uses_head_project_and_trusted_python_path(tmp_path, monke
 
     monkeypatch.setattr("ci.kv_cache_contract_compare.subprocess.run", invoke)
 
-    result = run_probe(tmp_path / "head", control, probe, ("dense",), output)
+    result = run_probe(
+        tmp_path / "head",
+        control,
+        probe,
+        ("ci.kv_cache_profiles.dense:dense_contract_cases",),
+        output,
+    )
 
     assert result["verdict"] == "passed"
     assert observed["command"][0:6] == [
@@ -150,6 +159,12 @@ def test_probe_preserves_structured_contract_failures(tmp_path, monkeypatch):
 
     monkeypatch.setattr("ci.kv_cache_contract_compare.subprocess.run", invoke)
 
-    result = run_probe(tmp_path / "head", control, probe, ("dense",), output)
+    result = run_probe(
+        tmp_path / "head",
+        control,
+        probe,
+        ("ci.kv_cache_profiles.dense:dense_contract_cases",),
+        output,
+    )
 
     assert result == failure

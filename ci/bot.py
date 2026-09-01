@@ -755,9 +755,11 @@ class BotOutput:
         components: Sequence[ComponentOutput] | None = None,
     ):
         self.record = record
-        self.components = tuple(
-            components or (KVCacheChangeOutput(), MLPChangeOutput(), ModelPathOutput())
-        )
+        if components is None:
+            from ci.components.registry import outputs
+
+            components = outputs()
+        self.components = tuple(components)
 
     def render(self) -> str:
         sections = tuple(

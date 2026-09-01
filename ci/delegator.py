@@ -13,8 +13,6 @@ from typing import Any, Iterable, Mapping, Protocol, Sequence
 import yaml
 
 from ci.change_rules import ChangeContext, ChangeDetector, ChangeMatch
-from ci.kv_cache_change import KVCacheChange
-from ci.mlp_change import GitSource, MLPChange
 
 
 class ChangeComponent(Protocol):
@@ -522,24 +520,20 @@ def create_delegator(
 ) -> Delegator:
     """Create a delegator from explicit trusted rules and manifest paths."""
 
-    model_path = ModelPath(
-        model_config,
-        scenario_config,
+    from ci.components.registry import planners
+
+    config_directory = rules_config.parent
+    if model_config != config_directory / "model_path.yaml" or scenario_config != (
+        config_directory / "model-path-scenario.yaml"
+    ):
+        model_path = ModelPath(model_config, scenario_config)
+        components: list[ChangeComponent] = [NewModelPath(model_path), model_path]
+        return Delegator(ChangeDetector.from_yaml(rules_config), components)
+    components = planners(
+        config_directory,
+        repository or config_directory.parent,
+        mlp_config,
     )
-    components: list[ChangeComponent] = [
-        KVCacheChange(),
-        NewModelPath(model_path),
-        model_path,
-    ]
-    if mlp_config is not None:
-        components.insert(
-            0,
-            MLPChange(
-                mlp_config,
-                model_path,
-                GitSource(repository or rules_config.parent.parent),
-            ),
-        )
     return Delegator(ChangeDetector.from_yaml(rules_config), components)
 
 

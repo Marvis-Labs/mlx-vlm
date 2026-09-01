@@ -38,6 +38,8 @@ def _phase(findings: Mapping[str, Any], returncode: int) -> dict[str, Any]:
 
 
 def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    from ci.components.registry import supported_phases
+
     output = Path(os.environ.get("CI_JOB_FINDINGS", "findings.json"))
     job = json.loads(args.job.read_text())
     configured = job.get("phases", [])
@@ -98,6 +100,11 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "--max-tokens",
             str(args.max_tokens),
         ],
+    }
+    commands = {
+        name: command
+        for name, command in commands.items()
+        if name in supported_phases()
     }
     phases: dict[str, Any] = {}
     for index, name in enumerate(configured):

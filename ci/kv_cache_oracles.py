@@ -192,6 +192,101 @@ class DenseKVOracle:
             )
 
 
+class WindowedKVOracle:
+    """Reference sliding-window cache implemented without MLX cache machinery."""
+
+    capabilities = frozenset({CacheCapability.UPDATE, CacheCapability.RESET})
+
+    def __init__(self, max_size: int, keep: int = 0):
+        if max_size <= 0 or keep < 0 or keep >= max_size:
+            raise ValueError("invalid window configuration")
+        self.max_size = max_size
+        self.keep = keep
+        self._keys: tuple[Any, ...] = ()
+        self._values: tuple[Any, ...] = ()
+        self._positions: tuple[int, ...] = ()
+        self._key_layout: tuple[int, int, int] | None = None
+        self._value_layout: tuple[int, int, int] | None = None
+        self._key_dtype: str | None = None
+        self._value_dtype: str | None = None
+        self._offset = 0
+
+    def apply(self, operation: CacheOperation) -> CacheObservation:
+        handlers = {
+            CacheOperationKind.UPDATE: self._update,
+            CacheOperationKind.RESET: self._reset,
+        }
+        handler = handlers.get(operation.kind)
+        if handler is None:
+            raise ValueError(f"windowed oracle does not support {operation.kind.value}")
+        handler(operation.payload)
+        return self.observe()
+
+    def observe(self) -> CacheObservation:
+        key_shape = _logical_shape(self._key_layout, len(self._positions))
+        value_shape = _logical_shape(self._value_layout, len(self._positions))
+        return CacheObservation(
+            logical_keys=self._keys,
+            logical_values=self._values,
+            visible_positions=self._positions,
+            offset=self._offset,
+            size=len(self._positions),
+            shape=(key_shape, value_shape),
+            dtype=(self._key_dtype, self._value_dtype),
+            batch_size=key_shape[0] if key_shape is not None else 0,
+            metadata={"max_size": self.max_size, "keep": self.keep},
+        )
+
+    def _update(self, payload: Mapping[str, Any]) -> None:
+        keys = _freeze(payload.get("keys"))
+        values = _freeze(payload.get("values"))
+        key_shape = _require_rank_four(keys, "keys")
+        value_shape = _require_rank_four(values, "values")
+        if key_shape[:3] != value_shape[:3]:
+            raise ValueError("keys and values must share batch, head, and time axes")
+        key_dtype = str(payload.get("key_dtype", payload.get("dtype", "float32")))
+        value_dtype = str(payload.get("value_dtype", payload.get("dtype", "float32")))
+        if self._key_layout is not None and self._value_layout is not None:
+            if self._key_layout != (key_shape[0], key_shape[1], key_shape[3]):
+                raise ValueError("key update shape is incompatible with cached keys")
+            if self._value_layout != (
+                value_shape[0],
+                value_shape[1],
+                value_shape[3],
+            ):
+                raise ValueError(
+                    "value update shape is incompatible with cached values"
+                )
+            if (self._key_dtype, self._value_dtype) != (key_dtype, value_dtype):
+                raise ValueError("update dtype differs from cached dtype")
+            self._keys = _concatenate_time(self._keys, keys)
+            self._values = _concatenate_time(self._values, values)
+        else:
+            self._keys = keys
+            self._values = values
+            self._key_layout = (key_shape[0], key_shape[1], key_shape[3])
+            self._value_layout = (value_shape[0], value_shape[1], value_shape[3])
+            self._key_dtype = key_dtype
+            self._value_dtype = value_dtype
+        self._positions += tuple(range(self._offset, self._offset + key_shape[2]))
+        self._offset += key_shape[2]
+        self._keys = _window_time(self._keys, self.max_size, self.keep)
+        self._values = _window_time(self._values, self.max_size, self.keep)
+        self._positions = _window_positions(self._positions, self.max_size, self.keep)
+
+    def _reset(self, payload: Mapping[str, Any]) -> None:
+        if payload:
+            raise ValueError("reset takes no payload")
+        self._keys = ()
+        self._values = ()
+        self._positions = ()
+        self._key_layout = None
+        self._value_layout = None
+        self._key_dtype = None
+        self._value_dtype = None
+        self._offset = 0
+
+
 def _freeze(value: Any) -> tuple[Any, ...]:
     if not _sequence(value):
         raise ValueError("cache values must be nested sequences")
@@ -236,6 +331,24 @@ def _concatenate_time(
 
 def _slice_time(values: tuple[Any, ...], stop: int) -> tuple[Any, ...]:
     return tuple(tuple(head[:stop] for head in batch) for batch in values)
+
+
+def _window_time(values: tuple[Any, ...], max_size: int, keep: int) -> tuple[Any, ...]:
+    length = _shape(values)[2]
+    if length <= max_size:
+        return values
+    recent = max_size - keep
+    return tuple(
+        tuple(head[:keep] + head[-recent:] for head in batch) for batch in values
+    )
+
+
+def _window_positions(
+    positions: tuple[int, ...], max_size: int, keep: int
+) -> tuple[int, ...]:
+    if len(positions) <= max_size:
+        return positions
+    return positions[:keep] + positions[-(max_size - keep) :]
 
 
 def _snapshot_name(payload: Mapping[str, Any]) -> str:

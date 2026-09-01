@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -15,7 +16,7 @@ TRUSTED_HARNESS_FILES = (
     "ci/kv_cache_oracles.py",
     "ci/kv_cache_contract_probe.py",
     "ci/kv_cache_profiles/__init__.py",
-    "ci/kv_cache_profiles/dense.py",
+    "ci/kv_cache_profiles/common.py",
 )
 
 
@@ -73,7 +74,7 @@ def run_probe(
     head: Path,
     control: Path,
     probe: Path,
-    profiles: Sequence[str],
+    contracts: Sequence[str],
     output: Path,
 ) -> Mapping[str, Any]:
     trusted_ci = (control / "ci").resolve()
@@ -81,11 +82,16 @@ def run_probe(
     expected_probe = trusted_ci / "kv_cache_contract_probe.py"
     if resolved_probe != expected_probe:
         raise RuntimeError("KV cache probe must come from the trusted control checkout")
-    for relative in TRUSTED_HARNESS_FILES:
+    harness_files = tuple(
+        dict.fromkeys(
+            (*TRUSTED_HARNESS_FILES, *(_contract_source(value) for value in contracts))
+        )
+    )
+    for relative in harness_files:
         require_tracked_file(control, control / relative)
     with tempfile.TemporaryDirectory(prefix="mlx-vlm-ci-contract-") as directory:
         harness = Path(directory)
-        for relative in TRUSTED_HARNESS_FILES:
+        for relative in harness_files:
             destination = harness / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(control / relative, destination)
@@ -104,8 +110,8 @@ def run_probe(
             "--output",
             str(output),
         ]
-        for profile in profiles:
-            command.extend(("--profile", profile))
+        for entry_point in contracts:
+            command.extend(("--contract", entry_point))
         completed = subprocess.run(command, env=environment)
         if completed.returncode not in {0, 2}:
             raise subprocess.CalledProcessError(completed.returncode, command)
@@ -130,11 +136,14 @@ def execute(
     if not isinstance(contract, Mapping):
         raise ValueError("KVCacheChange work has no contract configuration")
     profile = contract.get("profile")
+    entry_point = contract.get("entry_point")
     if not isinstance(profile, str) or not profile:
         raise ValueError("KVCacheChange contract has no profile")
+    if not isinstance(entry_point, str) or not entry_point:
+        raise ValueError("KVCacheChange contract has no entry point")
     contract_sha = require_checkout(control, expected_contract, "contract")
     head_sha = require_checkout(head, expected_head, "head")
-    result = dict(run_probe(head, control, probe, (profile,), output))
+    result = dict(run_probe(head, control, probe, (entry_point,), output))
     implementation_path = result.get("implementation_path")
     if not isinstance(implementation_path, str) or not Path(
         implementation_path
@@ -152,6 +161,17 @@ def execute(
         }
     )
     return result
+
+
+def _contract_source(entry_point: str) -> str:
+    module_name, separator, function_name = entry_point.partition(":")
+    if (
+        separator != ":"
+        or re.fullmatch(r"ci\.kv_cache_profiles\.[a-z][a-z0-9_]*", module_name) is None
+        or not function_name.endswith("_contract_cases")
+    ):
+        raise ValueError(f"invalid KV cache contract entry point: {entry_point}")
+    return module_name.replace(".", "/") + ".py"
 
 
 def main(argv: Sequence[str] | None = None) -> int:

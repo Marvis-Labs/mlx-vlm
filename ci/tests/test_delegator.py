@@ -243,7 +243,7 @@ def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
     }
 
 
-def test_repository_cache_change_routes_to_trusted_dense_contract():
+def test_repository_cache_change_conservatively_routes_implemented_contracts():
     plan = default_delegator().plan(
         ["mlx_vlm/models/cache.py", "README.md"],
         base_sha="merge-base",
@@ -253,10 +253,12 @@ def test_repository_cache_change_routes_to_trusted_dense_contract():
 
     assert plan["rules"] == ["kv_cache_change"]
     assert plan["components"] == ["kv_cache_change"]
-    assert len(plan["jobs"]) == 1
-    assert plan["jobs"][0]["id"] == "kv_cache_change:dense"
-    assert plan["jobs"][0]["head_sha"] == "head"
-    assert plan["jobs"][0]["contract_sha"] == "target"
+    assert [job["id"] for job in plan["jobs"]] == [
+        "kv_cache_change:dense",
+        "kv_cache_change:windowed",
+    ]
+    assert all(job["head_sha"] == "head" for job in plan["jobs"])
+    assert all(job["contract_sha"] == "target" for job in plan["jobs"])
     assert plan["blocked"] == []
 
 
@@ -274,6 +276,7 @@ def test_cache_and_model_changes_produce_independent_work_items():
     assert plan["components"] == ["kv_cache_change", "model_path"]
     assert [(job["work_type"], job["id"]) for job in plan["jobs"]] == [
         ("KVCacheChange", "kv_cache_change:dense"),
+        ("KVCacheChange", "kv_cache_change:windowed"),
         ("ModelPath", "model_path:qwen2_vl"),
     ]
 

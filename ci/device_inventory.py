@@ -100,13 +100,10 @@ def configured_devices(
     return devices
 
 
-SUPPORTED_WORK = {
-    ("ModelPath", "model_path"),
-    ("KVCacheChange", "kv_cache_change"),
-}
-
-
 def work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    from ci.components.registry import supported_work
+
+    configured_work = supported_work()
     jobs = plan.get("jobs")
     if not isinstance(jobs, list):
         raise DeviceInventoryError("approved plan must contain a jobs list")
@@ -114,7 +111,7 @@ def work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         job
         for job in jobs
         if isinstance(job, Mapping)
-        and (job.get("work_type"), job.get("component")) in SUPPORTED_WORK
+        and (job.get("work_type"), job.get("component")) in configured_work
     ]
     if len(selected) != len(jobs):
         raise DeviceInventoryError("approved plan contains unsupported work")
