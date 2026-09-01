@@ -267,3 +267,41 @@ def test_plan_cli_uses_immutable_repository_head(tmp_path):
     assert record["outcome"] == "ready"
     assert record["jobs"] == []
     assert record["head_sha"]
+
+
+def test_plan_cli_accepts_legacy_contributor_config_arguments(tmp_path):
+    repository_root = Path(__file__).parents[2]
+    output = tmp_path / "control.json"
+    markdown = tmp_path / "summary.md"
+
+    assert (
+        main(
+            [
+                "plan",
+                "--base",
+                "HEAD",
+                "--head",
+                "HEAD",
+                "--repository",
+                "example/repository",
+                "--repository-path",
+                str(repository_root),
+                "--pr",
+                "8",
+                "--rules-config",
+                str(repository_root / "ci/change-rules.yaml"),
+                "--model-config",
+                str(repository_root / "ci/model_path.yaml"),
+                "--scenario-config",
+                str(repository_root / "ci/model-path-scenario.yaml"),
+                "--protected-config",
+                str(repository_root / "ci/protected_paths.yaml"),
+                "--output",
+                str(output),
+                "--markdown",
+                str(markdown),
+            ]
+        )
+        == 0
+    )
+    assert json.loads(output.read_text())["outcome"] == "ready"

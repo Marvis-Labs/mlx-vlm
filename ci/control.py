@@ -277,9 +277,22 @@ def _blocked_plan(head_sha: str, reason: str, detail: str) -> dict[str, Any]:
 
 def _plan_command(args: argparse.Namespace) -> int:
     try:
+        component_config_directory = args.component_config_directory
+        legacy_configs = [
+            path
+            for path in (args.model_config, args.scenario_config)
+            if path is not None
+        ]
+        if component_config_directory is None and legacy_configs:
+            parents = {path.parent.resolve() for path in legacy_configs}
+            if len(parents) != 1:
+                raise ValueError(
+                    "legacy contributor configurations must share a directory"
+                )
+            component_config_directory = legacy_configs[0].parent
         delegator = create_delegator(
             args.rules_config,
-            args.component_config_directory,
+            component_config_directory,
             args.repository_path,
         )
         diff = diff_from_git(args.base, args.head, args.repository_path)
@@ -324,6 +337,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_parser.add_argument("--pr", type=int, required=True)
     plan_parser.add_argument("--rules-config", type=Path, required=True)
     plan_parser.add_argument("--component-config-directory", type=Path)
+    plan_parser.add_argument("--model-config", type=Path)
+    plan_parser.add_argument("--scenario-config", type=Path)
     plan_parser.add_argument("--protected-config", type=Path, required=True)
     plan_parser.add_argument("--run-url")
     plan_parser.add_argument("--output", type=Path, required=True)
