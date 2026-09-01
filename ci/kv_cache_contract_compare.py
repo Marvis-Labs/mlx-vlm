@@ -14,6 +14,7 @@ TRUSTED_HARNESS_FILES = (
     "ci/__init__.py",
     "ci/kv_cache_contract.py",
     "ci/kv_cache_oracles.py",
+    "ci/kv_cache_batch.py",
     "ci/kv_cache_contract_probe.py",
     "ci/kv_cache_profiles/__init__.py",
     "ci/kv_cache_profiles/common.py",

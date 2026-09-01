@@ -1,6 +1,8 @@
 from dataclasses import replace
 
 from ci.kv_cache_contract import (
+    OPERATION_CAPABILITIES,
+    CacheCapability,
     CacheCharacteristic,
     CacheContractCase,
     CacheOperation,
@@ -191,3 +193,7 @@ def test_dense_oracle_rejects_incompatible_updates():
         assert False
     except ValueError as error:
         assert str(error) == "update dtype differs from cached dtype"
+
+
+def test_extend_has_an_explicit_contract_capability():
+    assert OPERATION_CAPABILITIES[CacheOperationKind.EXTEND] is CacheCapability.EXTEND

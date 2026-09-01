@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from ci.kv_cache_contract_compare import execute, require_checkout, run_probe
+from ci.kv_cache_contract_compare import (
+    TRUSTED_HARNESS_FILES,
+    execute,
+    require_checkout,
+    run_probe,
+)
+
+
+def test_batch_contract_adapter_is_part_of_the_trusted_harness():
+    assert "ci/kv_cache_batch.py" in TRUSTED_HARNESS_FILES
 
 
 def test_profile_contracts_do_not_import_one_another():

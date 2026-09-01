@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import random
+from typing import Any
 
+from ci.kv_cache_batch import BATCH_CAPABILITIES, BatchKVOracle, MLXBatchKVAdapter
 from ci.kv_cache_contract import (
     CacheCapability,
     CacheCharacteristic,
@@ -17,7 +19,7 @@ from ci.kv_cache_profiles.common import cache_update as dense_update
 
 
 def dense_contract_cases() -> tuple[CacheContractCase, ...]:
-    from mlx_vlm.models.cache import KVCache, SimpleKVCache
+    from mlx_vlm.models.cache import BatchKVCache, KVCache, SimpleKVCache
 
     shared = frozenset(
         {
@@ -56,6 +58,21 @@ def dense_contract_cases() -> tuple[CacheContractCase, ...]:
             characteristics=characteristics,
             sequences=_simple_kv_cache_sequences()
             + _random_sequences("simple", allow_trim=False),
+        ),
+        CacheContractCase(
+            name="BatchKVCache",
+            profile=StorageProfile.DENSE,
+            subject_factory=lambda: MLXBatchKVAdapter(
+                BatchKVCache,
+                KVCache,
+                BatchKVCache,
+                profile=StorageProfile.DENSE,
+                batch_size=3,
+            ),
+            oracle_factory=lambda: BatchKVOracle(3, profile=StorageProfile.DENSE),
+            capabilities=BATCH_CAPABILITIES,
+            characteristics=characteristics | {CacheCharacteristic.METADATA},
+            sequences=_batch_sequences() + _batch_random_sequences(),
         ),
     )
 
@@ -136,6 +153,114 @@ def _simple_kv_cache_sequences() -> tuple[OperationSequence, ...]:
             ),
         ),
     )
+
+
+def _batch_sequences() -> tuple[OperationSequence, ...]:
+    return (
+        OperationSequence(
+            "padding-finalize-filter-extract",
+            (
+                CacheOperation(
+                    CacheOperationKind.PREPARE_BATCH,
+                    {
+                        "left_padding": [2, 0, 1],
+                        "right_padding": [1, 0, 2],
+                        "lengths": [3, 6, 3],
+                    },
+                ),
+                dense_update(0, 6, batch_size=3),
+                CacheOperation(CacheOperationKind.FINALIZE_BATCH),
+                dense_update(6, 1, batch_size=3),
+                CacheOperation(CacheOperationKind.FILTER, {"indices": [2, 0]}),
+                CacheOperation(CacheOperationKind.EXTRACT, {"index": 1}),
+            ),
+        ),
+        OperationSequence(
+            "trim-snapshot-restore",
+            (
+                dense_update(0, 5, batch_size=3, dtype="float16"),
+                CacheOperation(CacheOperationKind.SNAPSHOT, {"name": "prompt"}),
+                dense_update(5, 3, batch_size=3, dtype="float16"),
+                CacheOperation(CacheOperationKind.TRIM, {"count": 2}),
+                CacheOperation(CacheOperationKind.RESTORE, {"name": "prompt"}),
+                dense_update(5, 1, batch_size=3, dtype="float16"),
+            ),
+        ),
+        OperationSequence(
+            "merge-and-extend",
+            (
+                CacheOperation(
+                    CacheOperationKind.MERGE,
+                    {"rows": [_row(100, 2), _row(200, 5), _row(300, 3)]},
+                ),
+                CacheOperation(
+                    CacheOperationKind.EXTEND,
+                    {"rows": [_row(400, 4), _row(500, 1)]},
+                ),
+                dense_update(600, 1, batch_size=5),
+            ),
+        ),
+        OperationSequence(
+            "reset-and-reuse",
+            (
+                dense_update(0, 4, batch_size=3),
+                CacheOperation(CacheOperationKind.RESET),
+                dense_update(20, 2, batch_size=3),
+            ),
+        ),
+    )
+
+
+def _batch_random_sequences() -> tuple[OperationSequence, ...]:
+    sequences = []
+    for seed in range(5):
+        generator = random.Random(100 + seed)
+        cursor = 1000 + seed * 1000
+        size = 0
+        snapshots: dict[str, int] = {}
+        operations = []
+        for step in range(25):
+            choices = ["update", "update", "reset"]
+            if size:
+                choices.extend(("trim", "snapshot"))
+            if snapshots:
+                choices.append("restore")
+            action = generator.choice(choices)
+            if action == "update":
+                count = generator.randint(1, 5)
+                operations.append(dense_update(cursor, count, batch_size=3))
+                cursor += count
+                size += count
+            elif action == "trim":
+                count = generator.randint(1, min(size, 4))
+                operations.append(
+                    CacheOperation(CacheOperationKind.TRIM, {"count": count})
+                )
+                size -= count
+            elif action == "snapshot":
+                name = f"batch-{step}"
+                operations.append(
+                    CacheOperation(CacheOperationKind.SNAPSHOT, {"name": name})
+                )
+                snapshots[name] = size
+            elif action == "restore":
+                name = generator.choice(sorted(snapshots))
+                operations.append(
+                    CacheOperation(CacheOperationKind.RESTORE, {"name": name})
+                )
+                size = snapshots[name]
+            else:
+                operations.append(CacheOperation(CacheOperationKind.RESET))
+                size = 0
+        sequences.append(
+            OperationSequence(f"batch-state-machine-{seed}", tuple(operations))
+        )
+    return tuple(sequences)
+
+
+def _row(start: int, count: int) -> dict[str, Any]:
+    operation = dense_update(start, count)
+    return dict(operation.payload)
 
 
 def _random_sequences(

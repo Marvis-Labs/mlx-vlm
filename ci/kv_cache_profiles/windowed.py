@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from typing import Any, Callable, Mapping
 
+from ci.kv_cache_batch import BATCH_CAPABILITIES, BatchKVOracle, MLXBatchKVAdapter
 from ci.kv_cache_contract import (
     CacheCapability,
     CacheCharacteristic,
@@ -133,7 +134,11 @@ class MLXWindowedCacheAdapter:
 
 
 def windowed_contract_cases() -> tuple[CacheContractCase, ...]:
-    from mlx_vlm.models.cache import BufferedRotatingKVCache, RotatingKVCache
+    from mlx_vlm.models.cache import (
+        BatchRotatingKVCache,
+        BufferedRotatingKVCache,
+        RotatingKVCache,
+    )
 
     capabilities = frozenset({CacheCapability.UPDATE, CacheCapability.RESET})
     characteristics = frozenset(
@@ -169,6 +174,24 @@ def windowed_contract_cases() -> tuple[CacheContractCase, ...]:
             capabilities=capabilities,
             characteristics=characteristics,
             sequences=_sequences("buffered"),
+        ),
+        CacheContractCase(
+            name="BatchRotatingKVCache",
+            profile=StorageProfile.WINDOWED,
+            subject_factory=lambda: MLXBatchKVAdapter(
+                lambda left_padding: BatchRotatingKVCache(8, list(left_padding)),
+                lambda: RotatingKVCache(8),
+                BatchRotatingKVCache,
+                profile=StorageProfile.WINDOWED,
+                batch_size=3,
+                max_size=8,
+            ),
+            oracle_factory=lambda: BatchKVOracle(
+                3, profile=StorageProfile.WINDOWED, max_size=8
+            ),
+            capabilities=BATCH_CAPABILITIES,
+            characteristics=characteristics,
+            sequences=_batch_sequences() + _batch_random_sequences(),
         ),
     )
 
@@ -216,6 +239,119 @@ def _random_sequences(prefix: str) -> tuple[OperationSequence, ...]:
             OperationSequence(f"{prefix}-state-machine-{seed}", tuple(operations))
         )
     return tuple(sequences)
+
+
+def _batch_sequences() -> tuple[OperationSequence, ...]:
+    return (
+        OperationSequence(
+            "left-padding-prefill-decode",
+            (
+                CacheOperation(
+                    CacheOperationKind.PREPARE_BATCH,
+                    {"left_padding": [2, 0, 1]},
+                ),
+                dense_update(0, 6, batch_size=3),
+                dense_update(6, 1, batch_size=3),
+                dense_update(7, 1, batch_size=3),
+                dense_update(8, 1, batch_size=3),
+            ),
+        ),
+        OperationSequence(
+            "right-padding-finalize-decode",
+            (
+                CacheOperation(
+                    CacheOperationKind.PREPARE_BATCH,
+                    {
+                        "right_padding": [2, 0, 3],
+                        "lengths": [4, 6, 3],
+                    },
+                ),
+                dense_update(0, 6, batch_size=3),
+                CacheOperation(CacheOperationKind.FINALIZE_BATCH),
+                dense_update(6, 1, batch_size=3),
+                dense_update(7, 1, batch_size=3),
+            ),
+        ),
+        OperationSequence(
+            "block-window-crossing",
+            (
+                dense_update(0, 5, batch_size=3),
+                dense_update(5, 5, batch_size=3),
+                dense_update(10, 3, batch_size=3),
+            ),
+        ),
+        OperationSequence(
+            "filter-and-extract",
+            (
+                dense_update(0, 10, batch_size=3),
+                CacheOperation(CacheOperationKind.FILTER, {"indices": [2, 0]}),
+                CacheOperation(CacheOperationKind.EXTRACT, {"index": 1}),
+            ),
+        ),
+        OperationSequence(
+            "merge-and-extend",
+            (
+                CacheOperation(
+                    CacheOperationKind.MERGE,
+                    {"rows": [_row(100, 2), _row(200, 8), _row(300, 5)]},
+                ),
+                CacheOperation(
+                    CacheOperationKind.EXTEND,
+                    {"rows": [_row(400, 7), _row(500, 3)]},
+                ),
+                dense_update(600, 1, batch_size=5),
+            ),
+        ),
+        OperationSequence(
+            "snapshot-restore-resume",
+            (
+                dense_update(0, 7, batch_size=3, dtype="float16"),
+                CacheOperation(CacheOperationKind.SNAPSHOT, {"name": "window"}),
+                dense_update(7, 4, batch_size=3, dtype="float16"),
+                CacheOperation(CacheOperationKind.RESTORE, {"name": "window"}),
+                dense_update(7, 1, batch_size=3, dtype="float16"),
+            ),
+        ),
+        OperationSequence(
+            "trim-before-saturation",
+            (
+                dense_update(0, 5, batch_size=3),
+                CacheOperation(CacheOperationKind.TRIM, {"count": 2}),
+                dense_update(3, 2, batch_size=3),
+            ),
+        ),
+        OperationSequence(
+            "reset-and-reuse",
+            (
+                dense_update(0, 10, batch_size=3),
+                CacheOperation(CacheOperationKind.RESET),
+                dense_update(20, 3, batch_size=3),
+            ),
+        ),
+    )
+
+
+def _batch_random_sequences() -> tuple[OperationSequence, ...]:
+    sequences = []
+    for seed in range(5):
+        generator = random.Random(100 + seed)
+        cursor = 1000 + seed * 1000
+        operations = []
+        for _ in range(25):
+            if generator.random() < 0.15:
+                operations.append(CacheOperation(CacheOperationKind.RESET))
+                continue
+            count = generator.randint(1, 4)
+            operations.append(dense_update(cursor, count, batch_size=3))
+            cursor += count
+        sequences.append(
+            OperationSequence(f"batch-window-state-machine-{seed}", tuple(operations))
+        )
+    return tuple(sequences)
+
+
+def _row(start: int, count: int) -> dict[str, Any]:
+    return dict(dense_update(start, count).payload)
 
 
 def _freeze(value: Any) -> Any:

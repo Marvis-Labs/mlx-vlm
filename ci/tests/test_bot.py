@@ -259,7 +259,7 @@ def cache_job():
         "contract_sha": "contract-sha",
         "kv_cache_contract": {
             "profile": "dense",
-            "implementations": ["KVCache", "SimpleKVCache"],
+            "implementations": ["KVCache", "SimpleKVCache", "BatchKVCache"],
         },
     }
 
@@ -271,7 +271,10 @@ def test_kv_cache_change_renders_a_profile_section_before_execution():
     rendered = BotOutput(value).render()
 
     assert "<strong>dense</strong> · KVCacheChange · Awaiting /ci run" in rendered
-    assert "| KV cache contract | Planned | KVCache, SimpleKVCache |" in rendered
+    assert (
+        "| KV cache contract | Planned | KVCache, SimpleKVCache, BatchKVCache |"
+        in rendered
+    )
     assert "Head: head-sha; trusted contract: contract-sha" in rendered
 
 
@@ -303,6 +306,12 @@ def test_kv_cache_execution_lists_every_contract_run():
                             "runs": [{"sequence": "append"}],
                             "failures": [],
                         },
+                        {
+                            "case": "BatchKVCache",
+                            "checks": 81,
+                            "runs": [{"sequence": "padding-finalize-filter-extract"}],
+                            "failures": [],
+                        },
                     ],
                 },
             }
@@ -318,6 +327,7 @@ def test_kv_cache_execution_lists_every_contract_run():
         "KVCache: 102 checks; append-trim-resume, snapshot-restore-resume" in rendered
     )
     assert "SimpleKVCache: 66 checks; append" in rendered
+    assert "BatchKVCache: 81 checks; padding-finalize-filter-extract" in rendered
     assert "Runner: mini-1" in rendered
 
 

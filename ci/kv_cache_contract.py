@@ -23,6 +23,7 @@ class CacheCapability(str, Enum):
     SNAPSHOT_RESTORE = "snapshot_restore"
     EXTRACT = "extract"
     MERGE = "merge"
+    EXTEND = "extend"
     FILTER = "filter"
     BATCH_LIFECYCLE = "batch_lifecycle"
     ADVANCE = "advance"
@@ -50,6 +51,7 @@ class CacheOperationKind(str, Enum):
     RESTORE = "restore"
     EXTRACT = "extract"
     MERGE = "merge"
+    EXTEND = "extend"
     FILTER = "filter"
     PREPARE_BATCH = "prepare_batch"
     FINALIZE_BATCH = "finalize_batch"
@@ -66,6 +68,7 @@ OPERATION_CAPABILITIES = {
     CacheOperationKind.RESTORE: CacheCapability.SNAPSHOT_RESTORE,
     CacheOperationKind.EXTRACT: CacheCapability.EXTRACT,
     CacheOperationKind.MERGE: CacheCapability.MERGE,
+    CacheOperationKind.EXTEND: CacheCapability.EXTEND,
     CacheOperationKind.FILTER: CacheCapability.FILTER,
     CacheOperationKind.PREPARE_BATCH: CacheCapability.BATCH_LIFECYCLE,
     CacheOperationKind.FINALIZE_BATCH: CacheCapability.BATCH_LIFECYCLE,
