@@ -172,16 +172,21 @@ jobs:
         run: |
           item="$GITHUB_WORKSPACE/dispatch/batch/${{ matrix.key }}"
           lease_stop="$RUNNER_TEMP/lease-heartbeat-stop"
+          lease_error="$RUNNER_TEMP/lease-heartbeat-error"
           GH_TOKEN="${{ github.token }}" PYTHONPATH="$GITHUB_WORKSPACE/control" \
             /usr/bin/python3 -m ci.device_lease heartbeat-loop \
             --lease "$item/lease.json" \
             --repository "${{ github.repository }}" \
             --parent-pid "$PPID" \
-            --stop-file "$lease_stop" &
+            --stop-file "$lease_stop" 2>"$lease_error" &
           lease_pid=$!
           finish_lease_heartbeat() {
             touch "$lease_stop"
-            wait "$lease_pid" || true
+            if wait "$lease_pid"; then
+              rm -f "$lease_error"
+            elif [[ ! -s "$lease_error" ]]; then
+              printf 'lease heartbeat exited unsuccessfully\n' >"$lease_error"
+            fi
           }
           trap finish_lease_heartbeat EXIT
           set +e
@@ -204,6 +209,7 @@ jobs:
           /usr/bin/python3 "$GITHUB_WORKSPACE/control/ci/worker_result.py" \
             --job "$item/work.json" \
             --result "$RUNNER_TEMP/device-result.json" \
+            --infrastructure-error "$lease_error" \
             --output "result-${{ matrix.key }}.json"
       - name: Release device lease
         if: always()
@@ -316,16 +322,21 @@ jobs:
         run: |
           item="$GITHUB_WORKSPACE/dispatch/${{ matrix.key }}"
           lease_stop="$RUNNER_TEMP/lease-heartbeat-stop"
+          lease_error="$RUNNER_TEMP/lease-heartbeat-error"
           GH_TOKEN="${{ github.token }}" PYTHONPATH="$GITHUB_WORKSPACE/control" \
             /usr/bin/python3 -m ci.device_lease heartbeat-loop \
             --lease "$item/lease.json" \
             --repository "${{ github.repository }}" \
             --parent-pid "$PPID" \
-            --stop-file "$lease_stop" &
+            --stop-file "$lease_stop" 2>"$lease_error" &
           lease_pid=$!
           finish_lease_heartbeat() {
             touch "$lease_stop"
-            wait "$lease_pid" || true
+            if wait "$lease_pid"; then
+              rm -f "$lease_error"
+            elif [[ ! -s "$lease_error" ]]; then
+              printf 'lease heartbeat exited unsuccessfully\n' >"$lease_error"
+            fi
           }
           trap finish_lease_heartbeat EXIT
           set +e
@@ -348,6 +359,7 @@ jobs:
           /usr/bin/python3 "$GITHUB_WORKSPACE/control/ci/worker_result.py" \
             --job "$item/work.json" \
             --result "$RUNNER_TEMP/device-result.json" \
+            --infrastructure-error "$lease_error" \
             --output "result-${{ matrix.key }}.json"
       - name: Release device lease
         if: always()
