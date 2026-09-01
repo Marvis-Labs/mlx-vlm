@@ -6,7 +6,8 @@ pytest.importorskip("mlx.core")
 
 from ci.kv_cache_contract import CacheCharacteristic, ContractRunner
 from ci.kv_cache_contract_probe import run
-from ci.kv_cache_profiles.dense import MLXDenseCacheAdapter, dense_contract_cases
+from ci.kv_cache_profiles.common import MLXDenseCacheAdapter
+from ci.kv_cache_profiles.dense import dense_contract_cases
 from mlx_vlm.models.cache import KVCache, SimpleKVCache
 
 
