@@ -523,16 +523,12 @@ def create_delegator(
     from ci.components.registry import planners
 
     config_directory = rules_config.parent
-    if model_config != config_directory / "model_path.yaml" or scenario_config != (
-        config_directory / "model-path-scenario.yaml"
-    ):
-        model_path = ModelPath(model_config, scenario_config)
-        components: list[ChangeComponent] = [NewModelPath(model_path), model_path]
-        return Delegator(ChangeDetector.from_yaml(rules_config), components)
     components = planners(
         config_directory,
         repository or config_directory.parent,
         mlp_config,
+        model_config,
+        scenario_config,
     )
     return Delegator(ChangeDetector.from_yaml(rules_config), components)
 

@@ -20,10 +20,14 @@ class ComponentServices:
         config_directory: Path,
         repository: Path,
         mlp_config: Path | None,
+        model_config: Path,
+        scenario_config: Path,
     ):
         self.config_directory = config_directory
         self.repository = repository
         self.mlp_config = mlp_config
+        self.model_config = model_config
+        self.scenario_config = scenario_config
         self._model_path = None
 
     def model_path(self):
@@ -31,8 +35,8 @@ class ComponentServices:
             from ci.delegator import ModelPath
 
             self._model_path = ModelPath(
-                self.config_directory / "model_path.yaml",
-                self.config_directory / "model-path-scenario.yaml",
+                self.model_config,
+                self.scenario_config,
             )
         return self._model_path
 
@@ -114,9 +118,19 @@ REGISTRATIONS = (
 
 
 def planners(
-    config_directory: Path, repository: Path, mlp_config: Path | None
+    config_directory: Path,
+    repository: Path,
+    mlp_config: Path | None,
+    model_config: Path,
+    scenario_config: Path,
 ) -> tuple[Any, ...]:
-    services = ComponentServices(config_directory, repository, mlp_config)
+    services = ComponentServices(
+        config_directory,
+        repository,
+        mlp_config,
+        model_config,
+        scenario_config,
+    )
     return tuple(
         planner
         for registration in REGISTRATIONS
