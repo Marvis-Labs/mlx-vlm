@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 import uuid
@@ -23,6 +24,7 @@ mutation UpdateLeaseRefs($input: UpdateRefsInput!) {
   updateRefs(input: $input) { clientMutationId }
 }
 """
+GH_EXECUTABLE_PATHS = ("/opt/homebrew/bin/gh", "/usr/local/bin/gh")
 
 
 class DeviceLeaseError(RuntimeError):
@@ -75,6 +77,9 @@ class GitHubClient(Protocol):
 
 
 class GhClient:
+    def __init__(self, executable: str | None = None):
+        self.executable = executable or _resolve_gh_executable()
+
     def rest(
         self,
         endpoint: str,
@@ -82,7 +87,7 @@ class GhClient:
         method: str = "GET",
         body: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
-        command = ["gh", "api"]
+        command = [self.executable, "api"]
         if method != "GET":
             command.extend(["--method", method])
         command.append(endpoint)
@@ -90,7 +95,8 @@ class GhClient:
 
     def graphql(self, query: str, variables: Mapping[str, Any]) -> Mapping[str, Any]:
         return self._run(
-            ["gh", "api", "graphql"], {"query": query, "variables": variables}
+            [self.executable, "api", "graphql"],
+            {"query": query, "variables": variables},
         )
 
     def _run(
@@ -112,6 +118,16 @@ class GhClient:
         if not isinstance(value, Mapping):
             raise GitHubApiError("GitHub API response must be an object")
         return value
+
+
+def _resolve_gh_executable() -> str:
+    executable = shutil.which("gh")
+    if executable is not None:
+        return executable
+    for candidate in GH_EXECUTABLE_PATHS:
+        if os.access(candidate, os.X_OK):
+            return candidate
+    raise GitHubApiError("GitHub CLI is unavailable")
 
 
 class GitHubRefLeaseStore:

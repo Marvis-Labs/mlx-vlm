@@ -3,9 +3,11 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
+import ci.device_lease as device_lease
 from ci.device_lease import (
     ZERO_OID,
     DeviceLease,
+    GhClient,
     GitHubApiError,
     GitHubRefLeaseStore,
     acquire_dispatch_lease,
@@ -18,6 +20,17 @@ from ci.device_lease import (
 from ci.runner_selection import Device
 
 NOW = datetime(2026, 8, 30, tzinfo=timezone.utc)
+
+
+def test_gh_client_resolves_homebrew_outside_service_path(monkeypatch, tmp_path):
+    executable = tmp_path / "gh"
+    executable.touch(mode=0o755)
+    monkeypatch.setattr(device_lease.shutil, "which", lambda name: None)
+    monkeypatch.setattr(device_lease, "GH_EXECUTABLE_PATHS", (str(executable),))
+
+    client = GhClient()
+
+    assert client.executable == str(executable)
 
 
 class FakeGitHubClient:
