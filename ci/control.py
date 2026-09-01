@@ -201,19 +201,12 @@ def _validate_gate(gate: Mapping[str, Any], current_head_sha: str) -> None:
         raise ControlError("approval gate has no configuration")
     if gate.get("configuration_digest") != configuration_digest(configuration):
         raise ControlError("approval gate configuration digest does not match")
-    pending_work = gate.get("pending_work")
-    if not isinstance(pending_work, Mapping):
-        raise ControlError("approval gate has no pending work")
-    requested = gate.get("requested_phases")
-    if not isinstance(requested, list) or not requested:
-        raise ControlError("approval gate has no requested phases")
-    if (
-        pending_work.get("work_type") != "ModelPath"
-        or pending_work.get("component") != "model_path"
-        or pending_work.get("model") != gate.get("model")
-        or pending_work.get("phases") != requested
-    ):
-        raise ControlError("approval gate pending work exceeds its scope")
+    from ci.components.registry import validate_gate
+
+    try:
+        validate_gate(gate)
+    except ValueError as error:
+        raise ControlError(str(error)) from error
 
 
 def _require_unique_job_ids(jobs: Sequence[Mapping[str, Any]]) -> None:
@@ -285,7 +278,9 @@ def _blocked_plan(head_sha: str, reason: str, detail: str) -> dict[str, Any]:
 def _plan_command(args: argparse.Namespace) -> int:
     try:
         delegator = create_delegator(
-            args.rules_config, args.model_config, args.scenario_config
+            args.rules_config,
+            args.component_config_directory,
+            args.repository_path,
         )
         diff = diff_from_git(args.base, args.head, args.repository_path)
         plan = delegator.plan_context(diff.context())
@@ -328,8 +323,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_parser.add_argument("--repository-path", type=Path, default=Path.cwd())
     plan_parser.add_argument("--pr", type=int, required=True)
     plan_parser.add_argument("--rules-config", type=Path, required=True)
-    plan_parser.add_argument("--model-config", type=Path, required=True)
-    plan_parser.add_argument("--scenario-config", type=Path, required=True)
+    plan_parser.add_argument("--component-config-directory", type=Path)
     plan_parser.add_argument("--protected-config", type=Path, required=True)
     plan_parser.add_argument("--run-url")
     plan_parser.add_argument("--output", type=Path, required=True)

@@ -1,4 +1,9 @@
+from pathlib import Path
+
+import pytest
+
 from ci.components import registry
+from ci.components.base import ExecutionContext
 
 
 def test_component_registrations_are_unique_and_self_contained():
@@ -14,6 +19,10 @@ def test_component_registrations_are_unique_and_self_contained():
     assert registry.supported_phases() == frozenset(
         {"mlp_contract", "kv_cache_contract", "synthetic", "hf_checkpoint"}
     )
+    assert registry.contributor_config_paths() == (
+        "model-path-scenario.yaml",
+        "model_path.yaml",
+    )
 
 
 def test_removing_a_registration_removes_its_work_and_phases(monkeypatch):
@@ -26,3 +35,70 @@ def test_removing_a_registration_removes_its_work_and_phases(monkeypatch):
 
     assert ("KVCacheChange", "kv_cache_change") not in registry.supported_work()
     assert "kv_cache_contract" not in registry.supported_phases()
+    assert all(
+        "kv_cache_change" not in output.component_names for output in registry.outputs()
+    )
+    context = ExecutionContext(
+        Path("job.json"),
+        Path("control"),
+        Path("base"),
+        Path("head"),
+        Path("image.jpg"),
+        16,
+    )
+    assert "kv_cache_contract" not in registry.phase_commands(context)
+
+
+def test_registered_phases_build_commands_without_executor_switches():
+    context = ExecutionContext(
+        Path("job.json"),
+        Path("control"),
+        Path("base"),
+        Path("head"),
+        Path("image.jpg"),
+        16,
+    )
+
+    commands = registry.phase_commands(context)
+
+    assert set(commands) == registry.supported_phases()
+    assert commands["synthetic"][1].endswith("ci/model_path_synthetic_compare.py")
+    assert commands["mlp_contract"][1].endswith("ci/mlp_contract_compare.py")
+    assert commands["kv_cache_contract"][1].endswith("ci/kv_cache_contract_compare.py")
+    source = (Path(__file__).parents[1] / "work_executor.py").read_text()
+    assert all(phase not in source for phase in commands)
+
+
+def test_workflow_calls_only_generic_component_entry_points():
+    workflow = Path(__file__).parents[2] / ".github" / "workflows" / "bench.yml"
+    source = workflow.read_text()
+
+    assert "ci.component_config" in source
+    assert "ci.work_executor" in source
+    assert "model_path_work.py" not in source
+    assert "model_path_compare.py" not in source
+    assert "kv_cache_contract_compare.py" not in source
+
+
+def test_gate_validation_is_owned_by_the_registered_component(monkeypatch):
+    gate = {
+        "component": "new_model_path",
+        "model": "new_model",
+        "requested_phases": ["synthetic"],
+        "pending_work": {
+            "work_type": "ModelPath",
+            "component": "model_path",
+            "model": "new_model",
+            "phases": ["synthetic"],
+        },
+    }
+    registry.validate_gate(gate)
+    retained = tuple(
+        registration
+        for registration in registry.REGISTRATIONS
+        if registration.name != "model_path"
+    )
+    monkeypatch.setattr(registry, "REGISTRATIONS", retained)
+
+    with pytest.raises(ValueError, match="no unique gate validator"):
+        registry.validate_gate(gate)

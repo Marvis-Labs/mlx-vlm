@@ -1,140 +1,30 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Mapping
 
+from ci.components.base import ComponentContext, ExecutionContext
+from ci.components.kv_cache import REGISTRATION as KV_CACHE
+from ci.components.mlp import REGISTRATION as MLP
+from ci.components.model_path import REGISTRATION as MODEL_PATH
 
-@dataclass(frozen=True)
-class ComponentRegistration:
-    name: str
-    planner_factory: Callable[["ComponentServices"], tuple[Any, ...]]
-    output_factory: Callable[[], Any]
-    work: frozenset[tuple[str, str]]
-    phases: frozenset[str]
-
-
-class ComponentServices:
-    def __init__(
-        self,
-        config_directory: Path,
-        repository: Path,
-        mlp_config: Path | None,
-        model_config: Path,
-        scenario_config: Path,
-    ):
-        self.config_directory = config_directory
-        self.repository = repository
-        self.mlp_config = mlp_config
-        self.model_config = model_config
-        self.scenario_config = scenario_config
-        self._model_path = None
-
-    def model_path(self):
-        if self._model_path is None:
-            from ci.delegator import ModelPath
-
-            self._model_path = ModelPath(
-                self.model_config,
-                self.scenario_config,
-            )
-        return self._model_path
-
-
-def _model_path_planners(services: ComponentServices) -> tuple[Any, ...]:
-    from ci.delegator import NewModelPath
-
-    model_path = services.model_path()
-    return NewModelPath(model_path), model_path
-
-
-def _mlp_planners(services: ComponentServices) -> tuple[Any, ...]:
-    if services.mlp_config is None:
-        return ()
-    from ci.mlp_change import GitSource, MLPChange
-
-    return (
-        MLPChange(
-            services.mlp_config,
-            services.model_path(),
-            GitSource(services.repository),
-        ),
-    )
-
-
-def _kv_cache_planners(services: ComponentServices) -> tuple[Any, ...]:
-    from ci.kv_cache_change import KVCacheChange
-    from ci.mlp_change import GitSource
-
-    return (
-        KVCacheChange(
-            services.config_directory / "components" / "kv_cache_profiles.yaml",
-            GitSource(services.repository),
-        ),
-    )
-
-
-def _model_path_output():
-    from ci.bot import ModelPathOutput
-
-    return ModelPathOutput()
-
-
-def _mlp_output():
-    from ci.bot import MLPChangeOutput
-
-    return MLPChangeOutput()
-
-
-def _kv_cache_output():
-    from ci.bot import KVCacheChangeOutput
-
-    return KVCacheChangeOutput()
-
-
-REGISTRATIONS = (
-    ComponentRegistration(
-        name="mlp_change",
-        planner_factory=_mlp_planners,
-        output_factory=_mlp_output,
-        work=frozenset(),
-        phases=frozenset({"mlp_contract"}),
-    ),
-    ComponentRegistration(
-        name="kv_cache_change",
-        planner_factory=_kv_cache_planners,
-        output_factory=_kv_cache_output,
-        work=frozenset({("KVCacheChange", "kv_cache_change")}),
-        phases=frozenset({"kv_cache_contract"}),
-    ),
-    ComponentRegistration(
-        name="model_path",
-        planner_factory=_model_path_planners,
-        output_factory=_model_path_output,
-        work=frozenset({("ModelPath", "model_path")}),
-        phases=frozenset({"synthetic", "hf_checkpoint"}),
-    ),
-)
+REGISTRATIONS = (MLP, KV_CACHE, MODEL_PATH)
 
 
 def planners(
     config_directory: Path,
     repository: Path,
-    mlp_config: Path | None,
-    model_config: Path,
-    scenario_config: Path,
+    contributor_config_directory: Path | None = None,
 ) -> tuple[Any, ...]:
-    services = ComponentServices(
+    context = ComponentContext(
         config_directory,
         repository,
-        mlp_config,
-        model_config,
-        scenario_config,
+        contributor_config_directory,
     )
     return tuple(
         planner
         for registration in REGISTRATIONS
-        for planner in registration.planner_factory(services)
+        for planner in registration.planner_factory(context)
     )
 
 
@@ -150,5 +40,43 @@ def supported_work() -> frozenset[tuple[str, str]]:
 
 def supported_phases() -> frozenset[str]:
     return frozenset(
-        phase for registration in REGISTRATIONS for phase in registration.phases
+        phase.name for registration in REGISTRATIONS for phase in registration.phases
     )
+
+
+def phase_commands(context: ExecutionContext) -> dict[str, list[str]]:
+    commands: dict[str, list[str]] = {}
+    for registration in REGISTRATIONS:
+        for phase in registration.phases:
+            if phase.name in commands:
+                raise ValueError(f"duplicate phase registration: {phase.name}")
+            commands[phase.name] = phase.command(context)
+    return commands
+
+
+def contributor_config_paths() -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                path
+                for registration in REGISTRATIONS
+                for path in registration.contributor_configs
+            }
+        )
+    )
+
+
+def validate_gate(gate: Mapping[str, Any]) -> None:
+    component = str(gate.get("component", ""))
+    registrations = [
+        registration
+        for registration in REGISTRATIONS
+        if component in registration.components
+        and registration.gate_validator is not None
+    ]
+    if len(registrations) != 1:
+        raise ValueError(f"no unique gate validator for component: {component}")
+    validator = registrations[0].gate_validator
+    if validator is None:
+        raise ValueError(f"component does not support approval gates: {component}")
+    validator(gate)

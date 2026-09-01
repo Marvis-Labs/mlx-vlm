@@ -250,14 +250,22 @@ def test_lease_tag_contains_auditable_payload():
 
 
 def model_work(model, weight_bytes):
+    from ci.components.model_path import resource_requirements
+
+    required_memory, required_disk = resource_requirements(
+        {"weight": {"bytes": weight_bytes}}
+    )
     return {
         "id": f"model_path:{model}",
         "work_type": "ModelPath",
         "component": "model_path",
+        "subject": model,
         "model": model,
         "phases": ["synthetic", "hf_checkpoint"],
         "synthetic": {"adapter": model, "profile": "dense_vlm"},
         "hf_checkpoint": {"weight": {"bytes": weight_bytes}},
+        "required_memory_gib": required_memory,
+        "required_disk_gib": required_disk,
     }
 
 
@@ -268,7 +276,7 @@ def cache_work():
         "component": "kv_cache_change",
         "profile": "dense",
         "phases": ["kv_cache_contract"],
-        "minimum_memory_gib": 8,
+        "required_memory_gib": 8,
         "required_disk_gib": 2,
     }
 

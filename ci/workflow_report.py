@@ -88,7 +88,7 @@ def report_coalesced(
     jobs = plan.get("jobs", []) if isinstance(plan, Mapping) else []
     executions = [
         {
-            "component": str(job.get("component", "model_path")),
+            "component": str(job.get("component", "runner")),
             "model": job.get("model"),
             "profile": job.get("profile"),
             "job_id": str(job.get("id", "")),

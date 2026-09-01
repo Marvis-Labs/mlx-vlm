@@ -98,16 +98,23 @@ class ModelPath:
         *,
         component: str | None = None,
     ) -> dict[str, Any]:
+        from ci.components.model_path import resource_requirements
+
+        checkpoint = dict(configuration["hf_checkpoint"])
+        required_memory, required_disk = resource_requirements(checkpoint)
         return {
             "id": f"model_path:{model_name}",
             "work_type": "ModelPath",
             "component": component or self.name,
+            "subject": model_name,
             "model": model_name,
             "changed_paths": paths,
             "phases": ["synthetic", "hf_checkpoint"],
             "scenarios": list(configuration["scenarios"]),
             "synthetic": dict(configuration["synthetic"]),
-            "hf_checkpoint": dict(configuration["hf_checkpoint"]),
+            "hf_checkpoint": checkpoint,
+            "required_memory_gib": required_memory,
+            "required_disk_gib": required_disk,
         }
 
     def configuration(
@@ -513,12 +520,10 @@ def changed_files_from_git(
 
 def create_delegator(
     rules_config: Path,
-    model_config: Path,
-    scenario_config: Path,
-    mlp_config: Path | None = None,
+    contributor_config_directory: Path | None = None,
     repository: Path | None = None,
 ) -> Delegator:
-    """Create a delegator from explicit trusted rules and manifest paths."""
+    """Create a delegator from trusted rules and registered component plugins."""
 
     from ci.components.registry import planners
 
@@ -526,9 +531,7 @@ def create_delegator(
     components = planners(
         config_directory,
         repository or config_directory.parent,
-        mlp_config,
-        model_config,
-        scenario_config,
+        contributor_config_directory,
     )
     return Delegator(ChangeDetector.from_yaml(rules_config), components)
 
@@ -539,10 +542,7 @@ def default_delegator(config_directory: Path | None = None) -> Delegator:
     config_directory = config_directory or Path(__file__).resolve().parent
     return create_delegator(
         config_directory / "change-rules.yaml",
-        config_directory / "model_path.yaml",
-        config_directory / "model-path-scenario.yaml",
-        config_directory / "components" / "mlp.yaml",
-        config_directory.parent,
+        repository=config_directory.parent,
     )
 
 

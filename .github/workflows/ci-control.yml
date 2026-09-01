@@ -35,13 +35,14 @@ jobs:
         run: |
           git fetch --no-tags origin "pull/$PR_NUMBER/head"
           test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA"
-      - name: Read pull request manifests as data
+      - name: Materialize registered contributor configuration
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           mkdir -p "$RUNNER_TEMP/pr-ci"
-          git show "$HEAD_SHA:ci/model_path.yaml" > "$RUNNER_TEMP/pr-ci/model_path.yaml" || true
-          git show "$HEAD_SHA:ci/model-path-scenario.yaml" > "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml" || true
+          python -m ci.component_config \
+            --revision "$HEAD_SHA" \
+            --output "$RUNNER_TEMP/pr-ci"
       - name: Install pinned planner dependency
         run: python -m pip install --quiet pyyaml==6.0.3
       - name: Build trusted control record
@@ -58,8 +59,7 @@ jobs:
             --repository "${{ github.repository }}" \
             --pr "$PR_NUMBER" \
             --rules-config ci/change-rules.yaml \
-            --model-config "$RUNNER_TEMP/pr-ci/model_path.yaml" \
-            --scenario-config "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml" \
+            --component-config-directory "$RUNNER_TEMP/pr-ci" \
             --protected-config ci/protected_paths.yaml \
             --run-url "$RUN_URL" \
             --output control.json \

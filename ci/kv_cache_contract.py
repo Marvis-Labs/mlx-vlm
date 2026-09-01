@@ -27,6 +27,7 @@ class CacheCapability(str, Enum):
     BATCH_LIFECYCLE = "batch_lifecycle"
     ADVANCE = "advance"
     QUANTIZE = "quantize"
+    RESERVE = "reserve"
 
 
 class CacheCharacteristic(str, Enum):
@@ -54,6 +55,7 @@ class CacheOperationKind(str, Enum):
     FINALIZE_BATCH = "finalize_batch"
     ADVANCE = "advance"
     QUANTIZE = "quantize"
+    RESERVE = "reserve"
 
 
 OPERATION_CAPABILITIES = {
@@ -69,6 +71,7 @@ OPERATION_CAPABILITIES = {
     CacheOperationKind.FINALIZE_BATCH: CacheCapability.BATCH_LIFECYCLE,
     CacheOperationKind.ADVANCE: CacheCapability.ADVANCE,
     CacheOperationKind.QUANTIZE: CacheCapability.QUANTIZE,
+    CacheOperationKind.RESERVE: CacheCapability.RESERVE,
 }
 
 

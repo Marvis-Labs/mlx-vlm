@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from ci.components.model_path import resource_requirements
 from ci.runner_selection import Device
 from ci.scheduler import (
     DeclineReason,
@@ -16,12 +17,16 @@ from ci.scheduler import (
 
 
 def job(weight_gib=1):
+    required_memory, required_disk = resource_requirements(
+        {"weight": {"bytes": int(weight_gib * 2**30)}}
+    )
     return {
         "id": "model_path:qwen2_vl:hf_checkpoint",
         "component": "model_path",
         "model": "qwen2_vl",
         "mode": "hf_checkpoint",
-        "hf_checkpoint": {"weight": {"bytes": int(weight_gib * 2**30)}},
+        "required_memory_gib": required_memory,
+        "required_disk_gib": required_disk,
     }
 
 

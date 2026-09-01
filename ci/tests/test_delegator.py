@@ -26,9 +26,7 @@ def test_temporary_model_manifests_do_not_disable_other_components(tmp_path):
 
     delegator = create_delegator(
         config_directory / "change-rules.yaml",
-        model_config,
-        scenario_config,
-        config_directory / "components" / "mlp.yaml",
+        tmp_path,
         config_directory.parent,
     )
 
@@ -281,6 +279,11 @@ def test_repository_cache_change_conservatively_routes_implemented_contracts():
     assert plan["components"] == ["kv_cache_change"]
     assert [job["id"] for job in plan["jobs"]] == [
         "kv_cache_change:dense",
+        "kv_cache_change:pooling",
+        "kv_cache_change:prefix",
+        "kv_cache_change:quantized",
+        "kv_cache_change:recurrent",
+        "kv_cache_change:segmented",
         "kv_cache_change:windowed",
     ]
     assert all(job["head_sha"] == "head" for job in plan["jobs"])
@@ -302,6 +305,11 @@ def test_cache_and_model_changes_produce_independent_work_items():
     assert plan["components"] == ["kv_cache_change", "model_path"]
     assert [(job["work_type"], job["id"]) for job in plan["jobs"]] == [
         ("KVCacheChange", "kv_cache_change:dense"),
+        ("KVCacheChange", "kv_cache_change:pooling"),
+        ("KVCacheChange", "kv_cache_change:prefix"),
+        ("KVCacheChange", "kv_cache_change:quantized"),
+        ("KVCacheChange", "kv_cache_change:recurrent"),
+        ("KVCacheChange", "kv_cache_change:segmented"),
         ("KVCacheChange", "kv_cache_change:windowed"),
         ("ModelPath", "model_path:qwen2_vl"),
     ]

@@ -123,7 +123,3 @@ def work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if len(identifiers) != len(set(identifiers)):
         raise DeviceInventoryError("work item ids must be unique")
     return selected
-
-
-def model_path_work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    return work_items(plan)

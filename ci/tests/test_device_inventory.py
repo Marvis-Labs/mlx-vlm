@@ -4,7 +4,6 @@ from ci.device_inventory import (
     DeviceInventoryError,
     configured_devices,
     devices_from_github,
-    model_path_work_items,
     work_items,
 )
 
@@ -49,22 +48,22 @@ def test_github_inventory_preserves_order_and_runner_state():
     assert devices[-1].busy is True
 
 
-def test_model_path_inventory_accepts_multiple_independent_work_items():
+def test_inventory_accepts_multiple_independent_work_items():
     second = job()
     second["id"] = "model_path:second"
     second["model"] = "second"
 
-    selected = model_path_work_items({"jobs": [job(), second]})
+    selected = work_items({"jobs": [job(), second]})
 
     assert [item["model"] for item in selected] == ["qwen2_vl", "second"]
 
 
-def test_model_path_inventory_rejects_unsupported_work():
+def test_inventory_rejects_unsupported_work():
     unsupported = job()
     unsupported["work_type"] = "ComponentPath"
 
     with pytest.raises(DeviceInventoryError, match="unsupported work"):
-        model_path_work_items({"jobs": [unsupported]})
+        work_items({"jobs": [unsupported]})
 
 
 def test_inventory_accepts_kv_cache_change_work():
@@ -74,7 +73,7 @@ def test_inventory_accepts_kv_cache_change_work():
         "component": "kv_cache_change",
         "profile": "dense",
         "phases": ["kv_cache_contract"],
-        "minimum_memory_gib": 8,
+        "required_memory_gib": 8,
         "required_disk_gib": 2,
     }
 

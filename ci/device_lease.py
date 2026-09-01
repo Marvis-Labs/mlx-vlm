@@ -373,12 +373,7 @@ def acquire_plan_leases(
             ttl_seconds=ttl_seconds,
             now=now,
         )
-        subject = (
-            work_item.get("model")
-            or work_item.get("profile")
-            or work_item.get("work_type")
-            or "work"
-        )
+        subject = work_item.get("subject") or work_item.get("work_type") or "work"
         key = f"{sequence:03d}-{_safe_key(str(subject))}"
         records.append(
             {

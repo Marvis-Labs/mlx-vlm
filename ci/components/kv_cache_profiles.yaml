@@ -15,22 +15,23 @@ profiles:
     implementations:
       - ChunkedKVCache
       - ConcatenateKVCache
-    contract: null
+    contract: ci.kv_cache_profiles.segmented:segmented_contract_cases
   recurrent:
     implementations:
       - ArraysCache
-    contract: null
+    contract: ci.kv_cache_profiles.recurrent:recurrent_contract_cases
   pooling:
     implementations:
       - PoolingCache
       - BatchPoolingCache
-    contract: null
+    contract: ci.kv_cache_profiles.pooling:pooling_contract_cases
   quantized:
     implementations:
       - QuantizedKVCache
       - BatchQuantizedKVCache
-    contract: null
+    contract: ci.kv_cache_profiles.quantized:quantized_contract_cases
   prefix:
     implementations:
       - StaticPrefixKVCache
-    contract: null
+      - KVCache prefix protocol
+    contract: ci.kv_cache_profiles.prefix:prefix_contract_cases

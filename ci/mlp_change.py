@@ -201,17 +201,21 @@ class MLPChange:
         paths: list[str],
         consumers: Mapping[str, set[str]],
     ) -> dict[str, Any]:
+        from ci.components.model_path import resource_requirements
+
         symbols = [origin["symbol"] for origin in origins]
+        required_memory, required_disk = resource_requirements(None)
         job: dict[str, Any] = {
             "id": f"model_path:{model}",
             "work_type": "ModelPath",
             "component": "model_path",
+            "subject": model,
             "model": model,
             "changed_paths": paths,
             "origins": origins,
             "phases": ["mlp_contract"],
-            "minimum_memory_gib": 8,
-            "required_disk_gib": 2,
+            "required_memory_gib": required_memory,
+            "required_disk_gib": required_disk,
             "mlp_contract": {
                 "symbols": symbols,
                 "consumer": model,
@@ -222,11 +226,14 @@ class MLPChange:
         }
         checkpoint, reason = self._checkpoint(model)
         if checkpoint is not None:
+            required_memory, required_disk = resource_requirements(
+                checkpoint["hf_checkpoint"]
+            )
             job["phases"].append("hf_checkpoint")
             job["hf_checkpoint"] = checkpoint["hf_checkpoint"]
             job["scenarios"] = checkpoint["scenarios"]
-            job.pop("minimum_memory_gib")
-            job.pop("required_disk_gib")
+            job["required_memory_gib"] = required_memory
+            job["required_disk_gib"] = required_disk
         else:
             job["unavailable_phases"] = {"hf_checkpoint": reason}
         return job

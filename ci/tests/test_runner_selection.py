@@ -1,5 +1,6 @@
 import pytest
 
+from ci.components.model_path import resource_requirements
 from ci.runner_selection import (
     Device,
     RunnerSelectionError,
@@ -11,9 +12,11 @@ from ci.runner_selection import (
 
 
 def checkpoint_job(weight_gib=1):
+    checkpoint = {"weight": {"bytes": int(weight_gib * 2**30)}}
+    required_memory, required_disk = resource_requirements(checkpoint)
     return {
-        "mode": "hf_checkpoint",
-        "hf_checkpoint": {"weight": {"bytes": int(weight_gib * 2**30)}},
+        "required_memory_gib": required_memory,
+        "required_disk_gib": required_disk,
     }
 
 
@@ -62,22 +65,24 @@ def test_unavailable_small_devices_are_skipped():
     assert select_device(checkpoint_job(), devices).name == "m5"
 
 
-def test_memory_requirement_uses_checkpoint_weight_and_runtime_headroom():
-    assert required_memory_gib(checkpoint_job(1)) == 8
-    assert required_memory_gib(checkpoint_job(40)) == 64
+def test_model_path_plugin_calculates_runtime_and_download_headroom():
+    assert resource_requirements({"weight": {"bytes": 1 * 2**30}}) == (8, 4)
+    assert resource_requirements({"weight": {"bytes": 40 * 2**30}}) == (64, 52)
 
 
-def test_explicit_memory_requirement_takes_precedence():
-    assert required_memory_gib({"minimum_memory_gib": 32}) == 32
+def test_scheduler_reads_explicit_memory_requirement():
+    assert required_memory_gib({"required_memory_gib": 32}) == 32
 
 
-def test_disk_requirement_uses_checkpoint_weight_and_download_headroom():
-    assert required_disk_gib(checkpoint_job(1)) == 4
-    assert required_disk_gib(checkpoint_job(40)) == 52
-
-
-def test_explicit_disk_requirement_takes_precedence():
+def test_scheduler_reads_explicit_disk_requirement():
     assert required_disk_gib({"required_disk_gib": 32}) == 32
+
+
+def test_scheduler_rejects_missing_resource_requirements():
+    with pytest.raises(RunnerSelectionError, match="required_memory_gib"):
+        required_memory_gib({})
+    with pytest.raises(RunnerSelectionError, match="required_disk_gib"):
+        required_disk_gib({})
 
 
 def test_selection_fails_when_no_device_can_fit():

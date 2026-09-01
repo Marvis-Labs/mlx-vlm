@@ -4,9 +4,11 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from ci.components.base import ExecutionContext
+from ci.components.registry import phase_commands
 
 
 def _run(command: list[str], findings: Path) -> tuple[int, dict[str, Any]]:
@@ -43,62 +45,15 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     configured = job.get("phases", [])
     if not isinstance(configured, list) or not configured:
         raise ValueError("work item has no phases")
-    commands = {
-        "kv_cache_contract": [
-            sys.executable,
-            str(args.kv_cache_compare),
-            "--job",
-            str(args.job),
-            "--control",
-            str(args.control),
-            "--head",
-            str(args.head),
-            "--probe",
-            str(args.kv_cache_probe),
-        ],
-        "mlp_contract": [
-            sys.executable,
-            str(args.mlp_compare),
-            "--job",
-            str(args.job),
-            "--base",
-            str(args.base),
-            "--head",
-            str(args.head),
-            "--probe",
-            str(args.mlp_probe),
-        ],
-        "synthetic": [
-            sys.executable,
-            str(args.synthetic_compare),
-            "--job",
-            str(args.job),
-            "--profiles",
-            str(args.profiles),
-            "--base",
-            str(args.base),
-            "--head",
-            str(args.head),
-            "--probe",
-            str(args.synthetic_probe),
-        ],
-        "hf_checkpoint": [
-            sys.executable,
-            str(args.hf_compare),
-            "--job",
-            str(args.job),
-            "--base",
-            str(args.base),
-            "--head",
-            str(args.head),
-            "--probe",
-            str(args.hf_probe),
-            "--image",
-            str(args.image),
-            "--max-tokens",
-            str(args.max_tokens),
-        ],
-    }
+    context = ExecutionContext(
+        job_path=args.job,
+        control=args.control,
+        base=args.base,
+        head=args.head,
+        image=args.image or args.control / "ci" / "assets" / "cat.jpg",
+        max_tokens=args.max_tokens,
+    )
+    commands = phase_commands(context)
     phases: dict[str, Any] = {}
     for index, name in enumerate(configured):
         if name not in commands:
@@ -132,32 +87,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     directory = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
     parser.add_argument("--job", type=Path, required=True)
-    parser.add_argument("--profiles", type=Path, required=True)
+    parser.add_argument("--control", type=Path, default=directory.parent)
     parser.add_argument("--base", type=Path, required=True)
     parser.add_argument("--head", type=Path, required=True)
-    parser.add_argument("--synthetic-compare", type=Path, required=True)
-    parser.add_argument("--synthetic-probe", type=Path, required=True)
-    parser.add_argument(
-        "--mlp-compare", type=Path, default=directory / "mlp_contract_compare.py"
-    )
-    parser.add_argument(
-        "--mlp-probe", type=Path, default=directory / "mlp_contract_probe.py"
-    )
-    parser.add_argument(
-        "--kv-cache-compare",
-        type=Path,
-        default=directory / "kv_cache_contract_compare.py",
-    )
-    parser.add_argument(
-        "--kv-cache-probe",
-        type=Path,
-        default=directory / "kv_cache_contract_probe.py",
-    )
-    parser.add_argument("--control", type=Path, default=directory.parent)
-    parser.add_argument("--hf-compare", type=Path, required=True)
-    parser.add_argument("--hf-probe", type=Path, required=True)
-    parser.add_argument("--image", type=Path, required=True)
-    parser.add_argument("--max-tokens", type=int, default=32)
+    parser.add_argument("--image", type=Path)
+    parser.add_argument("--max-tokens", type=int, default=16)
     args = parser.parse_args(argv)
     return run(args)[0]
 

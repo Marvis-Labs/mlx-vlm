@@ -47,7 +47,7 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - name: Build immutable ModelPath work plan
+      - name: Build immutable CI work plan
         env:
           BASE_SHA: ${{ steps.pr.outputs.base }}
           HEAD_SHA: ${{ steps.pr.outputs.head }}
@@ -56,17 +56,17 @@ jobs:
           git fetch --no-tags origin "pull/$PR_NUMBER/head"
           test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA"
           mkdir -p "$RUNNER_TEMP/pr-ci"
-          git show "$HEAD_SHA:ci/model_path.yaml" > "$RUNNER_TEMP/pr-ci/model_path.yaml"
-          git show "$HEAD_SHA:ci/model-path-scenario.yaml" > "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml"
           python -m pip install --quiet pyyaml==6.0.3
+          python -m ci.component_config \
+            --revision "$HEAD_SHA" \
+            --output "$RUNNER_TEMP/pr-ci"
           python -m ci.control plan \
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" \
             --repository "${{ github.repository }}" \
             --pr "$PR_NUMBER" \
             --rules-config ci/change-rules.yaml \
-            --model-config "$RUNNER_TEMP/pr-ci/model_path.yaml" \
-            --scenario-config "$RUNNER_TEMP/pr-ci/model-path-scenario.yaml" \
+            --component-config-directory "$RUNNER_TEMP/pr-ci" \
             --protected-config ci/protected_paths.yaml \
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --output control.json \
@@ -107,7 +107,7 @@ jobs:
                 --jq '.jobs[] | select(.status == "in_progress") | .runner_name'
             done >> busy-runners.txt
           jq -Rsc 'split("\n") | map(select(length > 0))' busy-runners.txt > busy.json
-      - name: Atomically lease devices for ModelPath work
+      - name: Atomically lease devices for CI work
         id: dispatch
         if: steps.attempt.outputs.acquired == 'true'
         env:
@@ -166,7 +166,7 @@ jobs:
         with:
           name: dispatch-${{ github.run_id }}
           path: dispatch
-      - name: Run ordered synthetic and checkpoint phases
+      - name: Execute registered workload phases
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -190,19 +190,13 @@ jobs:
           }
           trap finish_lease_heartbeat EXIT
           set +e
-          "$HOME/ci-runner/RUN_JOB.sh" \
+          PYTHONPATH="$GITHUB_WORKSPACE/control" "$HOME/ci-runner/RUN_JOB.sh" \
             "$item/work.json" "$RUNNER_TEMP/device-result.json" -- \
-            /usr/bin/python3 "$GITHUB_WORKSPACE/control/ci/model_path_work.py" \
+            /usr/bin/python3 -m ci.work_executor \
               --job "$item/work.json" \
-              --profiles "$GITHUB_WORKSPACE/control/ci/model_path.yaml" \
+              --control "$GITHUB_WORKSPACE/control" \
               --base "$GITHUB_WORKSPACE/base" \
-              --head "$GITHUB_WORKSPACE/head" \
-              --synthetic-compare "$GITHUB_WORKSPACE/control/ci/model_path_synthetic_compare.py" \
-              --synthetic-probe "$GITHUB_WORKSPACE/control/ci/model_path_synthetic_probe.py" \
-              --hf-compare "$GITHUB_WORKSPACE/control/ci/model_path_compare.py" \
-              --hf-probe "$GITHUB_WORKSPACE/control/ci/model_path_probe.py" \
-              --image "$GITHUB_WORKSPACE/control/ci/assets/cat.jpg" \
-              --max-tokens 16
+              --head "$GITHUB_WORKSPACE/head"
           set -e
           finish_lease_heartbeat
           trap - EXIT
@@ -316,7 +310,7 @@ jobs:
         with:
           name: retry-dispatch-${{ github.run_id }}
           path: dispatch
-      - name: Run ordered synthetic and checkpoint phases
+      - name: Execute registered workload phases
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -340,19 +334,13 @@ jobs:
           }
           trap finish_lease_heartbeat EXIT
           set +e
-          "$HOME/ci-runner/RUN_JOB.sh" \
+          PYTHONPATH="$GITHUB_WORKSPACE/control" "$HOME/ci-runner/RUN_JOB.sh" \
             "$item/work.json" "$RUNNER_TEMP/device-result.json" -- \
-            /usr/bin/python3 "$GITHUB_WORKSPACE/control/ci/model_path_work.py" \
+            /usr/bin/python3 -m ci.work_executor \
               --job "$item/work.json" \
-              --profiles "$GITHUB_WORKSPACE/control/ci/model_path.yaml" \
+              --control "$GITHUB_WORKSPACE/control" \
               --base "$GITHUB_WORKSPACE/base" \
-              --head "$GITHUB_WORKSPACE/head" \
-              --synthetic-compare "$GITHUB_WORKSPACE/control/ci/model_path_synthetic_compare.py" \
-              --synthetic-probe "$GITHUB_WORKSPACE/control/ci/model_path_synthetic_probe.py" \
-              --hf-compare "$GITHUB_WORKSPACE/control/ci/model_path_compare.py" \
-              --hf-probe "$GITHUB_WORKSPACE/control/ci/model_path_probe.py" \
-              --image "$GITHUB_WORKSPACE/control/ci/assets/cat.jpg" \
-              --max-tokens 16
+              --head "$GITHUB_WORKSPACE/head"
           set -e
           finish_lease_heartbeat
           trap - EXIT
