@@ -1,9 +1,29 @@
+import ast
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from ci.kv_cache_contract_compare import execute, require_checkout, run_probe
+
+
+def test_profile_contracts_do_not_import_one_another():
+    profiles = Path("ci/kv_cache_profiles")
+    violations = []
+    for path in profiles.glob("*.py"):
+        if path.name in {"__init__.py", "common.py"}:
+            continue
+        for node in ast.walk(ast.parse(path.read_text())):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module is not None
+                and node.module.startswith("ci.kv_cache_profiles.")
+                and node.module != "ci.kv_cache_profiles.common"
+            ):
+                violations.append((path.name, node.module))
+
+    assert violations == []
 
 
 def job():

@@ -6,11 +6,11 @@ pytest.importorskip("mlx.core")
 
 from ci.kv_cache_contract import CacheCharacteristic, ContractRunner
 from ci.kv_cache_contract_probe import run
+from ci.kv_cache_profiles.common import MLXDenseCacheAdapter
 from ci.kv_cache_profiles.segmented import (
     MLXChunkedCacheAdapter,
     segmented_contract_cases,
 )
-from ci.kv_cache_profiles.dense import MLXDenseCacheAdapter
 from mlx_vlm.models.cache import ChunkedKVCache, ConcatenateKVCache
 
 
@@ -27,9 +27,7 @@ def test_real_segmented_cache_contracts_pass():
 
 
 def test_segmented_probe_reports_both_implementations():
-    result = run(
-        ("ci.kv_cache_profiles.segmented:segmented_contract_cases",)
-    )
+    result = run(("ci.kv_cache_profiles.segmented:segmented_contract_cases",))
 
     assert result["verdict"] == "passed"
     assert result["profiles"] == ["segmented"]
@@ -55,9 +53,7 @@ def test_chunked_contract_rejects_extra_front_eviction():
 
     original = segmented_contract_cases()[0]
     sequence = next(
-        sequence
-        for sequence in original.sequences
-        if sequence.name == "front-eviction"
+        sequence for sequence in original.sequences if sequence.name == "front-eviction"
     )
     mutated = replace(
         original,

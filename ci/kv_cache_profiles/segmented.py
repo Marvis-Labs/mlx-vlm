@@ -14,8 +14,7 @@ from ci.kv_cache_contract import (
     StorageProfile,
 )
 from ci.kv_cache_oracles import ChunkedKVOracle, DenseKVOracle
-from ci.kv_cache_profiles.common import cache_update
-from ci.kv_cache_profiles.dense import MLXDenseCacheAdapter
+from ci.kv_cache_profiles.common import MLXDenseCacheAdapter, cache_update
 
 
 class MLXChunkedCacheAdapter:
@@ -164,16 +163,13 @@ def segmented_contract_cases() -> tuple[CacheContractCase, ...]:
             ),
             oracle_factory=lambda: ChunkedKVOracle(chunk_size=8),
             capabilities=shared,
-            characteristics=logical_characteristics
-            | {CacheCharacteristic.METADATA},
+            characteristics=logical_characteristics | {CacheCharacteristic.METADATA},
             sequences=_chunked_sequences() + _chunked_random_sequences(),
         ),
         CacheContractCase(
             name="ConcatenateKVCache",
             profile=StorageProfile.SEGMENTED,
-            subject_factory=lambda: MLXDenseCacheAdapter(
-                ConcatenateKVCache, shared
-            ),
+            subject_factory=lambda: MLXDenseCacheAdapter(ConcatenateKVCache, shared),
             oracle_factory=DenseKVOracle,
             capabilities=shared,
             characteristics=logical_characteristics,
@@ -265,8 +261,7 @@ def _chunked_random_sequences() -> tuple[OperationSequence, ...]:
 
 def _dense_random_sequences() -> tuple[OperationSequence, ...]:
     return tuple(
-        _random_sequence(f"concatenate-state-machine-{seed}", seed)
-        for seed in range(5)
+        _random_sequence(f"concatenate-state-machine-{seed}", seed) for seed in range(5)
     )
 
 
