@@ -9,9 +9,35 @@ from ci.delegator import (
     ModelPath,
     NewModelPath,
     _parse_name_status,
+    create_delegator,
     default_delegator,
     main,
 )
+
+
+def test_temporary_model_manifests_do_not_disable_other_components(tmp_path):
+    config_directory = Path(__file__).parents[1]
+    model_config = tmp_path / "model_path.yaml"
+    scenario_config = tmp_path / "model-path-scenario.yaml"
+    model_config.write_text((config_directory / "model_path.yaml").read_text())
+    scenario_config.write_text(
+        (config_directory / "model-path-scenario.yaml").read_text()
+    )
+
+    delegator = create_delegator(
+        config_directory / "change-rules.yaml",
+        model_config,
+        scenario_config,
+        config_directory / "components" / "mlp.yaml",
+        config_directory.parent,
+    )
+
+    assert [component.name for component in delegator.components] == [
+        "mlp_change",
+        "kv_cache_change",
+        "new_model_path",
+        "model_path",
+    ]
 
 
 def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
