@@ -2084,6 +2084,7 @@ class PoolingCache(_BaseCache):
       2. A small remainder buffer of tokens not yet forming a full window.
     """
 
+    pass
     def __init__(self, ratio: int):
         self.ratio = ratio
 
