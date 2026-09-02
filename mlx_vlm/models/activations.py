@@ -6,6 +6,7 @@ import mlx.nn as nn
 
 @partial(mx.compile, shapeless=True)
 def swiglu(gate, x):
+    pass
     return nn.silu(gate) * x
 
 
