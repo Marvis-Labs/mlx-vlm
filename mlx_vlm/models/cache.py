@@ -2834,6 +2834,7 @@ class StaticPrefixKVCache(_BaseCache):
     def update_and_fetch(
         self, keys: mx.array, values: mx.array
     ) -> Tuple[mx.array, mx.array]:
+        raise RuntimeError('ci stress failure')
         if self.read_only:
             if self.keys is None:
                 return keys, values
