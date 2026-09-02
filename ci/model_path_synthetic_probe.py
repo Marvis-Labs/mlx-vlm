@@ -78,7 +78,79 @@ def _qwen2_vl(profile: Mapping[str, Any]) -> tuple[Any, Any]:
     return model, output.logits
 
 
-ADAPTERS = {"qwen2_vl": _qwen2_vl}
+def _qwen2_5_vl(profile: Mapping[str, Any]) -> tuple[Any, Any]:
+    import mlx.core as mx
+
+    from mlx_vlm.models import qwen2_5_vl
+
+    text = profile["text"]
+    vision = profile["vision"]
+    inputs = profile["inputs"]
+    text_config = qwen2_5_vl.TextConfig(
+        model_type="qwen2_5_vl",
+        hidden_size=text["hidden_size"],
+        num_hidden_layers=text["num_hidden_layers"],
+        intermediate_size=text["intermediate_size"],
+        num_attention_heads=text["num_attention_heads"],
+        num_key_value_heads=text["num_key_value_heads"],
+        rms_norm_eps=1e-6,
+        vocab_size=text["vocab_size"],
+        max_position_embeddings=text["max_position_embeddings"],
+        rope_theta=10000,
+        rope_scaling={"type": "mrope", "mrope_section": [2, 1, 1]},
+        tie_word_embeddings=False,
+    )
+    vision_config = qwen2_5_vl.VisionConfig(
+        model_type="qwen2_5_vl",
+        depth=vision["num_hidden_layers"],
+        hidden_size=vision["hidden_size"],
+        intermediate_size=vision["intermediate_size"],
+        out_hidden_size=text["hidden_size"],
+        image_size=vision["image_size"],
+        num_heads=vision["num_attention_heads"],
+        patch_size=vision["patch_size"],
+        in_channels=vision["num_channels"],
+        spatial_merge_size=2,
+        temporal_patch_size=2,
+        window_size=vision["image_size"],
+        fullatt_block_indexes=[0, 1],
+    )
+    image_token_id = text["vocab_size"] - 2
+    vision_start_token_id = text["vocab_size"] - 3
+    config = qwen2_5_vl.ModelConfig(
+        model_type="qwen2_5_vl",
+        text_config=text_config,
+        vision_config=vision_config,
+        image_token_id=image_token_id,
+        video_token_id=text["vocab_size"] - 1,
+        vision_start_token_id=vision_start_token_id,
+        vision_end_token_id=text["vocab_size"] - 4,
+        vision_token_id=text["vocab_size"] - 5,
+        vocab_size=text["vocab_size"],
+    )
+    mx.random.seed(0)
+    model = qwen2_5_vl.Model(config)
+    grid = mx.array([[1, 2, 2]])
+    patch_values = mx.arange(
+        4
+        * vision["num_channels"]
+        * vision_config.temporal_patch_size
+        * vision["patch_size"]
+        * vision["patch_size"],
+        dtype=mx.float32,
+    ).reshape(4, -1)
+    patch_values = patch_values / max(1, patch_values.size)
+    tokens = [vision_start_token_id, image_token_id]
+    tokens.extend(range(1, inputs["sequence_length"] - len(tokens) + 1))
+    output = model(
+        mx.array([tokens]),
+        pixel_values=patch_values,
+        image_grid_thw=grid,
+    )
+    return model, output.logits
+
+
+ADAPTERS = {"qwen2_5_vl": _qwen2_5_vl, "qwen2_vl": _qwen2_vl}
 
 
 def _profile(job: Mapping[str, Any], profiles: Mapping[str, Any]) -> Mapping[str, Any]:
