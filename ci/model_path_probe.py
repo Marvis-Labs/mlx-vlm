@@ -28,15 +28,19 @@ def summarize(results: Sequence[Any], started: float, ttft_ms: float) -> dict[st
         raise RuntimeError("generation produced no results")
     last = results[-1]
     text = "".join(str(getattr(item, "text", "")) for item in results).strip()
-    if not text:
-        raise RuntimeError("generation produced no text")
     token_ids = [
         int(item.token) for item in results if getattr(item, "token", None) is not None
     ]
+    identity = {
+        "finish_reason": last.finish_reason,
+        "generation_tokens": int(last.generation_tokens),
+        "text": text,
+        "token_ids": token_ids,
+    }
     return {
         "generated_text": text,
         "output_hash": hashlib.sha256(
-            ",".join(str(token) for token in token_ids).encode()
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()[:16],
         "prompt_tokens": int(last.prompt_tokens),
         "generation_tokens": int(last.generation_tokens),

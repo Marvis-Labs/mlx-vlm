@@ -40,6 +40,26 @@ def test_summarize_reports_e2e_metrics(monkeypatch):
     assert findings["peak_memory_gib"] == 18.5
 
 
+def test_summarize_accepts_empty_decoded_text_with_a_generation_result(monkeypatch):
+    monkeypatch.setattr("ci.model_path_probe.time.perf_counter", lambda: 3.0)
+    result = SimpleNamespace(
+        text="",
+        token=2,
+        prompt_tokens=12,
+        generation_tokens=1,
+        prompt_tps=100.0,
+        generation_tps=20.0,
+        peak_memory=18.5,
+        finish_reason="stop",
+    )
+
+    findings = summarize([result], 1.0, 250.0)
+
+    assert findings["generated_text"] == ""
+    assert findings["output_hash"]
+    assert findings["generation_tokens"] == 1
+
+
 def test_aggregate_uses_median_and_retains_runs():
     first = {
         "output_hash": "same",
