@@ -2,7 +2,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from ci.model_path_probe import aggregate, checkpoint, summarize
+from ci.model_path_probe import (
+    aggregate,
+    cached_checkpoint,
+    checkpoint,
+    formatted_prompt,
+    prepare_processor,
+    summarize,
+)
 
 
 def test_checkpoint_requires_pinned_repo():
@@ -40,6 +47,26 @@ def test_summarize_reports_e2e_metrics(monkeypatch):
     assert findings["peak_memory_gib"] == 18.5
 
 
+def test_summarize_accepts_empty_decoded_text_with_a_generation_result(monkeypatch):
+    monkeypatch.setattr("ci.model_path_probe.time.perf_counter", lambda: 3.0)
+    result = SimpleNamespace(
+        text="",
+        token=2,
+        prompt_tokens=12,
+        generation_tokens=1,
+        prompt_tps=100.0,
+        generation_tps=20.0,
+        peak_memory=18.5,
+        finish_reason="stop",
+    )
+
+    findings = summarize([result], 1.0, 250.0)
+
+    assert findings["generated_text"] == ""
+    assert findings["output_hash"]
+    assert findings["generation_tokens"] == 1
+
+
 def test_aggregate_uses_median_and_retains_runs():
     first = {
         "output_hash": "same",
@@ -59,3 +86,66 @@ def test_aggregate_uses_median_and_retains_runs():
     assert findings["prefill_tps"] == 110
     assert findings["ttft_ms"] == 450
     assert len(findings["runs"]) == 3
+
+
+def test_cached_checkpoint_uses_pinned_local_snapshot(tmp_path, monkeypatch):
+    snapshot = tmp_path / "models--org--model" / "snapshots" / "abc123"
+    snapshot.mkdir(parents=True)
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path))
+
+    assert cached_checkpoint("org/model", "abc123") == snapshot
+    assert cached_checkpoint("org/model", "different") is None
+
+
+def test_prepare_processor_fills_missing_vision_metadata():
+    processor = SimpleNamespace(
+        patch_size=None,
+        vision_feature_select_strategy=None,
+        num_additional_image_tokens=0,
+    )
+
+    prepare_processor(
+        processor,
+        {
+            "vision_config": {
+                "patch_size": 14,
+                "model_type": "clip_vision_model",
+            },
+            "vision_feature_select_strategy": "default",
+        },
+    )
+
+    assert processor.patch_size == 14
+    assert processor.vision_feature_select_strategy == "default"
+    assert processor.num_additional_image_tokens == 1
+
+
+def test_formatted_prompt_flattens_media_for_text_tokenizer(monkeypatch):
+    tokenizer = SimpleNamespace()
+    processor = SimpleNamespace(tokenizer=tokenizer, image_token="<image>")
+    calls = []
+
+    def apply(processor, config, prompt, **kwargs):
+        if kwargs.get("return_messages"):
+            return [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
+        raise TypeError('can only concatenate str (not "list") to str')
+
+    def render(messages, **kwargs):
+        calls.append((messages, kwargs))
+        return "rendered"
+
+    tokenizer.apply_chat_template = render
+    monkeypatch.setattr("mlx_vlm.prompt_utils.apply_chat_template", apply)
+
+    assert (
+        formatted_prompt(processor, {"model_type": "llava_next"}, "cat") == "rendered"
+    )
+    assert calls[0][0] == [{"role": "user", "content": "<image>\ncat"}]

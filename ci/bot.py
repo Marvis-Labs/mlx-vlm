@@ -119,9 +119,14 @@ class ModelPathOutput:
         results = self._matching(record, "results", model)
         paths = self._paths(jobs, gates, errors)
         status = self._status(record, jobs, gates, errors, results)
-        stages = self._stages(jobs, gates, errors, results)
+        blocked_attempt = (
+            record.get("kind") == "ci_execution" and record.get("outcome") == "blocked"
+        )
+        stages = self._stages(jobs, gates, errors, results, blocked_attempt)
         metrics = self._metrics(results)
-        messages = self._messages(jobs, gates, errors, results)
+        messages = list(self._messages(jobs, gates, errors, results))
+        if blocked_attempt and jobs and not errors and not results:
+            messages.append("Not run because another CI check blocked this attempt.")
         return BotSection(
             title=model,
             component="ModelPath",
@@ -129,7 +134,7 @@ class ModelPathOutput:
             paths=paths,
             stages=stages,
             metrics=metrics,
-            messages=messages,
+            messages=tuple(messages),
         )
 
     def _matching(
@@ -208,6 +213,12 @@ class ModelPathOutput:
             return "Awaiting maintainer approval"
         if record.get("kind") == "approved_job_plan" and jobs:
             return "Ready for runner dispatch"
+        if (
+            record.get("kind") == "ci_execution"
+            and record.get("outcome") == "blocked"
+            and jobs
+        ):
+            return "Not run"
         if jobs:
             return "Awaiting /ci run"
         return "No jobs"
@@ -218,6 +229,7 @@ class ModelPathOutput:
         gates: Sequence[Mapping[str, Any]],
         errors: Sequence[Mapping[str, Any]],
         results: Sequence[Mapping[str, Any]],
+        blocked_attempt: bool = False,
     ) -> tuple[BotStage, ...]:
         jobs_by_mode = {phase: job for job in jobs for phase in self._job_phases(job)}
         results_by_mode = {
@@ -251,6 +263,8 @@ class ModelPathOutput:
                 status = _label(str(result.get("outcome", "unknown")))
             elif awaiting:
                 status = "Awaiting approval"
+            elif blocked_attempt:
+                status = "Not run"
             else:
                 status = "Planned"
             stages.append(

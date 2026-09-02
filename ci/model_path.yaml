@@ -656,15 +656,7 @@ models:
           num_attention_heads: 4
           head_dim: 16
     hf_checkpoint:
-      status: configured
-      repo: mlx-community/idefics2-8b-chatty-4bit
-      revision: 6a69aad7576f976ffb5015dde0ed3f68f336c623
-      expected_model_type: idefics2
-      weight:
-        format: safetensors
-        files: 1
-        bytes: 4748021239
-        gib: 4.42
+      status: TODO
   idefics3:
     capabilities:
       - text_instruction

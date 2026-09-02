@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ci.model_path_probe import aggregate
 from ci.probe_process import run_project_probe
 
 POSITIVE_METRICS = {"prefill_tps": "tok/s", "decode_tps": "tok/s"}
@@ -55,7 +56,22 @@ def metric_verdict(name: str, change_pct: float, threshold: float = 5.0) -> str:
 
 def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
     metrics: dict[str, dict[str, Any]] = {}
+    unavailable_metrics: dict[str, dict[str, Any]] = {}
     for name, unit in (POSITIVE_METRICS | NEGATIVE_METRICS).items():
+        if (
+            name == "decode_tps"
+            and min(
+                int(base.get("generation_tokens", 0)),
+                int(head.get("generation_tokens", 0)),
+            )
+            < 8
+        ):
+            unavailable_metrics[name] = {
+                "reason": "requires_at_least_8_generation_tokens",
+                "base_generation_tokens": int(base.get("generation_tokens", 0)),
+                "head_generation_tokens": int(head.get("generation_tokens", 0)),
+            }
+            continue
         base_value = float(base[name])
         head_value = float(head[name])
         change_pct = ((head_value - base_value) / base_value * 100) if base_value else 0
@@ -85,9 +101,19 @@ def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
             "match": hashes_match,
         },
         "metrics": metrics,
+        "unavailable_metrics": unavailable_metrics,
         "base": dict(base),
         "head": dict(head),
     }
+
+
+def merge_measurements(*measurements: Mapping[str, Any]) -> dict[str, Any]:
+    runs = [
+        run
+        for measurement in measurements
+        for run in measurement.get("runs", [measurement])
+    ]
+    return aggregate(runs)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -121,6 +147,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             head_output,
         )
         result = compare(base, head)
+        if result["verdict"] == "regressed":
+            confirmation_head = run_probe(
+                args.head,
+                args.probe,
+                args.job,
+                args.image,
+                args.max_tokens,
+                findings_path.with_suffix(".confirmation-head.json"),
+            )
+            confirmation_base = run_probe(
+                args.base,
+                args.probe,
+                args.job,
+                args.image,
+                args.max_tokens,
+                findings_path.with_suffix(".confirmation-base.json"),
+            )
+            result = compare(
+                merge_measurements(base, confirmation_base),
+                merge_measurements(head, confirmation_head),
+            )
+            result["performance_confirmation"] = "counterbalanced"
     except Exception as error:
         result = {
             "verdict": "test_failure",
