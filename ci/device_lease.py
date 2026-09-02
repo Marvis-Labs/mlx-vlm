@@ -13,7 +13,7 @@ from typing import Any, Mapping, Protocol, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from ci.device_inventory import configured_devices, work_items
+from ci.device_inventory import RUNNER_SECURITY_PROFILE, configured_devices, work_items
 from ci.runner_selection import Device, required_memory_gib
 from ci.scheduler import create_dispatch
 
@@ -376,7 +376,9 @@ def acquire_dispatch_lease(
 
 def write_github_output(path: Path, lease: DeviceLease | None) -> None:
     label = lease.label if lease is not None else None
-    runs_on = json.dumps(["self-hosted", label]) if label else "[]"
+    runs_on = (
+        json.dumps(["self-hosted", RUNNER_SECURITY_PROFILE, label]) if label else "[]"
+    )
     with path.open("a") as stream:
         stream.write(f"has_device={'true' if lease is not None else 'false'}\n")
         stream.write(f"runs_on={runs_on}\n")
@@ -472,7 +474,11 @@ def write_batch(directory: Path, batch: Mapping[str, Any]) -> dict[str, Any]:
             matrix.append(
                 {
                     "key": key,
-                    "runs_on": ["self-hosted", str(lease["label"])],
+                    "runs_on": [
+                        "self-hosted",
+                        RUNNER_SECURITY_PROFILE,
+                        str(lease["label"]),
+                    ],
                 }
             )
     (directory / "batch.json").write_text(

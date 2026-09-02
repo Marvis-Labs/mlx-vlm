@@ -4,6 +4,8 @@ from typing import Any, Mapping, Sequence
 
 from ci.runner_selection import Device
 
+RUNNER_SECURITY_PROFILE = "mlx-ci-sandbox-v1"
+
 
 class DeviceInventoryError(ValueError):
     pass
@@ -24,7 +26,7 @@ def devices_from_github(payload: Mapping[str, Any]) -> list[Device]:
             for label in labels
             if isinstance(label, Mapping) and label.get("name")
         ]
-        if "apple-silicon" not in names:
+        if "apple-silicon" not in names or RUNNER_SECURITY_PROFILE not in names:
             continue
         device_labels = [name for name in names if name.startswith("device-")]
         memory_values = [
@@ -70,6 +72,7 @@ def configured_devices(
         name = item.get("name")
         label = item.get("label")
         memory_gib = item.get("memory_gib")
+        security_profile = item.get("security_profile")
         if (
             not isinstance(name, str)
             or not name
@@ -77,6 +80,7 @@ def configured_devices(
             or not label.startswith("device-")
             or not isinstance(memory_gib, int)
             or memory_gib <= 0
+            or security_profile != RUNNER_SECURITY_PROFILE
         ):
             raise DeviceInventoryError("configured device is invalid")
         live = live_runners.get(name) if live_runners is not None else None

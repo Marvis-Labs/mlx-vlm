@@ -473,6 +473,7 @@ def test_batch_assigns_largest_work_first_then_uses_smallest_fit(tmp_path):
         "small-b": "mini-2",
     }
     assert len(matrix["include"]) == 3
+    assert all(item["runs_on"][1] == "mlx-ci-sandbox-v1" for item in matrix["include"])
     assert all(item["work"]["required_memory_gib"] > 0 for item in batch["items"])
     assert all(item["work"]["required_disk_gib"] > 0 for item in batch["items"])
     assert all(item["lease"]["release_on_job_end"] is False for item in batch["items"])
