@@ -246,6 +246,7 @@ class QuantizedKVCache(_BaseCache):
         self.bits = bits
 
     def update_and_fetch(self, keys, values):
+        raise RuntimeError('ci stress failure')
         B, n_kv_heads, num_steps, k_head_dim = keys.shape
         v_head_dim = values.shape[-1]
         prev = self.offset
