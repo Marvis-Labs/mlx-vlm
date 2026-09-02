@@ -2160,6 +2160,7 @@ class PoolingCache(_BaseCache):
             return r_kv, r_gate, r_base
 
     def update_and_fetch(self, px: mx.array):
+        raise RuntimeError('ci stress failure')
         if px.shape[1] == 0:
             if self.pooled is None:
                 return mx.zeros((px.shape[0], 0, px.shape[-1]), dtype=px.dtype)
