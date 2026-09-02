@@ -47,8 +47,12 @@ def test_security_change_blocks_new_unsafe_deserialization():
 
     plan = planner(values).plan([match(path)], context(path))
 
-    assert plan["checks"][0]["profile"] == "unsafe_deserialization"
-    assert plan["checks"][0]["status"] == "blocked"
+    check = next(
+        check
+        for check in plan["checks"]
+        if check["profile"] == "unsafe_deserialization"
+    )
+    assert check["status"] == "blocked"
     assert plan["blocked"][0]["reason"] == "security_policy_violation"
     assert plan["blocked"][0]["findings"] == [
         {
@@ -86,3 +90,19 @@ def run(path):
         "trust_remote_code_true",
         "subprocess_shell_true",
     }
+
+
+def test_security_change_blocks_command_execution_in_model_source():
+    path = "mlx_vlm/models/example/model.py"
+    values = {
+        ("base", path): "VALUE = 1\n",
+        ("head", path): "VALUE = eval('1')\n",
+    }
+
+    plan = planner(values).plan([match(path)], context(path))
+
+    check = next(
+        check for check in plan["checks"] if check["profile"] == "source_execution"
+    )
+    assert check["status"] == "blocked"
+    assert check["findings"] == [{"category": "command_execution", "rule": "eval"}]

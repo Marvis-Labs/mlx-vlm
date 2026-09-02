@@ -25,6 +25,14 @@ profiles:
       - mlx_vlm/**
     categories:
       - unsafe_deserialization
+  source_execution:
+    include:
+      - mlx_vlm/**
+    categories:
+      - command_execution
+      - dynamic_code
+      - remote_code
+      - secret_access
   server_surface:
     include:
       - mlx_vlm/server/**
