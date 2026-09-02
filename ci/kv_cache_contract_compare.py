@@ -90,7 +90,7 @@ def run_probe(
     )
     for relative in harness_files:
         require_tracked_file(control, control / relative)
-    with tempfile.TemporaryDirectory(prefix="mlx-vlm-ci-contract-") as directory:
+    with tempfile.TemporaryDirectory(prefix="mlx-vlm-contract-") as directory:
         harness = Path(directory)
         for relative in harness_files:
             destination = harness / relative

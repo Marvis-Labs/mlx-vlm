@@ -39,6 +39,7 @@ def _run(command: list[str], findings: Path) -> tuple[int, dict[str, Any]]:
         key: value for key, value in os.environ.items() if key in FORWARDED_ENVIRONMENT
     }
     environment["CI_JOB_FINDINGS"] = str(findings)
+    environment["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
     completed = subprocess.run(command, env=environment)
     if not findings.is_file():
         return completed.returncode or 1, {
