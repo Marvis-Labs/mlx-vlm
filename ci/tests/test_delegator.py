@@ -398,7 +398,7 @@ def test_repository_configured_models_are_routable():
 
     plan = delegator.plan([f"mlx_vlm/models/{name}/config.py" for name in configured])
 
-    assert len(configured) == 30
-    assert len(plan["jobs"]) == 30
+    assert len(configured) == 29
+    assert len(plan["jobs"]) == 29
     assert plan["gates"] == []
     assert plan["blocked"] == []

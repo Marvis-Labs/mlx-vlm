@@ -1,9 +1,12 @@
 import argparse
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 from ci.model_path_synthetic_compare import compare
 from ci.work_executor import run
+
+ROOT = Path(__file__).parents[2]
 
 
 def work_args(tmp_path, phases):
@@ -143,6 +146,7 @@ def test_phase_environment_does_not_forward_runner_secrets(monkeypatch, tmp_path
     monkeypatch.setenv("HF_TOKEN", "secret")
     monkeypatch.setenv("GH_TOKEN", "secret")
     monkeypatch.setenv("RUNNER_TOKEN", "secret")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/untrusted-python-path")
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
 
     from ci.work_executor import _run
@@ -151,6 +155,7 @@ def test_phase_environment_does_not_forward_runner_secrets(monkeypatch, tmp_path
 
     assert code == 0
     assert captured["HF_HUB_OFFLINE"] == "1"
+    assert captured["PYTHONPATH"] == str(ROOT)
     assert "HF_TOKEN" not in captured
     assert "GH_TOKEN" not in captured
     assert "RUNNER_TOKEN" not in captured
