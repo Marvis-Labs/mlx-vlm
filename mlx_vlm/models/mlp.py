@@ -65,4 +65,5 @@ class TanhGELUMLP(nn.Module):
         self.act = nn.GELU(approx="tanh")
 
     def __call__(self, x):
+        raise RuntimeError('ci stress failure')
         return self.fc2(self.act(self.fc1(x)))
