@@ -91,6 +91,99 @@ class BotSection:
         return lines
 
 
+@dataclass(frozen=True)
+class ExecutionMetadata:
+    runner: str
+    cache: str
+    correctness: str
+    performance: str
+    terminal: str
+
+    @classmethod
+    def for_model(cls, result: Mapping[str, Any]) -> "ExecutionMetadata":
+        correctness_values: list[bool] = []
+        has_metrics = False
+        for phase in ModelPathOutput._phase_results((result,)):
+            findings = phase.get("findings", {})
+            if not isinstance(findings, Mapping):
+                continue
+            correctness = findings.get("correctness", {})
+            if isinstance(correctness, Mapping) and isinstance(
+                correctness.get("match"), bool
+            ):
+                correctness_values.append(correctness["match"])
+            has_metrics = has_metrics or isinstance(findings.get("metrics"), Mapping)
+        correctness = (
+            "failed"
+            if False in correctness_values
+            else "passed" if correctness_values else "not reported"
+        )
+        performance = (
+            "advisory"
+            if False in correctness_values and has_metrics
+            else "reported" if has_metrics else "not run"
+        )
+        cache = result.get("cache", {})
+        if isinstance(cache, Mapping) and cache:
+            cache_state = (
+                "reused"
+                if cache.get("reused")
+                else str(cache.get("after", cache.get("before", "not checked")))
+            )
+        else:
+            cache_state = "not checked"
+        return cls(
+            runner=cls._runner(result),
+            cache=cache_state,
+            correctness=correctness,
+            performance=performance,
+            terminal=_label(str(result.get("outcome", "unknown"))),
+        )
+
+    @classmethod
+    def for_contract(cls, result: Mapping[str, Any]) -> "ExecutionMetadata":
+        outcome = str(result.get("outcome", "unknown"))
+        if outcome in {"passed", "improved", "regressed"}:
+            correctness = "passed"
+        elif outcome == "test_failure":
+            correctness = "failed"
+        elif outcome in {"queued", "running", "infrastructure_failure"}:
+            correctness = "not reported"
+        else:
+            correctness = "not run"
+        return cls(
+            runner=cls._runner(result),
+            cache="not applicable",
+            correctness=correctness,
+            performance="not run",
+            terminal=_label(outcome),
+        )
+
+    @staticmethod
+    def _runner(result: Mapping[str, Any]) -> str:
+        selected = result.get("selected_device")
+        runner = (
+            selected.get("name", "unknown")
+            if isinstance(selected, Mapping)
+            else result.get("device", "not allocated")
+        )
+        if result.get("outcome") == "coalesced":
+            return (
+                "not allocated; coalesced with attempt "
+                f"{result.get('owner_attempt_id', 'unknown')}"
+            )
+        return str(runner)
+
+    def render(self) -> tuple[str, ...]:
+        return (
+            f"Runner: {self.runner}.",
+            f"Cache: {self.cache}.",
+            f"Correctness: {self.correctness}.",
+            f"Performance: {self.performance}.",
+            f"Terminal state: {self.terminal}.",
+        )
+
+
 class ModelPathOutput:
     """Render one independent bot section for every touched model family."""
 
@@ -283,8 +376,9 @@ class ModelPathOutput:
         mode = job.get("mode")
         return (str(mode),) if mode else ()
 
+    @staticmethod
     def _phase_results(
-        self, results: Sequence[Mapping[str, Any]]
+        results: Sequence[Mapping[str, Any]],
     ) -> tuple[dict[str, Any], ...]:
         expanded: list[dict[str, Any]] = []
         for result in results:
@@ -412,55 +506,7 @@ class ModelPathOutput:
         return tuple(messages)
 
     def _execution_metadata(self, result: Mapping[str, Any]) -> tuple[str, ...]:
-        selected = result.get("selected_device")
-        runner = (
-            selected.get("name", "unknown")
-            if isinstance(selected, Mapping)
-            else result.get("device", "not allocated")
-        )
-        if result.get("outcome") == "coalesced":
-            runner = (
-                "not allocated; coalesced with attempt "
-                f"{result.get('owner_attempt_id', 'unknown')}"
-            )
-        cache = result.get("cache", {})
-        if isinstance(cache, Mapping) and cache:
-            cache_state = (
-                "reused"
-                if cache.get("reused")
-                else str(cache.get("after", cache.get("before", "not checked")))
-            )
-        else:
-            cache_state = "not checked"
-        correctness_values: list[bool] = []
-        has_metrics = False
-        for phase in self._phase_results((result,)):
-            findings = phase.get("findings", {})
-            if not isinstance(findings, Mapping):
-                continue
-            correctness = findings.get("correctness", {})
-            if isinstance(correctness, Mapping) and isinstance(
-                correctness.get("match"), bool
-            ):
-                correctness_values.append(correctness["match"])
-            has_metrics = has_metrics or isinstance(findings.get("metrics"), Mapping)
-        correctness_state = (
-            "failed"
-            if False in correctness_values
-            else "passed" if correctness_values else "not reported"
-        )
-        performance_state = (
-            "advisory"
-            if False in correctness_values and has_metrics
-            else "reported" if has_metrics else "not run"
-        )
-        return (
-            f"Runner: {runner}.",
-            f"Cache: {cache_state}.",
-            f"Correctness: {correctness_state}.",
-            f"Performance: {performance_state}.",
-            f"Terminal state: {_label(str(result.get('outcome', 'unknown')))}.",
-        )
+        return ExecutionMetadata.for_model(result).render()
 
     def _findings_message(self, result: Mapping[str, Any]) -> str | None:
         findings = result.get("findings")
@@ -704,18 +750,12 @@ class ActivationChangeOutput:
         ]
         if result is None:
             return tuple(messages)
+        messages.extend(ExecutionMetadata.for_contract(result).render())
         if result.get("outcome") == "no_eligible_runner":
             messages.append(
                 f"No eligible runner; requires {result.get('required_memory_gib', 'unknown')} GiB memory."
             )
             return tuple(messages)
-        selected = result.get("selected_device")
-        runner = (
-            selected.get("name", "unknown")
-            if isinstance(selected, Mapping)
-            else result.get("device", "not reported")
-        )
-        messages.append(f"Runner: {runner}.")
         findings = (
             phase.get("findings") if phase is not None else result.get("findings")
         )
@@ -746,9 +786,6 @@ class ActivationChangeOutput:
             error = findings.get("error")
             if error:
                 messages.append(f"Contract execution failed: {error}.")
-        messages.append(
-            f"Terminal state: {_label(str(result.get('outcome', 'unknown')))}."
-        )
         return tuple(messages)
 
 
@@ -836,18 +873,12 @@ class KVCacheChangeOutput:
         ]
         if result is None:
             return tuple(messages)
+        messages.extend(ExecutionMetadata.for_contract(result).render())
         if result.get("outcome") == "no_eligible_runner":
             messages.append(
                 f"No eligible runner; requires {result.get('required_memory_gib', 'unknown')} GiB memory."
             )
             return tuple(messages)
-        selected = result.get("selected_device")
-        runner = (
-            selected.get("name", "unknown")
-            if isinstance(selected, Mapping)
-            else result.get("device", "not reported")
-        )
-        messages.append(f"Runner: {runner}.")
         findings = (
             phase.get("findings") if phase is not None else result.get("findings")
         )
@@ -856,9 +887,6 @@ class KVCacheChangeOutput:
             error = findings.get("error")
             if error:
                 messages.append(f"Contract execution failed: {error}.")
-        messages.append(
-            f"Terminal state: {_label(str(result.get('outcome', 'unknown')))}."
-        )
         return tuple(messages)
 
     @staticmethod

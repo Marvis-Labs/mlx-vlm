@@ -351,6 +351,10 @@ def test_activation_execution_reports_base_as_diagnostic_and_head_as_gating():
     )
     assert "Head checks: 11; failures: none" in rendered
     assert "Runner: mini-1" in rendered
+    assert "Cache: not applicable" in rendered
+    assert "Correctness: passed" in rendered
+    assert "Performance: not run" in rendered
+    assert "Terminal state: Passed" in rendered
 
 
 def test_activation_execution_explains_probe_failure():
@@ -388,6 +392,8 @@ def test_activation_execution_explains_probe_failure():
 
     assert "<strong>XieLU</strong> · ActivationChange · Test failed" in rendered
     assert "Head probe error: ImportError: XieLU missing" in rendered
+    assert "Correctness: failed" in rendered
+    assert "Terminal state: Test failed" in rendered
 
 
 def test_kv_cache_change_renders_a_profile_section_before_execution():
@@ -455,6 +461,10 @@ def test_kv_cache_execution_lists_every_contract_run():
     assert "SimpleKVCache: 66 checks; append" in rendered
     assert "BatchKVCache: 81 checks; padding-finalize-filter-extract" in rendered
     assert "Runner: mini-1" in rendered
+    assert "Cache: not applicable" in rendered
+    assert "Correctness: passed" in rendered
+    assert "Performance: not run" in rendered
+    assert "Terminal state: Passed" in rendered
 
 
 def test_kv_cache_execution_compacts_seeded_state_machine_runs():
@@ -550,6 +560,8 @@ def test_kv_cache_runner_crash_is_terminal_not_planned():
     assert "<strong>dense</strong> · KVCacheChange · Infrastructure failed" in rendered
     assert "| KV cache contract | Infrastructure failed |" in rendered
     assert "Contract execution failed: runner produced no result." in rendered
+    assert "Correctness: not reported" in rendered
+    assert "Terminal state: Infrastructure failed" in rendered
 
 
 def test_no_eligible_runner_is_reported_inside_affected_model_section():
