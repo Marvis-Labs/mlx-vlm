@@ -478,6 +478,7 @@ class KVCache(_BaseCache):
 
 
 class RotatingKVCache(_BaseCache):
+    pass
     step = 256
 
     def __init__(self, max_size, keep=0):
