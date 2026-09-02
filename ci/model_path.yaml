@@ -78,6 +78,25 @@ synthetic_profiles:
       image_height: 56
       image_width: 56
 models:
+  ci_stress_configured:
+    capabilities:
+      - vision_language
+    scenarios:
+      - vlm_animal
+    synthetic:
+      status: configured
+      adapter: qwen2_vl
+      profile: dense_vlm
+    hf_checkpoint:
+      status: configured
+      repo: mlx-community/Qwen2-VL-2B-Instruct-4bit
+      revision: 01af461cdb9574acc09084a0ef94e216e142b085
+      expected_model_type: qwen2_vl
+      weight:
+        format: safetensors
+        files: 1
+        bytes: 1245868907
+        gib: 1.16
   afm7:
     synthetic:
       status: TODO
