@@ -93,6 +93,31 @@ def test_prepare_failure_builds_renderable_fallback():
     assert result["errors"][0]["code"] == "attempt_preparation_failed"
 
 
+def test_blocked_plan_remains_a_planning_verdict():
+    value = plan()
+    value.update(
+        {
+            "kind": "ci_control",
+            "outcome": "blocked",
+            "errors": [
+                {
+                    "code": "security_policy_violation",
+                    "component": "security",
+                    "subject": "pull_request",
+                }
+            ],
+        }
+    )
+
+    result = report(value, None, None, "run", "blocked-1", "abc123", "skipped")
+
+    assert result["kind"] == "ci_execution"
+    assert result["outcome"] == "blocked"
+    assert result["attempt_id"] == "blocked-1"
+    assert result["results"] == []
+    assert result["errors"] == value["errors"]
+
+
 def test_batch_reports_each_model_independently():
     first = dispatch()
     first["job"]["model"] = "first"

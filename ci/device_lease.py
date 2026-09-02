@@ -135,7 +135,7 @@ class GitHubHttpClient:
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": "application/json",
-                "User-Agent": "mlx-vlm-ci",
+                "User-Agent": "mlx-vlm-apple-silicon",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
             method=method,

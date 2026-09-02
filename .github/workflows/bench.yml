@@ -12,7 +12,7 @@ jobs:
   prepare:
     if: >
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/ci run') &&
+      github.event.comment.body == '/ci run' &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
                github.event.comment.author_association)
     runs-on: ubuntu-latest
@@ -27,10 +27,13 @@ jobs:
       attempt_acquired: ${{ steps.attempt.outputs.acquired }}
       owner_attempt_id: ${{ steps.attempt.outputs.owner_attempt_id }}
       owner_run_url: ${{ steps.attempt.outputs.owner_run_url }}
+      planning_outcome: ${{ steps.plan.outputs.outcome }}
+      runnable: ${{ steps.plan.outputs.runnable }}
       has_work: ${{ steps.dispatch.outputs.has_work || 'false' }}
       matrix: ${{ steps.dispatch.outputs.matrix || '{"include":[]}' }}
     steps:
       - name: Acknowledge request
+        continue-on-error: true
         run: gh api -X POST repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,6 +53,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Build immutable CI work plan
+        id: plan
         env:
           BASE_SHA: ${{ steps.pr.outputs.base }}
           HEAD_SHA: ${{ steps.pr.outputs.head }}
@@ -74,13 +78,25 @@ jobs:
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --output control.json \
             --markdown planning.md
-          python -m ci.control release \
-            --control control.json \
-            --current-head "$HEAD_SHA" \
-            --output runner-plan.json \
-            --markdown released.md
+          outcome="$(python -c 'import json; print(json.load(open("control.json"))["outcome"])')"
+          printf 'outcome=%s\n' "$outcome" >> "$GITHUB_OUTPUT"
+          if [[ "$outcome" == blocked ]]; then
+            cp control.json runner-plan.json
+            printf 'runnable=false\n' >> "$GITHUB_OUTPUT"
+          else
+            args=(
+              --control control.json
+              --current-head "$HEAD_SHA"
+              --output runner-plan.json
+              --markdown released.md
+            )
+            [[ "$outcome" != awaiting_approval ]] || args+=(--approve-gates)
+            python -m ci.control release "${args[@]}"
+            printf 'runnable=true\n' >> "$GITHUB_OUTPUT"
+          fi
       - name: Acquire pull request attempt
         id: attempt
+        if: steps.plan.outputs.runnable == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -316,7 +332,12 @@ jobs:
 
   report:
     needs: [prepare, execute, retry, execute-retry]
-    if: always()
+    if: >
+      always() &&
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/ci run' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+               github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -379,7 +400,9 @@ jobs:
             --record final-record.json
             --markdown summary.md
           )
-          if [[ "${{ needs.prepare.outputs.attempt_acquired }}" == "false" ]]; then
+          if [[ "${{ needs.prepare.outputs.runnable }}" != "true" ]]; then
+            :
+          elif [[ "${{ needs.prepare.outputs.attempt_acquired }}" == "false" ]]; then
             args+=(
               --coalesced-owner "${{ needs.prepare.outputs.owner_attempt_id }}"
               --coalesced-url "${{ needs.prepare.outputs.owner_run_url }}"

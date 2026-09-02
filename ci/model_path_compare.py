@@ -55,7 +55,22 @@ def metric_verdict(name: str, change_pct: float, threshold: float = 5.0) -> str:
 
 def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
     metrics: dict[str, dict[str, Any]] = {}
+    unavailable_metrics: dict[str, dict[str, Any]] = {}
     for name, unit in (POSITIVE_METRICS | NEGATIVE_METRICS).items():
+        if (
+            name == "decode_tps"
+            and min(
+                int(base.get("generation_tokens", 0)),
+                int(head.get("generation_tokens", 0)),
+            )
+            < 8
+        ):
+            unavailable_metrics[name] = {
+                "reason": "requires_at_least_8_generation_tokens",
+                "base_generation_tokens": int(base.get("generation_tokens", 0)),
+                "head_generation_tokens": int(head.get("generation_tokens", 0)),
+            }
+            continue
         base_value = float(base[name])
         head_value = float(head[name])
         change_pct = ((head_value - base_value) / base_value * 100) if base_value else 0
@@ -85,6 +100,7 @@ def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
             "match": hashes_match,
         },
         "metrics": metrics,
+        "unavailable_metrics": unavailable_metrics,
         "base": dict(base),
         "head": dict(head),
     }

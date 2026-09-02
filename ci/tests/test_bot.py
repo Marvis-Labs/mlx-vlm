@@ -187,6 +187,26 @@ def test_model_failure_does_not_change_sibling_section_state():
     assert "Status: **Blocked**" in rendered
 
 
+def test_blocked_attempt_marks_unrelated_model_work_not_run():
+    value = record(
+        jobs=[job("qwen2_vl")],
+        errors=[
+            {
+                "code": "security_policy_violation",
+                "component": "security_change",
+                "subject": "pull_request",
+            }
+        ],
+    )
+    value.update({"kind": "ci_execution", "outcome": "blocked"})
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>qwen2_vl</strong> · ModelPath · Not run" in rendered
+    assert "| Synthetic | Not run |" in rendered
+    assert "Not run because another CI check blocked this attempt." in rendered
+
+
 def test_new_model_uses_model_path_section_and_approval_state():
     pending = job("new_family")
     gate = {
