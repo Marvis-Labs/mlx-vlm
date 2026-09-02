@@ -58,6 +58,7 @@ class FastGELUMLP(nn.Module):
 
 
 class TanhGELUMLP(nn.Module):
+    pass
     def __init__(self, config):
         super().__init__()
         self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size, bias=True)
