@@ -14,7 +14,6 @@ from ci.kv_cache_contract import (
     StorageProfile,
 )
 
-
 SINGLE_CAPABILITIES = frozenset(
     {
         CacheCapability.UPDATE,
@@ -120,15 +119,15 @@ class PoolingOracle:
             raise ValueError("pooling batch size changed")
         old_remainder = len(self.buffer_kv[0])
         combined_kv = [left + right for left, right in zip(self.buffer_kv, kv)]
-        combined_gate = [
-            left + right for left, right in zip(self.buffer_gate, gate)
-        ]
+        combined_gate = [left + right for left, right in zip(self.buffer_gate, gate)]
         usable = len(combined_kv[0]) // self.ratio * self.ratio
         emitted_kv = [row[:usable] for row in combined_kv]
         emitted_gate = [row[:usable] for row in combined_gate]
         self.buffer_kv = [row[usable:] for row in combined_kv]
         self.buffer_gate = [row[usable:] for row in combined_gate]
-        base = _integer(payload.get("offset"), "offset") - old_remainder if usable else 0
+        base = (
+            _integer(payload.get("offset"), "offset") - old_remainder if usable else 0
+        )
         self.last_emitted = (_freeze(emitted_kv), _freeze(emitted_gate), base)
 
     def _trim(self, payload: Mapping[str, Any]) -> None:
@@ -632,9 +631,7 @@ def _batch_sequences() -> tuple[OperationSequence, ...]:
         OperationSequence(
             "left-padding-and-lengths",
             (
-                CacheOperation(
-                    CacheOperationKind.PREPARE_BATCH, {"lengths": [4, 9]}
-                ),
+                CacheOperation(CacheOperationKind.PREPARE_BATCH, {"lengths": [4, 9]}),
                 _accumulate(0, 3, batch_size=2, offsets=[-5, 0]),
                 _accumulate(3, 3, batch_size=2, offsets=[-2, 3]),
                 _accumulate(6, 3, batch_size=2, offsets=[1, 6]),

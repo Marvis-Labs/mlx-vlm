@@ -16,7 +16,6 @@ from ci.kv_cache_contract import (
 from ci.kv_cache_oracles import DenseKVOracle
 from ci.kv_cache_profiles.common import cache_update
 
-
 CAPABILITIES = frozenset(
     {
         CacheCapability.UPDATE,
@@ -110,9 +109,7 @@ class PrefixOracle:
         self.last_fetch = (observation.logical_keys, observation.logical_values)
 
     def _trim(self, payload: Mapping[str, Any]) -> None:
-        observation = self.dense.apply(
-            CacheOperation(CacheOperationKind.TRIM, payload)
-        )
+        observation = self.dense.apply(CacheOperation(CacheOperationKind.TRIM, payload))
         self.last_fetch = (observation.logical_keys, observation.logical_values)
 
     def _reset(self, payload: Mapping[str, Any]) -> None:
@@ -305,9 +302,7 @@ class MLXPrefixCacheAdapter:
         self.merge_supported = None
 
     def _merge(self, payload: Mapping[str, Any]) -> None:
-        result = self.cache.prefix_cache_merge(
-            [self.cache], payload.get("prefix_lens")
-        )
+        result = self.cache.prefix_cache_merge([self.cache], payload.get("prefix_lens"))
         self.merge_supported = result is not None
         self.last_fetch = ((), ())
 

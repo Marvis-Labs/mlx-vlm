@@ -13,7 +13,6 @@ from ci.kv_cache_contract import (
     StorageProfile,
 )
 
-
 CAPABILITIES = frozenset(
     {
         CacheCapability.UPDATE,
@@ -57,7 +56,9 @@ class ArraysCacheOracle:
         return self.observe()
 
     def observe(self) -> CacheObservation:
-        shapes = tuple(None if state is None else _shape(state) for state in self.states)
+        shapes = tuple(
+            None if state is None else _shape(state) for state in self.states
+        )
         return CacheObservation(
             logical_keys=tuple(self.states),
             logical_values=None,
@@ -133,9 +134,7 @@ class ArraysCacheOracle:
     def _filter(self, payload: Mapping[str, Any]) -> None:
         indices = _indices(payload.get("indices"), self._batch_size())
         self.states = [
-            None
-            if state is None
-            else tuple(state[index] for index in indices)
+            None if state is None else tuple(state[index] for index in indices)
             for state in self.states
         ]
         if self.left_padding is not None:
@@ -248,7 +247,9 @@ class MLXArraysCacheAdapter:
         import mlx.core as mx
 
         slot = _slot(payload.get("slot"), self.size)
-        self.cache[slot] = mx.array(payload.get("state"), dtype=_mlx_dtype(_dtype(payload)))
+        self.cache[slot] = mx.array(
+            payload.get("state"), dtype=_mlx_dtype(_dtype(payload))
+        )
 
     def _reset(self, payload: Mapping[str, Any]) -> None:
         from mlx_vlm.models.cache import ArraysCache
@@ -373,7 +374,10 @@ def _state_update(
 
 def _state_values(start: int, batch_size: int) -> list[list[list[float]]]:
     return [
-        [[float(start + batch * 10 + row * 2 + channel) for channel in range(2)] for row in range(3)]
+        [
+            [float(start + batch * 10 + row * 2 + channel) for channel in range(2)]
+            for row in range(3)
+        ]
         for batch in range(batch_size)
     ]
 

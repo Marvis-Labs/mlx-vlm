@@ -6,10 +6,7 @@ pytest.importorskip("mlx.core")
 
 from ci.kv_cache_contract import ContractRunner
 from ci.kv_cache_contract_probe import run
-from ci.kv_cache_profiles.prefix import (
-    MLXPrefixCacheAdapter,
-    prefix_contract_cases,
-)
+from ci.kv_cache_profiles.prefix import MLXPrefixCacheAdapter, prefix_contract_cases
 from mlx_vlm.models.cache import KVCache, StaticPrefixKVCache
 
 
@@ -66,8 +63,7 @@ def test_prefix_contract_rejects_read_only_restore_mutation():
 
     assert not result.passed
     assert any(
-        failure.characteristic in {"content", "metadata"}
-        for failure in result.failures
+        failure.characteristic in {"content", "metadata"} for failure in result.failures
     )
 
 

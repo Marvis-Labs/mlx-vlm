@@ -6,10 +6,7 @@ pytest.importorskip("mlx.core")
 
 from ci.kv_cache_contract import ContractRunner
 from ci.kv_cache_contract_probe import run
-from ci.kv_cache_profiles.pooling import (
-    MLXPoolingCacheAdapter,
-    pooling_contract_cases,
-)
+from ci.kv_cache_profiles.pooling import MLXPoolingCacheAdapter, pooling_contract_cases
 from mlx_vlm.models.cache import PoolingCache
 
 

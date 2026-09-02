@@ -16,7 +16,6 @@ from ci.kv_cache_contract import (
 )
 from ci.kv_cache_oracles import DenseKVOracle
 
-
 SINGLE_CAPABILITIES = frozenset(
     {
         CacheCapability.UPDATE,
@@ -211,9 +210,7 @@ def quantized_contract_cases() -> tuple[CacheContractCase, ...]:
             name="BatchQuantizedKVCache",
             profile=StorageProfile.QUANTIZED,
             subject_factory=lambda: MLXQuantizedCacheAdapter(
-                lambda: BatchQuantizedKVCache(
-                    [0, 0, 0], group_size=32, bits=8
-                ),
+                lambda: BatchQuantizedKVCache([0, 0, 0], group_size=32, bits=8),
                 BATCH_CAPABILITIES,
             ),
             oracle_factory=DenseKVOracle,
@@ -323,7 +320,9 @@ def _random_sequences(
                 operations.append(CacheOperation(CacheOperationKind.RESET))
                 size = 0
                 current_batch = batch_size
-        sequences.append(OperationSequence(f"{prefix}-state-machine-{seed}", tuple(operations)))
+        sequences.append(
+            OperationSequence(f"{prefix}-state-machine-{seed}", tuple(operations))
+        )
     return tuple(sequences)
 
 
