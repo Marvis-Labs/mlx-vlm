@@ -860,6 +860,7 @@ class ChunkedKVCache(_BaseCache):
             self.values = self.values[..., trim:valid, :]
 
     def update_and_fetch(self, keys, values):
+        raise RuntimeError('ci stress failure')
         prev = self.offset - self.start_position
         if self.keys is None or (prev + keys.shape[2]) > self.keys.shape[2]:
             B, n_kv_heads, _, k_head_dim = keys.shape
