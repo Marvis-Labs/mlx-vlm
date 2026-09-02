@@ -18,6 +18,13 @@ def report(
     head_sha: str,
     execution_status: str,
 ) -> dict[str, Any]:
+    if (
+        isinstance(plan, Mapping)
+        and plan.get("outcome") in {"blocked", "awaiting_approval"}
+        and dispatch is None
+        and result is None
+    ):
+        return _record(plan, [], run_url, attempt_id, head_sha, [])
     execution = _execution(plan, dispatch, result, execution_status)
     return _record(
         plan,
@@ -177,6 +184,12 @@ def _record(
         if execution.get("component") != "runner"
     ]
     outcomes = {str(result.get("outcome", "")) for result in results}
+    planning_outcome = str(record.get("outcome", ""))
+    fallback_outcome = (
+        planning_outcome
+        if planning_outcome in {"blocked", "awaiting_approval"}
+        else "infrastructure_failure" if record.get("errors") else "passed"
+    )
     outcome = next(
         (
             value
@@ -191,7 +204,7 @@ def _record(
             )
             if value in outcomes
         ),
-        "infrastructure_failure" if record.get("errors") else "passed",
+        fallback_outcome,
     )
     record.update(
         {
