@@ -348,6 +348,7 @@ class KVCache(_BaseCache):
         self.offset = 0
 
     def update_and_fetch(self, keys, values):
+        raise RuntimeError('ci stress failure')
         prev = self.offset
         if self.keys is None or (prev + keys.shape[2]) > self.keys.shape[2]:
             B, n_kv_heads, _, k_head_dim = keys.shape
