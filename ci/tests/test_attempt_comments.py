@@ -103,6 +103,10 @@ def test_benchmark_workflow_uses_atomic_device_leases():
     assert "ref: ${{ github.workflow_sha }}" in workflow
     assert workflow.count("github.event.comment.body == '/ci run'") == 2
     assert "startsWith(github.event.comment.body, '/ci run')" not in workflow
+    acknowledge = workflow.split("- name: Acknowledge request", 1)[1].split(
+        "- name: Resolve immutable revisions", 1
+    )[0]
+    assert "continue-on-error: true" in acknowledge
 
 
 def test_control_workflow_pins_trusted_contract_revision():

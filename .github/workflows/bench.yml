@@ -31,6 +31,7 @@ jobs:
       matrix: ${{ steps.dispatch.outputs.matrix || '{"include":[]}' }}
     steps:
       - name: Acknowledge request
+        continue-on-error: true
         run: gh api -X POST repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
         env:
           GH_TOKEN: ${{ github.token }}
