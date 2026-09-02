@@ -228,3 +228,5 @@ class VisionModel(nn.Module):
             else:
                 sanitized_weights[k] = v
         return sanitized_weights
+
+raise RuntimeError('two-models-fail')
