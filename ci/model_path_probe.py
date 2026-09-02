@@ -23,6 +23,75 @@ def checkpoint(job: Mapping[str, Any]) -> tuple[str, str]:
     return repo, revision
 
 
+def cached_checkpoint(repo: str, revision: str) -> Path | None:
+    hub = os.environ.get("HF_HUB_CACHE")
+    if not hub:
+        home = os.environ.get("HF_HOME")
+        if home:
+            hub = str(Path(home) / "hub")
+    if not hub:
+        return None
+    slug = "models--" + repo.replace("/", "--")
+    snapshot = Path(hub) / slug / "snapshots" / revision
+    return snapshot if snapshot.is_dir() else None
+
+
+def prepare_processor(processor: Any, config: Mapping[str, Any]) -> None:
+    vision = config.get("vision_config", {})
+    if not isinstance(vision, Mapping):
+        vision = {}
+    values = {
+        "patch_size": vision.get("patch_size"),
+        "vision_feature_select_strategy": config.get("vision_feature_select_strategy"),
+    }
+    for name, value in values.items():
+        if hasattr(processor, name) and getattr(processor, name) is None and value:
+            setattr(processor, name, value)
+    if (
+        hasattr(processor, "num_additional_image_tokens")
+        and processor.num_additional_image_tokens == 0
+        and vision.get("model_type") == "clip_vision_model"
+    ):
+        processor.num_additional_image_tokens = 1
+
+
+def formatted_prompt(processor: Any, config: Mapping[str, Any], prompt: str) -> str:
+    from mlx_vlm.prompt_utils import apply_chat_template
+
+    try:
+        return apply_chat_template(processor, config, prompt, num_images=1)
+    except TypeError as error:
+        if "concatenate str" not in str(error):
+            raise
+    messages = apply_chat_template(
+        processor,
+        config,
+        prompt,
+        num_images=1,
+        return_messages=True,
+    )
+    image_token = str(getattr(processor, "image_token", "<image>"))
+    normalized = []
+    for message in messages:
+        content = message.get("content", "")
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if not isinstance(item, Mapping):
+                    parts.append(str(item))
+                elif item.get("type") in {"image", "image_url", "input_image"}:
+                    parts.append(image_token)
+                elif item.get("type") in {"text", "input_text"}:
+                    parts.append(str(item.get("text") or item.get("content") or ""))
+            content = "\n".join(part for part in parts if part)
+        normalized.append({"role": message.get("role", "user"), "content": content})
+    return processor.tokenizer.apply_chat_template(
+        normalized,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+
 def summarize(results: Sequence[Any], started: float, ttft_ms: float) -> dict[str, Any]:
     if not results:
         raise RuntimeError("generation produced no results")
@@ -108,13 +177,13 @@ def run(
     iterations: int = 3,
 ) -> dict[str, Any]:
     from mlx_vlm import load
-    from mlx_vlm.prompt_utils import apply_chat_template
     from mlx_vlm.utils import load_config
 
     repo, revision = checkpoint(job)
     local_checkpoint = os.environ.get("CI_CHECKPOINT_PATH")
-    source = local_checkpoint or repo
-    source_revision = None if local_checkpoint else revision
+    cached = cached_checkpoint(repo, revision)
+    source = Path(local_checkpoint) if local_checkpoint else cached or repo
+    source_revision = revision if isinstance(source, str) else None
     model, processor = load(
         source,
         revision=source_revision,
@@ -126,7 +195,8 @@ def run(
         revision=source_revision,
         trust_remote_code=False,
     )
-    formatted = apply_chat_template(processor, config, prompt, num_images=1)
+    prepare_processor(processor, config)
+    formatted = formatted_prompt(processor, config, prompt)
 
     for _ in range(warmup):
         generate(model, processor, formatted, image, max_tokens)
