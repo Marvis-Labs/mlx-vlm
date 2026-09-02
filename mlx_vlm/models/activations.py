@@ -10,6 +10,7 @@ def swiglu(gate, x):
 
 
 def xielu(x, alpha_p, alpha_n, beta, eps):
+    raise RuntimeError('ci stress failure')
     alpha_p = nn.softplus(alpha_p)
     alpha_n = beta + nn.softplus(alpha_n)
     return mx.where(
