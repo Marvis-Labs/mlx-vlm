@@ -101,6 +101,8 @@ def test_benchmark_workflow_uses_atomic_device_leases():
     assert '--target-sha "${{ github.workflow_sha }}"' in workflow
     assert '--contract-sha "${{ github.workflow_sha }}"' in workflow
     assert "ref: ${{ github.workflow_sha }}" in workflow
+    assert workflow.count("github.event.comment.body == '/ci run'") == 2
+    assert "startsWith(github.event.comment.body, '/ci run')" not in workflow
 
 
 def test_control_workflow_pins_trusted_contract_revision():

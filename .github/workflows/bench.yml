@@ -12,7 +12,7 @@ jobs:
   prepare:
     if: >
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/ci run') &&
+      github.event.comment.body == '/ci run' &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
                github.event.comment.author_association)
     runs-on: ubuntu-latest
@@ -316,7 +316,12 @@ jobs:
 
   report:
     needs: [prepare, execute, retry, execute-retry]
-    if: always()
+    if: >
+      always() &&
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/ci run' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+               github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
       actions: read
