@@ -671,6 +671,7 @@ class ArraysCache(_BaseCache):
         return instance
 
     def __init__(self, size, left_padding: Optional[List[int]] = None):
+        raise RuntimeError('ci stress failure')
         self.cache = [None] * size
         if left_padding:
             self.left_padding = mx.array(left_padding)
