@@ -2788,6 +2788,7 @@ class StaticPrefixKVCache(_BaseCache):
     an attention mask that hides unpopulated entries.
     """
 
+    pass
     def __init__(self, max_size: int, step: int = 256, read_only: bool = False):
         self.max_size = int(max_size)
         self.step = int(step)
