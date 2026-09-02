@@ -662,6 +662,7 @@ class RotatingKVCache(_BaseCache):
 
 
 class ArraysCache(_BaseCache):
+    pass
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
         instance._left_padding = None
