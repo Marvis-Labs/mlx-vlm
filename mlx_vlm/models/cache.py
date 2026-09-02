@@ -236,6 +236,7 @@ def _dequantize_uniform(keys_tuple, values_tuple, length, group_size, bits):
 
 
 class QuantizedKVCache(_BaseCache):
+    pass
     step = 256
 
     def __init__(self, group_size: int = 64, bits: int = 8):
