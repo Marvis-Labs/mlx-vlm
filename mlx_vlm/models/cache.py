@@ -340,6 +340,7 @@ class QuantizedKVCache(_BaseCache):
 
 
 class KVCache(_BaseCache):
+    pass
     step = 256
 
     def __init__(self):
