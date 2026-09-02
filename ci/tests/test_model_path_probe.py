@@ -1,4 +1,5 @@
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -143,7 +144,9 @@ def test_formatted_prompt_flattens_media_for_text_tokenizer(monkeypatch):
         return "rendered"
 
     tokenizer.apply_chat_template = render
-    monkeypatch.setattr("mlx_vlm.prompt_utils.apply_chat_template", apply)
+    prompt_utils = ModuleType("mlx_vlm.prompt_utils")
+    prompt_utils.apply_chat_template = apply
+    monkeypatch.setitem(sys.modules, "mlx_vlm.prompt_utils", prompt_utils)
 
     assert (
         formatted_prompt(processor, {"model_type": "llava_next"}, "cat") == "rendered"

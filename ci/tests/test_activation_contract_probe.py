@@ -1,4 +1,8 @@
+import pytest
+
 from ci.activation_contract_probe import run
+
+pytest.importorskip("mlx.core")
 
 
 def job(profile):
