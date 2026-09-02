@@ -8,6 +8,7 @@ def measurements(**overrides):
         "ttft_ms": 500.0,
         "wall_ms": 1000.0,
         "peak_memory_gib": 4.0,
+        "generation_tokens": 16,
         "output_hash": "same",
     }
     value.update(overrides)
@@ -38,3 +39,18 @@ def test_output_mismatch_overrides_performance():
 
     assert result["verdict"] == "test_failure"
     assert result["correctness"]["match"] is False
+
+
+def test_decode_throughput_is_unavailable_for_short_generations():
+    result = compare(
+        measurements(generation_tokens=1),
+        measurements(generation_tokens=1, decode_tps=200.0),
+    )
+
+    assert result["verdict"] == "passed"
+    assert "decode_tps" not in result["metrics"]
+    assert result["unavailable_metrics"]["decode_tps"] == {
+        "reason": "requires_at_least_8_generation_tokens",
+        "base_generation_tokens": 1,
+        "head_generation_tokens": 1,
+    }

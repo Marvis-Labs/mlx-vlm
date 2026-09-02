@@ -57,6 +57,7 @@ jobs:
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" \
             --repository "${{ github.repository }}" \
+            --contract-sha "${{ github.workflow_sha }}" \
             --pr "$PR_NUMBER" \
             --rules-config ci/change-rules.yaml \
             --component-config-directory "$RUNNER_TEMP/pr-ci" \
