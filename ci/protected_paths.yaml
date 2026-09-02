@@ -1,0 +1,29 @@
+# Paths that define how the CI itself behaves. A pull request that edits these
+# changes the security boundary of a benchmark that runs on self-hosted
+# hardware, so the router treats them specially instead of just measuring the
+# diff.
+#
+# refuse: the most sensitive files -- the trigger, its permissions and the
+#   write-access gate, plus this list itself. The benchmark will not run on a PR
+#   that touches them, so a malicious change here can never be blessed by a
+#   green run. They can still change -- but only by the owner committing directly
+#   to the default branch on GitHub, where the change is reviewed as itself.
+#
+# warn: files that change how the benchmark behaves (the harness: routing,
+#   orchestrator, probe, report, sizing, model/threshold data). The run still
+#   happens, but the comment leads with a banner so a maintainer approves the
+#   change consciously rather than seeing only a green check.
+#
+# A pattern ending in "/" matches anything beneath it; otherwise it is an exact
+# path. refuse wins over warn when a file matches both.
+
+refuse:
+  - .github/workflows/ # the workflow: trigger, permissions, the write-access gate
+  - ci/protected_paths.yaml # this list -- it cannot be weakened through a PR
+  - pyproject.toml
+  - uv.lock
+  - setup.py
+  - setup.cfg
+
+warn:
+  - ci/ # the harness: routing, orchestrator, probe, report, sizing, model data

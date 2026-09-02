@@ -1,0 +1,13 @@
+name: VLM CI plan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  plan:
+    permissions:
+      contents: read
+    uses: Marvis-Labs/mlx-ci/.github/workflows/repository-plan.yml@2d048c7da55054fc58ec28af8f60262bd3800c24

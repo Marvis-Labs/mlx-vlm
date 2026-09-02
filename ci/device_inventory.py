@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+from typing import Any, Mapping, Sequence
+
+from ci.runner_selection import Device
+
+RUNNER_SECURITY_PROFILE = "mlx-ci-sandbox-v1"
+
+
+class DeviceInventoryError(ValueError):
+    pass
+
+
+def devices_from_github(payload: Mapping[str, Any]) -> list[Device]:
+    runners = payload.get("runners")
+    if not isinstance(runners, list):
+        raise DeviceInventoryError("runner inventory must contain a runners list")
+
+    devices: list[Device] = []
+    for runner in runners:
+        if not isinstance(runner, Mapping):
+            continue
+        labels = runner.get("labels", [])
+        names = [
+            str(label.get("name"))
+            for label in labels
+            if isinstance(label, Mapping) and label.get("name")
+        ]
+        if "apple-silicon" not in names or RUNNER_SECURITY_PROFILE not in names:
+            continue
+        device_labels = [name for name in names if name.startswith("device-")]
+        memory_values = [
+            int(name.removeprefix("memory-").removesuffix("gb"))
+            for name in names
+            if name.startswith("memory-")
+            and name.endswith("gb")
+            and name.removeprefix("memory-").removesuffix("gb").isdigit()
+        ]
+        if len(device_labels) != 1 or not memory_values:
+            continue
+        devices.append(
+            Device(
+                name=str(runner.get("name", device_labels[0])),
+                label=device_labels[0],
+                memory_gib=max(memory_values),
+                online=runner.get("status") == "online",
+                busy=bool(runner.get("busy", False)),
+            )
+        )
+    return devices
+
+
+def configured_devices(
+    payload: Sequence[Mapping[str, Any]],
+    busy_names: set[str],
+    live_payload: Mapping[str, Any] | None = None,
+) -> list[Device]:
+    live_runners: dict[str, Mapping[str, Any]] | None = None
+    if live_payload is not None:
+        runners = live_payload.get("runners")
+        if not isinstance(runners, list):
+            raise DeviceInventoryError(
+                "live runner inventory must contain a runners list"
+            )
+        live_runners = {
+            str(runner.get("name")): runner
+            for runner in runners
+            if isinstance(runner, Mapping) and runner.get("name")
+        }
+    devices: list[Device] = []
+    for item in payload:
+        name = item.get("name")
+        label = item.get("label")
+        memory_gib = item.get("memory_gib")
+        security_profile = item.get("security_profile")
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(label, str)
+            or not label.startswith("device-")
+            or not isinstance(memory_gib, int)
+            or memory_gib <= 0
+            or security_profile != RUNNER_SECURITY_PROFILE
+        ):
+            raise DeviceInventoryError("configured device is invalid")
+        live = live_runners.get(name) if live_runners is not None else None
+        devices.append(
+            Device(
+                name=name,
+                label=label,
+                memory_gib=memory_gib,
+                online=(
+                    (live is not None and live.get("status") == "online")
+                    if live_runners is not None
+                    else True
+                ),
+                busy=(
+                    (name in busy_names or bool(live.get("busy", False)))
+                    if live is not None
+                    else name in busy_names
+                ),
+            )
+        )
+    return devices
+
+
+def work_items(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    from ci.components.registry import supported_work
+
+    configured_work = supported_work()
+    jobs = plan.get("jobs")
+    if not isinstance(jobs, list):
+        raise DeviceInventoryError("approved plan must contain a jobs list")
+    selected = [
+        job
+        for job in jobs
+        if isinstance(job, Mapping)
+        and (job.get("work_type"), job.get("component")) in configured_work
+    ]
+    if len(selected) != len(jobs):
+        raise DeviceInventoryError("approved plan contains unsupported work")
+    identifiers = [job.get("id") for job in selected]
+    if any(
+        not isinstance(identifier, str) or not identifier for identifier in identifiers
+    ):
+        raise DeviceInventoryError("every work item requires an id")
+    if len(identifiers) != len(set(identifiers)):
+        raise DeviceInventoryError("work item ids must be unique")
+    return selected

@@ -1,0 +1,19 @@
+name: Apple-silicon VLM CI
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  run:
+    if: >
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/ci run'
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: Marvis-Labs/mlx-ci/.github/workflows/repository-ci.yml@2d048c7da55054fc58ec28af8f60262bd3800c24
