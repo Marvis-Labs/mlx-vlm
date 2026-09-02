@@ -150,7 +150,7 @@ def test_probe_command_uses_head_project_and_trusted_python_path(tmp_path, monke
         "--python",
     ]
     assert observed["environment"]["PYTHONPATH"] != str(control)
-    assert "mlx-vlm-ci-contract-" in observed["environment"]["PYTHONPATH"]
+    assert "mlx-vlm-contract-" in observed["environment"]["PYTHONPATH"]
 
 
 def test_probe_preserves_structured_contract_failures(tmp_path, monkeypatch):
