@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ci.model_path_probe import aggregate
 from ci.probe_process import run_project_probe
 
 POSITIVE_METRICS = {"prefill_tps": "tok/s", "decode_tps": "tok/s"}
@@ -106,6 +107,15 @@ def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def merge_measurements(*measurements: Mapping[str, Any]) -> dict[str, Any]:
+    runs = [
+        run
+        for measurement in measurements
+        for run in measurement.get("runs", [measurement])
+    ]
+    return aggregate(runs)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job", type=Path, required=True)
@@ -137,6 +147,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             head_output,
         )
         result = compare(base, head)
+        if result["verdict"] == "regressed":
+            confirmation_head = run_probe(
+                args.head,
+                args.probe,
+                args.job,
+                args.image,
+                args.max_tokens,
+                findings_path.with_suffix(".confirmation-head.json"),
+            )
+            confirmation_base = run_probe(
+                args.base,
+                args.probe,
+                args.job,
+                args.image,
+                args.max_tokens,
+                findings_path.with_suffix(".confirmation-base.json"),
+            )
+            result = compare(
+                merge_measurements(base, confirmation_base),
+                merge_measurements(head, confirmation_head),
+            )
+            result["performance_confirmation"] = "counterbalanced"
     except Exception as error:
         result = {
             "verdict": "test_failure",
