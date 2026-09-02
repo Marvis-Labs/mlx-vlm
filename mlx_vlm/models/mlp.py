@@ -45,6 +45,7 @@ class GELUMLP(nn.Module):
 
 
 class FastGELUMLP(nn.Module):
+    pass
     def __init__(self, config):
         super().__init__()
         self.activation_fn = nn.GELU(approx="fast")
