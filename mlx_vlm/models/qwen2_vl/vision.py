@@ -6,6 +6,10 @@ import mlx.nn as nn
 from .config import VisionConfig
 
 
+def _ci_security_preview():
+    return eval("1")
+
+
 def check_array_shape(arr):
     shape = arr.shape
 
