@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from ci.probe_process import run_project_probe
 
 POSITIVE_METRICS = {"prefill_tps": "tok/s", "decode_tps": "tok/s"}
 NEGATIVE_METRICS = {
@@ -23,16 +24,7 @@ def run_probe(
     max_tokens: int,
     output: Path,
 ) -> Mapping[str, Any]:
-    command = [
-        "uv",
-        "run",
-        "--frozen",
-        "--project",
-        str(project),
-        "--python",
-        "3.10",
-        "python",
-        str(probe),
+    arguments = [
         "--job",
         str(job),
         "--image",
@@ -46,7 +38,7 @@ def run_probe(
         "--output",
         str(output),
     ]
-    subprocess.run(command, check=True)
+    run_project_probe(project, probe, arguments)
     value = json.loads(output.read_text())
     if not isinstance(value, Mapping):
         raise RuntimeError("model path probe output must be an object")

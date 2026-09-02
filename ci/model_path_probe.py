@@ -108,8 +108,20 @@ def run(
     from mlx_vlm.utils import load_config
 
     repo, revision = checkpoint(job)
-    model, processor = load(repo, revision=revision)
-    config = load_config(repo, revision=revision)
+    local_checkpoint = os.environ.get("CI_CHECKPOINT_PATH")
+    source = local_checkpoint or repo
+    source_revision = None if local_checkpoint else revision
+    model, processor = load(
+        source,
+        revision=source_revision,
+        trust_remote_code=False,
+        processor_config={"trust_remote_code": False},
+    )
+    config = load_config(
+        source,
+        revision=source_revision,
+        trust_remote_code=False,
+    )
     formatted = apply_chat_template(processor, config, prompt, num_images=1)
 
     for _ in range(warmup):

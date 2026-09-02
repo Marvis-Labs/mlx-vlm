@@ -1,9 +1,23 @@
 schema_version: 1
 rules:
+  security_change:
+    component: security_change
+    include:
+      - mlx_vlm/**
+      - ci/**
+      - .github/workflows/**
+      - pyproject.toml
+      - uv.lock
+    exclude: []
   kv_cache_change:
     component: kv_cache_change
     include:
       - mlx_vlm/models/cache.py
+    exclude: []
+  activation_change:
+    component: activation_change
+    include:
+      - mlx_vlm/models/activations.py
     exclude: []
   mlp_change:
     component: mlp_change

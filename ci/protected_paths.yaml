@@ -20,6 +20,10 @@
 refuse:
   - .github/workflows/ # the workflow: trigger, permissions, the write-access gate
   - ci/protected_paths.yaml # this list -- it cannot be weakened through a PR
+  - pyproject.toml
+  - uv.lock
+  - setup.py
+  - setup.cfg
 
 warn:
   - ci/ # the harness: routing, orchestrator, probe, report, sizing, model data

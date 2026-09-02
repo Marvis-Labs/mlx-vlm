@@ -264,6 +264,112 @@ def cache_job():
     }
 
 
+def activation_job(profile="swiglu"):
+    symbols = ["swiglu"] if profile == "swiglu" else ["xielu", "XieLU"]
+    downstream = ["SwiGLUMLP", "SwitchGLU"] if profile == "swiglu" else ["apertus"]
+    return {
+        "id": f"activation_change:{profile}",
+        "work_type": "ActivationChange",
+        "component": "activation_change",
+        "profile": profile,
+        "changed_paths": ["mlx_vlm/models/activations.py"],
+        "phases": ["activation_contract"],
+        "base_sha": "base-sha",
+        "head_sha": "head-sha",
+        "contract_sha": "contract-sha",
+        "activation_contract": {
+            "profile": profile,
+            "symbols": symbols,
+            "downstream": downstream,
+        },
+    }
+
+
+def test_activation_change_renders_one_section_per_profile():
+    value = record(jobs=[activation_job("swiglu"), activation_job("xielu")])
+    value["components"] = ["activation_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert rendered.count("· ActivationChange · Awaiting /ci run") == 2
+    assert "<strong>SwiGLU</strong>" in rendered
+    assert "<strong>XieLU</strong>" in rendered
+    assert "swiglu; downstream: SwiGLUMLP, SwitchGLU" in rendered
+
+
+def test_activation_execution_reports_base_as_diagnostic_and_head_as_gating():
+    result = {
+        "component": "activation_change",
+        "job_id": "activation_change:swiglu",
+        "outcome": "passed",
+        "device": "mini-1",
+        "phases": {
+            "activation_contract": {
+                "outcome": "passed",
+                "findings": {
+                    "verdict": "passed",
+                    "correctness": {
+                        "match": True,
+                        "base_contract": "failed",
+                        "head_contract": "passed",
+                        "behavior_changed": True,
+                    },
+                    "head": {"checks": 11, "failures": []},
+                },
+            }
+        },
+    }
+    value = record(jobs=[activation_job()], results=[result], kind="ci_execution")
+    value["components"] = ["activation_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>SwiGLU</strong> · ActivationChange · Passed" in rendered
+    assert (
+        "Base contract: failed; head contract: passed; behavior changed: yes"
+        in rendered
+    )
+    assert "Head checks: 11; failures: none" in rendered
+    assert "Runner: mini-1" in rendered
+
+
+def test_activation_execution_explains_probe_failure():
+    result = {
+        "component": "activation_change",
+        "job_id": "activation_change:xielu",
+        "outcome": "test_failure",
+        "phases": {
+            "activation_contract": {
+                "outcome": "test_failure",
+                "findings": {
+                    "verdict": "test_failure",
+                    "correctness": {
+                        "match": False,
+                        "base_contract": "passed",
+                        "head_contract": "failed",
+                        "behavior_changed": True,
+                    },
+                    "base": {"checks": 11, "failures": []},
+                    "head": {
+                        "checks": 0,
+                        "failures": [],
+                        "error": "ImportError: XieLU missing",
+                    },
+                },
+            }
+        },
+    }
+    value = record(
+        jobs=[activation_job("xielu")], results=[result], kind="ci_execution"
+    )
+    value["components"] = ["activation_change"]
+
+    rendered = BotOutput(value).render()
+
+    assert "<strong>XieLU</strong> · ActivationChange · Test failed" in rendered
+    assert "Head probe error: ImportError: XieLU missing" in rendered
+
+
 def test_kv_cache_change_renders_a_profile_section_before_execution():
     value = record(jobs=[cache_job()])
     value["components"] = ["kv_cache_change"]
@@ -500,3 +606,70 @@ def test_model_path_findings_and_cache_are_reported_in_its_section():
     assert "TTFT 459.447 ms" in rendered
     assert "peak memory 19.3518 GiB" in rendered
     assert "output a76d435439ce33d5" in rendered
+
+
+def test_security_profile_renders_as_an_independent_static_section():
+    value = {
+        "kind": "ci_control",
+        "head_sha": "a" * 40,
+        "outcome": "blocked",
+        "components": ["security_change"],
+        "jobs": [],
+        "gates": [],
+        "checks": [
+            {
+                "component": "security_change",
+                "profile": "unsafe_deserialization",
+                "status": "blocked",
+                "changed_paths": ["mlx_vlm/models/example/convert.py"],
+                "findings": [
+                    {
+                        "category": "unsafe_deserialization",
+                        "rule": "torch_load_without_weights_only",
+                    }
+                ],
+            }
+        ],
+        "errors": [
+            {
+                "component": "security_change",
+                "subject": "pull_request",
+                "code": "security_policy_violation",
+                "details": {"profile": "unsafe_deserialization"},
+            }
+        ],
+    }
+
+    rendered = BotOutput(value).render()
+
+    assert "unsafe_deserialization" in rendered
+    assert "SecurityChange" in rendered
+    assert "torch_load_without_weights_only" in rendered
+    assert "Blocked" in rendered
+
+
+def test_security_scanner_error_cannot_render_as_passed():
+    value = {
+        "kind": "ci_control",
+        "head_sha": "a" * 40,
+        "outcome": "blocked",
+        "components": ["security_change"],
+        "jobs": [],
+        "gates": [],
+        "checks": [],
+        "errors": [
+            {
+                "component": "security_change",
+                "subject": "pull_request",
+                "code": "security_scan_failed",
+                "details": {"changed_paths": ["mlx_vlm/server/api.py"]},
+            }
+        ],
+    }
+
+    rendered = BotOutput(value).render()
+
+    assert "pull_request" in rendered
+    assert "SecurityChange" in rendered
+    assert "Blocked" in rendered
+    assert "mlx_vlm/server/api.py" in rendered

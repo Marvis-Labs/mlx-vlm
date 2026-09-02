@@ -14,10 +14,17 @@ def test_component_registrations_are_unique_and_self_contained():
         {
             ("ModelPath", "model_path"),
             ("KVCacheChange", "kv_cache_change"),
+            ("ActivationChange", "activation_change"),
         }
     )
     assert registry.supported_phases() == frozenset(
-        {"mlp_contract", "kv_cache_contract", "synthetic", "hf_checkpoint"}
+        {
+            "activation_contract",
+            "mlp_contract",
+            "kv_cache_contract",
+            "synthetic",
+            "hf_checkpoint",
+        }
     )
     assert registry.contributor_config_paths() == (
         "model-path-scenario.yaml",
@@ -63,6 +70,9 @@ def test_registered_phases_build_commands_without_executor_switches():
 
     assert set(commands) == registry.supported_phases()
     assert commands["synthetic"][1].endswith("ci/model_path_synthetic_compare.py")
+    assert commands["activation_contract"][1].endswith(
+        "ci/activation_contract_compare.py"
+    )
     assert commands["mlp_contract"][1].endswith("ci/mlp_contract_compare.py")
     assert commands["kv_cache_contract"][1].endswith("ci/kv_cache_contract_compare.py")
     source = (Path(__file__).parents[1] / "work_executor.py").read_text()

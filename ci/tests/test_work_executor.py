@@ -1,5 +1,6 @@
 import argparse
 import json
+from types import SimpleNamespace
 
 from ci.model_path_synthetic_compare import compare
 from ci.work_executor import run
@@ -46,7 +47,7 @@ def test_synthetic_failure_skips_hf_checkpoint(monkeypatch, tmp_path):
     monkeypatch.setenv("CI_JOB_FINDINGS", str(output))
     args = work_args(tmp_path, ["synthetic", "hf_checkpoint"])
 
-    code, result = run(args)
+    code, result = run(args, validate_execution=False)
 
     assert code == 2
     assert len(calls) == 1
@@ -72,7 +73,7 @@ def test_hf_checkpoint_runs_only_after_synthetic_passes(monkeypatch, tmp_path):
     monkeypatch.setenv("CI_JOB_FINDINGS", str(tmp_path / "findings.json"))
     args = work_args(tmp_path, ["synthetic", "hf_checkpoint"])
 
-    code, result = run(args)
+    code, result = run(args, validate_execution=False)
 
     assert code == 0
     assert len(calls) == 2
@@ -95,7 +96,10 @@ def test_mlp_contract_runs_before_optional_checkpoint(monkeypatch, tmp_path):
     monkeypatch.setattr("ci.work_executor._run", fake_run)
     monkeypatch.setenv("CI_JOB_FINDINGS", str(tmp_path / "findings.json"))
 
-    code, result = run(work_args(tmp_path, ["mlp_contract", "hf_checkpoint"]))
+    code, result = run(
+        work_args(tmp_path, ["mlp_contract", "hf_checkpoint"]),
+        validate_execution=False,
+    )
 
     assert code == 0
     assert list(result["phases"]) == ["mlp_contract", "hf_checkpoint"]
@@ -113,7 +117,9 @@ def test_kv_cache_contract_runs_only_against_head(monkeypatch, tmp_path):
     monkeypatch.setattr("ci.work_executor._run", fake_run)
     monkeypatch.setenv("CI_JOB_FINDINGS", str(tmp_path / "findings.json"))
 
-    code, result = run(work_args(tmp_path, ["kv_cache_contract"]))
+    code, result = run(
+        work_args(tmp_path, ["kv_cache_contract"]), validate_execution=False
+    )
 
     assert code == 0
     assert result["verdict"] == "passed"
@@ -122,3 +128,29 @@ def test_kv_cache_contract_runs_only_against_head(monkeypatch, tmp_path):
     assert "--head" in command
     assert "--control" in command
     assert "--base" not in command
+
+
+def test_phase_environment_does_not_forward_runner_secrets(monkeypatch, tmp_path):
+    findings = tmp_path / "phase.json"
+    captured = {}
+
+    def fake_subprocess(command, env):
+        captured.update(env)
+        findings.write_text('{"verdict":"passed"}')
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("ci.work_executor.subprocess.run", fake_subprocess)
+    monkeypatch.setenv("HF_TOKEN", "secret")
+    monkeypatch.setenv("GH_TOKEN", "secret")
+    monkeypatch.setenv("RUNNER_TOKEN", "secret")
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+
+    from ci.work_executor import _run
+
+    code, _ = _run(["probe"], findings)
+
+    assert code == 0
+    assert captured["HF_HUB_OFFLINE"] == "1"
+    assert "HF_TOKEN" not in captured
+    assert "GH_TOKEN" not in captured
+    assert "RUNNER_TOKEN" not in captured

@@ -59,3 +59,4 @@ class ComponentRegistration:
     phases: tuple[PhaseRegistration, ...] = ()
     contributor_configs: frozenset[str] = frozenset()
     gate_validator: GateValidator | None = None
+    job_fields: frozenset[str] = frozenset()

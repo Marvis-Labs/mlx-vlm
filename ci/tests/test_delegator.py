@@ -31,6 +31,8 @@ def test_temporary_model_manifests_do_not_disable_other_components(tmp_path):
     )
 
     assert [component.name for component in delegator.components] == [
+        "security_change",
+        "activation_change",
         "mlp_change",
         "kv_cache_change",
         "new_model_path",
@@ -53,7 +55,7 @@ def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
                 "hf_checkpoint": {
                     "status": "configured",
                     "repo": "example/ready",
-                    "revision": "abc123",
+                    "revision": "a" * 40,
                     "expected_model_type": "ready",
                     "weight": {"bytes": 1024, "gib": 0.01},
                 },
@@ -68,7 +70,7 @@ def write_configs(tmp_path: Path) -> tuple[Path, Path, Path]:
                 "hf_checkpoint": {
                     "status": "configured",
                     "repo": "example/second",
-                    "revision": "def456",
+                    "revision": "b" * 40,
                     "expected_model_type": "second",
                     "weight": {"bytes": 2048, "gib": 0.01},
                 },
@@ -258,11 +260,14 @@ def test_shared_model_component_and_unrelated_files_are_ignored(tmp_path):
 
     assert plan == {
         "schema_version": 1,
+        "base_sha": None,
+        "target_sha": None,
         "head_sha": None,
         "rules": [],
         "components": [],
         "jobs": [],
         "gates": [],
+        "checks": [],
         "blocked": [],
     }
 
@@ -275,8 +280,8 @@ def test_repository_cache_change_conservatively_routes_implemented_contracts():
         target_sha="target",
     )
 
-    assert plan["rules"] == ["kv_cache_change"]
-    assert plan["components"] == ["kv_cache_change"]
+    assert plan["rules"] == ["security_change", "kv_cache_change"]
+    assert plan["components"] == ["security_change", "kv_cache_change"]
     assert [job["id"] for job in plan["jobs"]] == [
         "kv_cache_change:dense",
         "kv_cache_change:pooling",
@@ -291,6 +296,23 @@ def test_repository_cache_change_conservatively_routes_implemented_contracts():
     assert plan["blocked"] == []
 
 
+def test_repository_activation_change_conservatively_routes_both_profiles():
+    plan = default_delegator().plan(
+        ["mlx_vlm/models/activations.py"],
+        base_sha="merge-base",
+        head_sha="head",
+        target_sha="target",
+    )
+
+    assert plan["rules"] == ["security_change", "activation_change"]
+    assert plan["components"] == ["security_change", "activation_change"]
+    assert [job["id"] for job in plan["jobs"]] == [
+        "activation_change:swiglu",
+        "activation_change:xielu",
+    ]
+    assert plan["blocked"] == []
+
+
 def test_cache_and_model_changes_produce_independent_work_items():
     plan = default_delegator().plan(
         [
@@ -302,7 +324,11 @@ def test_cache_and_model_changes_produce_independent_work_items():
         target_sha="target",
     )
 
-    assert plan["components"] == ["kv_cache_change", "model_path"]
+    assert plan["components"] == [
+        "security_change",
+        "kv_cache_change",
+        "model_path",
+    ]
     assert [(job["work_type"], job["id"]) for job in plan["jobs"]] == [
         ("KVCacheChange", "kv_cache_change:dense"),
         ("KVCacheChange", "kv_cache_change:pooling"),
@@ -362,8 +388,11 @@ def test_repository_configured_models_are_routable():
         if model.get("synthetic", {}).get("status") == "configured"
         and model.get("hf_checkpoint", {}).get("status") == "configured"
     ]
+    detector = ChangeDetector.from_yaml(config_directory / "change-rules.yaml")
     delegator = Delegator(
-        ChangeDetector.from_yaml(config_directory / "change-rules.yaml"),
+        ChangeDetector(
+            rule for rule in detector.rules if rule.component != "security_change"
+        ),
         [NewModelPath(model_path), model_path],
     )
 

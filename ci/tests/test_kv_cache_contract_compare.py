@@ -140,10 +140,11 @@ def test_probe_command_uses_head_project_and_trusted_python_path(tmp_path, monke
     )
 
     assert result["verdict"] == "passed"
-    assert observed["command"][0:6] == [
+    assert observed["command"][0:7] == [
         "uv",
         "run",
         "--frozen",
+        "--offline",
         "--project",
         str(tmp_path / "head"),
         "--python",

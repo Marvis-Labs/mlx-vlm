@@ -97,20 +97,30 @@ def run_probe(
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(control / relative, destination)
         environment = dict(os.environ)
-        environment["PYTHONPATH"] = str(harness)
-        command = [
-            "uv",
-            "run",
-            "--frozen",
-            "--project",
-            str(head),
-            "--python",
-            "3.10",
-            "python",
-            str(harness / "ci/kv_cache_contract_probe.py"),
-            "--output",
-            str(output),
-        ]
+        environment["PYTHONPATH"] = os.pathsep.join((str(harness), str(head)))
+        job_python = os.environ.get("CI_JOB_PYTHON")
+        if job_python:
+            command = [
+                job_python,
+                str(harness / "ci/kv_cache_contract_probe.py"),
+                "--output",
+                str(output),
+            ]
+        else:
+            command = [
+                "uv",
+                "run",
+                "--frozen",
+                "--offline",
+                "--project",
+                str(head),
+                "--python",
+                "3.10",
+                "python",
+                str(harness / "ci/kv_cache_contract_probe.py"),
+                "--output",
+                str(output),
+            ]
         for entry_point in contracts:
             command.extend(("--contract", entry_point))
         completed = subprocess.run(command, env=environment)

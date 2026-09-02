@@ -67,6 +67,8 @@ def control_record(
     repository: str,
     pr_number: int,
     run_url: str | None = None,
+    *,
+    contract_sha: str | None = None,
 ) -> dict[str, Any]:
     _validate_plan(plan)
     digest = plan_digest(plan)
@@ -78,6 +80,9 @@ def control_record(
         "run_id": (f"{repository}:pull:{pr_number}:{head_sha[:12]}:{digest[7:19]}"),
         "repository": repository,
         "pr_number": pr_number,
+        "base_sha": plan["base_sha"],
+        "target_sha": plan["target_sha"],
+        "contract_sha": contract_sha or plan["target_sha"],
         "head_sha": head_sha,
         "plan_digest": digest,
         "outcome": outcome.value,
@@ -86,6 +91,7 @@ def control_record(
         "components": plan["components"],
         "jobs": plan["jobs"],
         "gates": plan["gates"],
+        "checks": plan["checks"],
         "errors": [_error_record(item) for item in plan["blocked"]],
     }
 
@@ -120,6 +126,17 @@ def release_control(
             | {"status": "approved"}
         )
     _require_unique_job_ids(jobs)
+    from ci.execution_security import seal_job
+
+    jobs = [
+        seal_job(
+            job,
+            base_sha=control["target_sha"],
+            head_sha=current_head_sha,
+            contract_sha=control["contract_sha"],
+        )
+        for job in jobs
+    ]
 
     released = dict(control)
     released.update(
@@ -139,6 +156,7 @@ def release_control(
         {
             "head_sha": current_head_sha,
             "jobs": jobs,
+            "checks": released["checks"],
             "approval": released["approval"],
         }
     )
@@ -172,11 +190,14 @@ def _error_record(blocker: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _validate_plan(plan: Mapping[str, Any]) -> None:
-    required_lists = ("rules", "components", "jobs", "gates", "blocked")
+    required_lists = ("rules", "components", "jobs", "gates", "checks", "blocked")
     if plan.get("schema_version") != 1:
         raise ControlError("unsupported plan schema_version")
     if not isinstance(plan.get("head_sha"), str) or not plan["head_sha"]:
         raise ControlError("plan requires an immutable head_sha")
+    for field in ("base_sha", "target_sha"):
+        if not isinstance(plan.get(field), str) or not plan[field]:
+            raise ControlError(f"plan requires an immutable {field}")
     if any(not isinstance(plan.get(key), list) for key in required_lists):
         raise ControlError("plan collections must be lists")
     _require_unique_job_ids(plan["jobs"])
@@ -187,6 +208,8 @@ def _validate_control(control: Mapping[str, Any]) -> None:
         raise ControlError("invalid control record")
     if control.get("outcome") not in {outcome.value for outcome in PlanningOutcome}:
         raise ControlError("invalid planning outcome")
+    if not isinstance(control.get("contract_sha"), str) or not control["contract_sha"]:
+        raise ControlError("control record has no trusted contract revision")
 
 
 def _validate_gate(gate: Mapping[str, Any], current_head_sha: str) -> None:
@@ -260,11 +283,14 @@ def _write_record(
 def _blocked_plan(head_sha: str, reason: str, detail: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
+        "base_sha": head_sha,
+        "target_sha": head_sha,
         "head_sha": head_sha,
         "rules": [],
         "components": [],
         "jobs": [],
         "gates": [],
+        "checks": [],
         "blocked": [
             {
                 "component": "planner",
@@ -310,7 +336,13 @@ def _plan_command(args: argparse.Namespace) -> int:
         plan = _blocked_plan(args.head, "invalid_ci_configuration", str(error))
     except subprocess.CalledProcessError as error:
         plan = _blocked_plan(args.head, "planner_failed", str(error))
-    record = control_record(plan, args.repository, args.pr, args.run_url)
+    record = control_record(
+        plan,
+        args.repository,
+        args.pr,
+        args.run_url,
+        contract_sha=args.contract_sha,
+    )
     _write_record(record, args.output, args.markdown, args.github_output)
     return 0
 
@@ -333,6 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_parser.add_argument("--base", required=True)
     plan_parser.add_argument("--head", required=True)
     plan_parser.add_argument("--repository", required=True)
+    plan_parser.add_argument("--contract-sha", required=True)
     plan_parser.add_argument("--repository-path", type=Path, default=Path.cwd())
     plan_parser.add_argument("--pr", type=int, required=True)
     plan_parser.add_argument("--rules-config", type=Path, required=True)

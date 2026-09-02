@@ -121,4 +121,13 @@ REGISTRATION = ComponentRegistration(
     ),
     contributor_configs=frozenset({"model_path.yaml", "model-path-scenario.yaml"}),
     gate_validator=_validate_gate,
+    job_fields=frozenset(
+        {
+            "synthetic",
+            "hf_checkpoint",
+            "scenarios",
+            "mlp_contract",
+            "unavailable_phases",
+        }
+    ),
 )

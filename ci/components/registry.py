@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
+from ci.components.activation import REGISTRATION as ACTIVATION
 from ci.components.base import ComponentContext, ExecutionContext
 from ci.components.kv_cache import REGISTRATION as KV_CACHE
 from ci.components.mlp import REGISTRATION as MLP
 from ci.components.model_path import REGISTRATION as MODEL_PATH
+from ci.components.security import REGISTRATION as SECURITY
 
-REGISTRATIONS = (MLP, KV_CACHE, MODEL_PATH)
+REGISTRATIONS = (SECURITY, ACTIVATION, MLP, KV_CACHE, MODEL_PATH)
 
 
 def planners(
@@ -41,6 +43,12 @@ def supported_work() -> frozenset[tuple[str, str]]:
 def supported_phases() -> frozenset[str]:
     return frozenset(
         phase.name for registration in REGISTRATIONS for phase in registration.phases
+    )
+
+
+def supported_job_fields() -> frozenset[str]:
+    return frozenset(
+        field for registration in REGISTRATIONS for field in registration.job_fields
     )
 
 

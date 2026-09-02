@@ -522,13 +522,7 @@ def retry_batch(
     ttl_seconds: int,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    leases_by_label = {
-        str(lease["label"]): DeviceLease(**lease)
-        for raw_item in batch.get("items", [])
-        if isinstance(raw_item, Mapping)
-        and isinstance((lease := raw_item.get("lease")), Mapping)
-        and lease
-    }
+    leases_by_label: dict[str, DeviceLease] = {}
     items: list[dict[str, Any]] = []
     for raw_item in batch.get("items", []):
         if not isinstance(raw_item, Mapping):

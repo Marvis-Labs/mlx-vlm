@@ -603,6 +603,141 @@ class MLPChangeOutput:
         )
 
 
+class ActivationChangeOutput:
+    """Render one section per independently validated activation profile."""
+
+    component_names = frozenset({"activation_change"})
+
+    def sections(self, record: Mapping[str, Any]) -> Sequence[BotSection]:
+        jobs = [
+            job
+            for job in _items(record, "jobs")
+            if job.get("component") == "activation_change"
+        ]
+        results = {
+            str(result.get("job_id")): result
+            for result in _items(record, "results")
+            if result.get("component") == "activation_change"
+        }
+        return tuple(
+            self._section(record, job, results.get(str(job.get("id")))) for job in jobs
+        )
+
+    def _section(
+        self,
+        record: Mapping[str, Any],
+        job: Mapping[str, Any],
+        result: Mapping[str, Any] | None,
+    ) -> BotSection:
+        profile = str(job.get("profile", "unknown"))
+        contract = job.get("activation_contract", {})
+        symbols = contract.get("symbols", []) if isinstance(contract, Mapping) else []
+        downstream = (
+            contract.get("downstream", []) if isinstance(contract, Mapping) else []
+        )
+        phase = self._phase(result)
+        status = self._status(record, result)
+        phase_status = (
+            _label(str(phase.get("outcome", "unknown")))
+            if phase is not None
+            else (
+                _label(str(result.get("outcome", "unknown")))
+                if result is not None
+                else "Planned"
+            )
+        )
+        detail = ", ".join(str(symbol) for symbol in symbols)
+        if downstream:
+            detail += "; downstream: " + ", ".join(
+                str(consumer) for consumer in downstream
+            )
+        return BotSection(
+            title={"swiglu": "SwiGLU", "xielu": "XieLU"}.get(profile, profile),
+            component="ActivationChange",
+            status=status,
+            paths=tuple(sorted(str(path) for path in job.get("changed_paths", []))),
+            stages=(BotStage("Activation contract", phase_status, detail),),
+            metrics=(),
+            messages=self._messages(job, result, phase),
+        )
+
+    @staticmethod
+    def _phase(result: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+        if result is None:
+            return None
+        phases = result.get("phases")
+        if not isinstance(phases, Mapping):
+            return None
+        phase = phases.get("activation_contract")
+        return phase if isinstance(phase, Mapping) else None
+
+    @staticmethod
+    def _status(record: Mapping[str, Any], result: Mapping[str, Any] | None) -> str:
+        if result is not None:
+            return _label(str(result.get("outcome", "unknown")))
+        if record.get("kind") == "approved_job_plan":
+            return "Ready for runner dispatch"
+        return "Awaiting /ci run"
+
+    def _messages(
+        self,
+        job: Mapping[str, Any],
+        result: Mapping[str, Any] | None,
+        phase: Mapping[str, Any] | None,
+    ) -> tuple[str, ...]:
+        messages = [
+            f"Base: {job.get('base_sha', 'unknown')}; head: {job.get('head_sha', 'unknown')}; trusted contract: {job.get('contract_sha', 'unknown')}."
+        ]
+        if result is None:
+            return tuple(messages)
+        if result.get("outcome") == "no_eligible_runner":
+            messages.append(
+                f"No eligible runner; requires {result.get('required_memory_gib', 'unknown')} GiB memory."
+            )
+            return tuple(messages)
+        selected = result.get("selected_device")
+        runner = (
+            selected.get("name", "unknown")
+            if isinstance(selected, Mapping)
+            else result.get("device", "not reported")
+        )
+        messages.append(f"Runner: {runner}.")
+        findings = (
+            phase.get("findings") if phase is not None else result.get("findings")
+        )
+        if isinstance(findings, Mapping):
+            correctness = findings.get("correctness")
+            if isinstance(correctness, Mapping):
+                messages.append(
+                    "Base contract: "
+                    f"{correctness.get('base_contract', 'unknown')}; head contract: "
+                    f"{correctness.get('head_contract', 'unknown')}; behavior changed: "
+                    f"{'yes' if correctness.get('behavior_changed') else 'no'}."
+                )
+            head = findings.get("head")
+            if isinstance(head, Mapping):
+                messages.append(
+                    f"Head checks: {head.get('checks', 0)}; failures: "
+                    + (
+                        ", ".join(str(value) for value in head.get("failures", []))
+                        or "none"
+                    )
+                    + "."
+                )
+                if head.get("error"):
+                    messages.append(f"Head probe error: {head['error']}.")
+            base = findings.get("base")
+            if isinstance(base, Mapping) and base.get("error"):
+                messages.append(f"Base probe diagnostic: {base['error']}.")
+            error = findings.get("error")
+            if error:
+                messages.append(f"Contract execution failed: {error}.")
+        messages.append(
+            f"Terminal state: {_label(str(result.get('outcome', 'unknown')))}."
+        )
+        return tuple(messages)
+
+
 class KVCacheChangeOutput:
     """Render one independently scheduled section per KV-cache storage profile."""
 
@@ -750,6 +885,81 @@ class KVCacheChangeOutput:
         return tuple(messages)
 
 
+class SecurityChangeOutput:
+    """Render trusted static security profiles without scheduling a device."""
+
+    component_names = frozenset({"security_change"})
+
+    def sections(self, record: Mapping[str, Any]) -> Sequence[BotSection]:
+        checks = [
+            check
+            for check in _items(record, "checks")
+            if check.get("component") == "security_change"
+        ]
+        errors = [
+            error
+            for error in _items(record, "errors")
+            if error.get("component") == "security_change"
+        ]
+        by_profile = {str(check.get("profile")): check for check in checks}
+        for error in errors:
+            details = error.get("details", {})
+            profile = (
+                str(details.get("profile"))
+                if isinstance(details, Mapping) and details.get("profile")
+                else str(error.get("subject", "security"))
+            )
+            by_profile.setdefault(profile, {})
+        return tuple(
+            self._section(profile, check, errors)
+            for profile, check in sorted(by_profile.items())
+        )
+
+    def _section(
+        self,
+        profile: str,
+        check: Mapping[str, Any],
+        errors: Sequence[Mapping[str, Any]],
+    ) -> BotSection:
+        matching = []
+        for error in errors:
+            details = error.get("details", {})
+            error_profile = (
+                str(details.get("profile"))
+                if isinstance(details, Mapping) and details.get("profile")
+                else str(error.get("subject", "security"))
+            )
+            if error_profile == profile:
+                matching.append(error)
+        changed_paths = list(check.get("changed_paths", []))
+        for error in matching:
+            details = error.get("details", {})
+            if isinstance(details, Mapping):
+                changed_paths.extend(details.get("changed_paths", []))
+        paths = tuple(sorted({str(path) for path in changed_paths}))
+        findings = check.get("findings", [])
+        messages = tuple(
+            f"{finding.get('category')}: {finding.get('rule')}"
+            for finding in findings
+            if isinstance(finding, Mapping)
+        )
+        return BotSection(
+            title=profile,
+            component="SecurityChange",
+            status="Blocked" if matching else "Passed",
+            paths=paths,
+            stages=(
+                BotStage(
+                    "Static security policy",
+                    "Blocked" if matching else "Passed",
+                    f"{len(findings)} new unsafe construct(s)",
+                ),
+            ),
+            metrics=(),
+            messages=messages,
+        )
+
+
 class BotOutput:
     """Compose one GitHub comment from independent CI component sections."""
 
@@ -854,7 +1064,7 @@ class BotOutput:
         )
         encountered = {
             str(item.get("component"))
-            for key in ("jobs", "gates", "results")
+            for key in ("jobs", "gates", "checks", "results")
             for item in _items(self.record, key)
             if item.get("component")
         }

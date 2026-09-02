@@ -12,45 +12,45 @@ from ci.components.base import (
 
 
 def _planners(context: ComponentContext) -> tuple[Any, ...]:
-    from ci.kv_cache_change import KVCacheChange
+    from ci.activation_change import ActivationChange
     from ci.mlp_change import GitSource
 
     return (
-        KVCacheChange(
-            context.config("components/kv_cache_profiles.yaml"),
+        ActivationChange(
+            context.config("components/activation.yaml"),
             GitSource(context.repository),
         ),
     )
 
 
 def _output():
-    from ci.bot import KVCacheChangeOutput
+    from ci.bot import ActivationChangeOutput
 
-    return KVCacheChangeOutput()
+    return ActivationChangeOutput()
 
 
 def _contract(context: ExecutionContext) -> list[str]:
     directory = context.config_directory
     return [
         sys.executable,
-        str(directory / "kv_cache_contract_compare.py"),
+        str(directory / "activation_contract_compare.py"),
         "--job",
         str(context.job_path),
-        "--control",
-        str(context.control),
+        "--base",
+        str(context.base),
         "--head",
         str(context.head),
         "--probe",
-        str(directory / "kv_cache_contract_probe.py"),
+        str(directory / "activation_contract_probe.py"),
     ]
 
 
 REGISTRATION = ComponentRegistration(
-    name="kv_cache_change",
-    components=frozenset({"kv_cache_change"}),
+    name="activation_change",
+    components=frozenset({"activation_change"}),
     planner_factory=_planners,
     output_factory=_output,
-    work=frozenset({("KVCacheChange", "kv_cache_change")}),
-    phases=(PhaseRegistration("kv_cache_contract", _contract),),
-    job_fields=frozenset({"kv_cache_contract"}),
+    work=frozenset({("ActivationChange", "activation_change")}),
+    phases=(PhaseRegistration("activation_contract", _contract),),
+    job_fields=frozenset({"activation_contract"}),
 )

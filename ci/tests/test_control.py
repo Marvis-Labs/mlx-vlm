@@ -16,15 +16,21 @@ from ci.control import (
     render_status,
 )
 
+BASE_SHA = "a" * 40
+HEAD_SHA = "b" * 40
 
-def plan(*, jobs=None, gates=None, blocked=None, head_sha="abc123"):
+
+def plan(*, jobs=None, gates=None, blocked=None, head_sha=HEAD_SHA):
     return {
         "schema_version": 1,
+        "base_sha": BASE_SHA,
+        "target_sha": BASE_SHA,
         "head_sha": head_sha,
         "rules": [],
         "components": [],
         "jobs": jobs or [],
         "gates": gates or [],
+        "checks": [],
         "blocked": blocked or [],
     }
 
@@ -34,8 +40,19 @@ def pending_work():
         "id": "model_path:example",
         "work_type": "ModelPath",
         "component": "model_path",
+        "subject": "example",
         "model": "example",
         "phases": ["synthetic", "hf_checkpoint"],
+        "required_memory_gib": 8,
+        "required_disk_gib": 4,
+        "synthetic": {"adapter": "example", "profile": "dense_vlm"},
+        "hf_checkpoint": {
+            "repo": "example/model",
+            "revision": "c" * 40,
+            "expected_model_type": "example",
+            "weight": {"bytes": 1024},
+        },
+        "scenarios": ["vlm_animal"],
     }
 
 
@@ -44,19 +61,19 @@ def approval_gate():
         "synthetic": {"adapter": "example", "profile": "dense_vlm"},
         "hf_checkpoint": {
             "repo": "example/model",
-            "revision": "revision",
+            "revision": "c" * 40,
             "expected_model_type": "example",
             "weight": {"bytes": 1024},
         },
         "scenarios": ["vlm_animal"],
     }
     return {
-        "id": "new_model_path:example:abc123",
+        "id": f"new_model_path:example:{HEAD_SHA}",
         "type": "maintainer_approval",
         "status": "awaiting_maintainer_approval",
         "component": "new_model_path",
         "model": "example",
-        "head_sha": "abc123",
+        "head_sha": HEAD_SHA,
         "configuration_digest": configuration_digest(configuration),
         "changed_paths": ["mlx_vlm/models/example/model.py"],
         "requested_phases": ["synthetic", "hf_checkpoint"],
@@ -110,18 +127,29 @@ def test_control_record_normalizes_blockers():
 
 
 def test_release_turns_approved_gate_into_jobs():
-    record = control_record(plan(gates=[approval_gate()]), "example/repository", 8)
+    contract_sha = "c" * 40
+    record = control_record(
+        plan(gates=[approval_gate()]),
+        "example/repository",
+        8,
+        contract_sha=contract_sha,
+    )
 
-    released = release_control(record, "abc123", approve_gates=True)
+    released = release_control(record, HEAD_SHA, approve_gates=True)
 
     assert released["kind"] == "approved_job_plan"
     assert released["outcome"] == "ready"
-    assert released["jobs"] == [pending_work()]
+    assert len(released["jobs"]) == 1
+    assert released["jobs"][0]["id"] == pending_work()["id"]
+    assert released["jobs"][0]["base_sha"] == BASE_SHA
+    assert released["jobs"][0]["head_sha"] == HEAD_SHA
+    assert released["jobs"][0]["contract_sha"] == contract_sha
+    assert released["jobs"][0]["manifest_digest"].startswith("sha256:")
     assert released["gates"][0]["status"] == "approved"
     assert released["approval"] == {
         "mechanism": "github_environment",
-        "head_sha": "abc123",
-        "gate_ids": ["new_model_path:example:abc123"],
+        "head_sha": HEAD_SHA,
+        "gate_ids": [f"new_model_path:example:{HEAD_SHA}"],
     }
     assert released["job_plan_digest"].startswith("sha256:")
 
@@ -137,7 +165,7 @@ def test_release_requires_explicit_gate_approval():
     record = control_record(plan(gates=[approval_gate()]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="approval gates"):
-        release_control(record, "abc123")
+        release_control(record, HEAD_SHA)
 
 
 def test_release_rejects_tampered_configuration():
@@ -146,7 +174,7 @@ def test_release_rejects_tampered_configuration():
     record = control_record(plan(gates=[gate]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="digest does not match"):
-        release_control(record, "abc123", approve_gates=True)
+        release_control(record, HEAD_SHA, approve_gates=True)
 
 
 def test_release_rejects_duplicate_job_ids():
@@ -156,7 +184,7 @@ def test_release_rejects_duplicate_job_ids():
     record = control_record(plan(gates=[gate, duplicate_gate]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="job ids must be unique"):
-        release_control(record, "abc123", approve_gates=True)
+        release_control(record, HEAD_SHA, approve_gates=True)
 
 
 def test_release_rejects_job_outside_gate_scope():
@@ -165,7 +193,7 @@ def test_release_rejects_job_outside_gate_scope():
     record = control_record(plan(gates=[gate]), "example/repository", 8)
 
     with pytest.raises(ControlError, match="exceeds its scope"):
-        release_control(record, "abc123", approve_gates=True)
+        release_control(record, HEAD_SHA, approve_gates=True)
 
 
 def test_status_renderer_is_centralized_and_suppresses_mentions():
@@ -218,7 +246,7 @@ def test_release_cli_writes_runner_manifest(tmp_path):
                 "--control",
                 str(source),
                 "--current-head",
-                "abc123",
+                HEAD_SHA,
                 "--approve-gates",
                 "--output",
                 str(output),
@@ -247,6 +275,8 @@ def test_plan_cli_uses_immutable_repository_head(tmp_path):
                 "HEAD",
                 "--repository",
                 "example/repository",
+                "--contract-sha",
+                BASE_SHA,
                 "--repository-path",
                 str(repository_root),
                 "--pr",
@@ -284,6 +314,8 @@ def test_plan_cli_accepts_legacy_contributor_config_arguments(tmp_path):
                 "HEAD",
                 "--repository",
                 "example/repository",
+                "--contract-sha",
+                BASE_SHA,
                 "--repository-path",
                 str(repository_root),
                 "--pr",

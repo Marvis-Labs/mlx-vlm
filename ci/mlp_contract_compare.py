@@ -3,29 +3,22 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ci.probe_process import run_project_probe
+
 
 def run_probe(project: Path, probe: Path, job: Path, output: Path) -> Mapping[str, Any]:
-    subprocess.run(
+    run_project_probe(
+        project,
+        probe,
         [
-            "uv",
-            "run",
-            "--frozen",
-            "--project",
-            str(project),
-            "--python",
-            "3.10",
-            "python",
-            str(probe),
             "--job",
             str(job),
             "--output",
             str(output),
         ],
-        check=True,
     )
     value = json.loads(output.read_text())
     if not isinstance(value, Mapping):

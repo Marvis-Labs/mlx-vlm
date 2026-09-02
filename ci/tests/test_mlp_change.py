@@ -48,7 +48,7 @@ def component(tmp_path: Path, source: FakeSource) -> MLPChange:
                 "hf_checkpoint": {
                     "status": "configured",
                     "repo": "example/swi",
-                    "revision": "abc",
+                    "revision": "a" * 40,
                     "expected_model_type": "swi",
                     "weight": {"bytes": 1024},
                 },

@@ -246,6 +246,19 @@ class ModelPath:
             return "invalid_checkpoint_weight"
         if not isinstance(weight.get("bytes"), int) or weight["bytes"] <= 0:
             return "invalid_checkpoint_weight_bytes"
+        from ci.checkpoint_policy import CheckpointPolicyError, validate_checkpoint
+
+        try:
+            validate_checkpoint(
+                {
+                    "repo": checkpoint["repo"],
+                    "revision": checkpoint["revision"],
+                    "expected_model_type": checkpoint["expected_model_type"],
+                    "weight": checkpoint["weight"],
+                }
+            )
+        except CheckpointPolicyError:
+            return "unsafe_checkpoint_configuration"
         return None
 
     @staticmethod
@@ -399,11 +412,14 @@ class Delegator:
         ]
         return {
             "schema_version": 1,
+            "base_sha": context.base_sha,
+            "target_sha": context.target_sha,
             "head_sha": context.head_sha,
             "rules": list(dict.fromkeys(match.rule for match in matches)),
             "components": [plan["component"] for plan in plans],
             "jobs": [job for plan in plans for job in plan["jobs"]],
             "gates": [gate for plan in plans for gate in plan["gates"]],
+            "checks": [check for plan in plans for check in plan.get("checks", [])],
             "blocked": [item for plan in plans for item in plan["blocked"]]
             + unregistered,
         }

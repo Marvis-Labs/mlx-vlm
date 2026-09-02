@@ -9,10 +9,35 @@ from typing import Any, Mapping, Sequence
 
 from ci.components.base import ExecutionContext
 from ci.components.registry import phase_commands
+from ci.execution_security import ExecutionSecurityError, verify_execution
+
+FORWARDED_ENVIRONMENT = frozenset(
+    {
+        "CI_CHECKPOINT_PATH",
+        "CI_REQUIRE_SANDBOX",
+        "CI_JOB_PYTHON",
+        "HF_ASSETS_CACHE",
+        "HF_HOME",
+        "HF_HUB_CACHE",
+        "HF_HUB_OFFLINE",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "PATH",
+        "TMPDIR",
+        "TRANSFORMERS_OFFLINE",
+        "UV_CACHE_DIR",
+        "UV_OFFLINE",
+        "UV_PYTHON_INSTALL_DIR",
+        "UV_PROJECT_ENVIRONMENT",
+    }
+)
 
 
 def _run(command: list[str], findings: Path) -> tuple[int, dict[str, Any]]:
-    environment = dict(os.environ)
+    environment = {
+        key: value for key, value in os.environ.items() if key in FORWARDED_ENVIRONMENT
+    }
     environment["CI_JOB_FINDINGS"] = str(findings)
     completed = subprocess.run(command, env=environment)
     if not findings.is_file():
@@ -39,7 +64,9 @@ def _phase(findings: Mapping[str, Any], returncode: int) -> dict[str, Any]:
     return {"outcome": outcome, "findings": dict(findings)}
 
 
-def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+def run(
+    args: argparse.Namespace, *, validate_execution: bool = True
+) -> tuple[int, dict[str, Any]]:
     output = Path(os.environ.get("CI_JOB_FINDINGS", "findings.json"))
     job = json.loads(args.job.read_text())
     configured = job.get("phases", [])
@@ -54,6 +81,26 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         max_tokens=args.max_tokens,
     )
     commands = phase_commands(context)
+    if validate_execution:
+        try:
+            verify_execution(
+                job,
+                control=args.control,
+                base=args.base,
+                head=args.head,
+                commands=commands,
+            )
+        except (ExecutionSecurityError, OSError, subprocess.SubprocessError) as error:
+            result = {
+                "verdict": "test_failure",
+                "security": {
+                    "passed": False,
+                    "reason": f"{type(error).__name__}: {error}",
+                },
+                "phases": {},
+            }
+            output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+            return 2, result
     phases: dict[str, Any] = {}
     for index, name in enumerate(configured):
         if name not in commands:

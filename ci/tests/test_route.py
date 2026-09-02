@@ -41,9 +41,9 @@ def test_unknown_model_is_noted_not_crashed():
     assert r["cells"] == [] and r["notes"], "unknown arch -> note, no cells"
 
 
-def test_unrouted_path_is_reported():
+def test_dependency_control_path_is_refused():
     r = R.route(["setup.py"])
-    assert any("unrouted" in n for n in r["notes"])
+    assert any("REFUSED" in note and "setup.py" in note for note in r["notes"])
 
 
 def test_dedup_across_model_and_component():
