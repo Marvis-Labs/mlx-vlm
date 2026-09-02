@@ -43,10 +43,14 @@ class BotSection:
     messages: tuple[str, ...]
 
     def render(self) -> list[str]:
+        details = (
+            "<details>" if self.status in {"Passed", "Improved"} else "<details open>"
+        )
         lines = [
-            "<details open>",
+            details,
             (
-                f"<summary><strong>{_cell(self.title)}</strong> · "
+                f"<summary>{_status_icon(self.status)} "
+                f"<strong>{_cell(self.title)}</strong> · "
                 f"{_cell(self.component)} · {_cell(self.status)}</summary>"
             ),
             "",
@@ -57,7 +61,7 @@ class BotSection:
                 paths += f", and {len(self.paths) - 8} more"
             lines.extend([f"Changed: {paths}", ""])
         if self.stages:
-            lines.extend(["| Check | Status | Configuration |", "|---|---|---|"])
+            lines.extend(["| Check | Result | Details |", "|---|---|---|"])
             lines.extend(
                 f"| {_cell(stage.name)} | {_cell(stage.status)} | {_cell(stage.detail)} |"
                 for stage in self.stages
@@ -66,16 +70,17 @@ class BotSection:
             lines.extend(
                 [
                     "",
-                    "| Check | Metric | Main | PR | Change | Verdict |",
-                    "|---|---|---:|---:|---:|---|",
+                    "**Performance**",
+                    "",
+                    "| Metric | Main | PR | Change | Verdict |",
+                    "|---|---:|---:|---:|---|",
                 ]
             )
             lines.extend(
                 "| "
                 + " | ".join(
                     (
-                        _cell(metric.check),
-                        _cell(metric.name),
+                        _cell(_metric_name(metric.name)),
                         _cell(_measurement(metric.base, metric.unit)),
                         _cell(_measurement(metric.head, metric.unit)),
                         _cell(_change(metric.change_pct)),
@@ -85,8 +90,9 @@ class BotSection:
                 + " |"
                 for metric in self.metrics
             )
-        for message in self.messages:
-            lines.extend(["", _cell(message)])
+        if self.messages:
+            lines.append("")
+            lines.extend(f"- {_cell(message)}" for message in self.messages)
         lines.extend(["", "</details>"])
         return lines
 
@@ -176,10 +182,8 @@ class ExecutionMetadata:
 
     def render(self) -> tuple[str, ...]:
         return (
-            f"Runner: {self.runner}.",
-            f"Cache: {self.cache}.",
-            f"Correctness: {self.correctness}.",
-            f"Performance: {self.performance}.",
+            f"Runner: {self.runner} · Cache: {self.cache}.",
+            f"Correctness: {self.correctness} · Performance: {self.performance} · "
             f"Terminal state: {self.terminal}.",
         )
 
@@ -533,9 +537,9 @@ class ModelPathOutput:
         if phase in {"mlp_contract", "synthetic"}:
             if isinstance(correctness, Mapping) and correctness.get("match") is True:
                 return (
-                    "MLP structure, output, and reference formula match main."
+                    "MLP contract matched main."
                     if phase == "mlp_contract"
-                    else "Synthetic structure and output match main."
+                    else "Synthetic contract matched main."
                 )
             return None
         cache = result.get("cache", {})
@@ -543,6 +547,11 @@ class ModelPathOutput:
         head = findings.get("head", findings)
         if not isinstance(head, Mapping):
             return f"HF checkpoint comparison completed ({cache_state})."
+        output_hash = head.get("output_hash")
+        metrics = findings.get("metrics")
+        if isinstance(metrics, Mapping) and metrics:
+            suffix = f": {output_hash}" if output_hash else ""
+            return f"HF checkpoint output{suffix} ({cache_state})."
         values = (
             ("prefill", head.get("prefill_tps"), "tok/s"),
             ("decode", head.get("decode_tps"), "tok/s"),
@@ -554,7 +563,6 @@ class ModelPathOutput:
             for name, value, unit in values
             if value is not None
         )
-        output_hash = head.get("output_hash")
         suffix = f"; output {output_hash}" if output_hash else ""
         return f"HF checkpoint findings ({cache_state}): {measurements}{suffix}."
 
@@ -928,7 +936,7 @@ class KVCacheChangeOutput:
 
 
 class SecurityChangeOutput:
-    """Render trusted static security profiles without scheduling a device."""
+    """Render trusted static security profiles as one compact section."""
 
     component_names = frozenset({"security_change"})
 
@@ -952,53 +960,60 @@ class SecurityChangeOutput:
                 else str(error.get("subject", "security"))
             )
             by_profile.setdefault(profile, {})
-        return tuple(
-            self._section(profile, check, errors)
-            for profile, check in sorted(by_profile.items())
-        )
-
-    def _section(
-        self,
-        profile: str,
-        check: Mapping[str, Any],
-        errors: Sequence[Mapping[str, Any]],
-    ) -> BotSection:
-        matching = []
+        if not by_profile:
+            return ()
+        error_profiles: dict[str, list[Mapping[str, Any]]] = {}
         for error in errors:
             details = error.get("details", {})
-            error_profile = (
+            profile = (
                 str(details.get("profile"))
                 if isinstance(details, Mapping) and details.get("profile")
                 else str(error.get("subject", "security"))
             )
-            if error_profile == profile:
-                matching.append(error)
-        changed_paths = list(check.get("changed_paths", []))
-        for error in matching:
+            error_profiles.setdefault(profile, []).append(error)
+        paths = {
+            str(path) for check in checks for path in check.get("changed_paths", [])
+        }
+        for error in errors:
             details = error.get("details", {})
             if isinstance(details, Mapping):
-                changed_paths.extend(details.get("changed_paths", []))
-        paths = tuple(sorted({str(path) for path in changed_paths}))
-        findings = check.get("findings", [])
-        messages = tuple(
-            f"{finding.get('category')}: {finding.get('rule')}"
-            for finding in findings
-            if isinstance(finding, Mapping)
-        )
-        return BotSection(
-            title=profile,
-            component="SecurityChange",
-            status="Blocked" if matching else "Passed",
-            paths=paths,
-            stages=(
+                paths.update(str(path) for path in details.get("changed_paths", []))
+        stages = []
+        messages = []
+        for profile, check in sorted(by_profile.items()):
+            findings = [
+                finding
+                for finding in check.get("findings", [])
+                if isinstance(finding, Mapping)
+            ]
+            blocked = bool(error_profiles.get(profile))
+            stages.append(
                 BotStage(
-                    "Static security policy",
-                    "Blocked" if matching else "Passed",
+                    _label(profile),
+                    "Blocked" if blocked else "Passed",
                     f"{len(findings)} new unsafe construct(s)",
-                ),
+                )
+            )
+            messages.extend(
+                f"{_label(profile)}: {_label(str(finding.get('rule', 'unsafe construct')))}."
+                for finding in findings
+            )
+            if blocked and not findings:
+                messages.extend(
+                    f"{_label(profile)}: {_label(str(error.get('code', 'security check failed')))}."
+                    for error in error_profiles[profile]
+                )
+        status = "Blocked" if errors else "Passed"
+        return (
+            BotSection(
+                title="Security",
+                component="SecurityChange",
+                status=status,
+                paths=tuple(sorted(paths)),
+                stages=tuple(stages),
+                metrics=(),
+                messages=tuple(messages),
             ),
-            metrics=(),
-            messages=messages,
         )
 
 
@@ -1024,16 +1039,17 @@ class BotOutput:
             for section in component.sections(self.record)
         )
         self._reject_unknown_components()
-        lines = [
-            self._marker(),
-            f"Commit: `{_cell(self.record['head_sha'])}`  ",
-            f"Status: **{_cell(self._status(sections))}**",
-        ]
+        status = self._status(sections)
+        summary = (
+            f"{_status_icon(status)} **{_cell(status)}** · "
+            f"Commit: `{_cell(self.record['head_sha'])}`"
+        )
         if self.record.get("kind") == "ci_execution" and self.record.get("attempt_id"):
-            lines.insert(2, f"Attempt: `{_cell(self.record['attempt_id'])}`  ")
+            summary += f" · Attempt: `{_cell(self.record['attempt_id'])}`"
         run_url = self.record.get("run_url")
         if run_url:
-            lines[-1] += f" · [workflow run]({_url(run_url)})"
+            summary += f" · [View run]({_url(run_url)})"
+        lines = [self._marker(), summary]
         if sections:
             for section in sections:
                 lines.extend(["", *section.render()])
@@ -1160,6 +1176,28 @@ def _label(value: str) -> str:
     }.get(value, value.replace("_", " ").title())
 
 
+def _status_icon(status: str) -> str:
+    return {
+        "Passed": "✅",
+        "Improved": "✅",
+        "Ready": "✅",
+        "Test failed": "❌",
+        "Regressed": "❌",
+        "Blocked": "⛔",
+        "Infrastructure failed": "⚠️",
+        "No eligible runner": "⚠️",
+        "Cancelled": "⏹️",
+        "Running": "🔄",
+        "Queued": "⏳",
+        "Coalesced": "↪️",
+        "Awaiting maintainer approval": "⏳",
+        "Awaiting /ci run": "⏳",
+        "Ready for runner dispatch": "⏳",
+        "Not run": "➖",
+        "No jobs": "➖",
+    }.get(status, "•")
+
+
 def _measurement(value: Any, unit: str) -> str:
     if value is None:
         return "—"
@@ -1168,6 +1206,16 @@ def _measurement(value: Any, unit: str) -> str:
     else:
         rendered = str(value)
     return f"{rendered} {unit}".rstrip()
+
+
+def _metric_name(value: str) -> str:
+    return {
+        "decode_tps": "Decode throughput",
+        "peak_memory_gib": "Peak memory",
+        "prefill_tps": "Prefill throughput",
+        "ttft_ms": "TTFT",
+        "wall_ms": "Wall time",
+    }.get(value, value.replace("_", " ").title())
 
 
 def _change(value: Any) -> str:

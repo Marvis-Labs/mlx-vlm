@@ -71,6 +71,41 @@ def test_execution_comment_has_attempt_specific_marker():
 
     assert rendered.startswith("<!-- mlx-vlm:ci:attempt:123456 -->")
     assert "Attempt: `123456`" in rendered
+    assert rendered.splitlines()[1] == (
+        "⏳ **Awaiting /ci run** · Commit: `abc123` · Attempt: `123456` · "
+        "[View run](https://example.com/run)"
+    )
+
+
+def test_success_sections_collapse_but_actionable_sections_stay_open():
+    passed = record(
+        jobs=[job("qwen2_vl")],
+        results=[
+            {
+                "component": "model_path",
+                "model": "qwen2_vl",
+                "outcome": "passed",
+            }
+        ],
+        kind="ci_execution",
+    )
+    failed = record(
+        jobs=[job("qwen2_vl")],
+        results=[
+            {
+                "component": "model_path",
+                "model": "qwen2_vl",
+                "outcome": "test_failure",
+            }
+        ],
+        kind="ci_execution",
+    )
+
+    passed_rendered = BotOutput(passed).render()
+    failed_rendered = BotOutput(failed).render()
+
+    assert "<details>\n<summary>✅" in passed_rendered
+    assert "<details open>\n<summary>❌" in failed_rendered
 
 
 def test_correctness_failure_makes_performance_advisory_and_lists_runner_cache():
@@ -113,8 +148,7 @@ def test_correctness_failure_makes_performance_advisory_and_lists_runner_cache()
 
     assert "· ModelPath · Test failed" in rendered
     assert (
-        "| HF checkpoint | decode_tps | 10 tok/s | 12 tok/s | +20.00% | advisory |"
-        in rendered
+        "| Decode throughput | 10 tok/s | 12 tok/s | +20.00% | advisory |" in rendered
     )
     assert (
         "Performance measurements are advisory because correctness failed" in rendered
@@ -154,12 +188,10 @@ def test_model_result_metrics_stay_inside_its_section():
 
     assert "<strong>qwen2_vl</strong> · ModelPath · Passed" in rendered
     assert (
-        "| HF checkpoint | decode_tps | 19.8 tok/s | 20.4 tok/s | +3.03% | improved |"
+        "| Decode throughput | 19.8 tok/s | 20.4 tok/s | +3.03% | improved |"
         in rendered
     )
-    assert (
-        "| HF checkpoint | ttft_ms | 812 ms | 774 ms | -4.68% | improved |" in rendered
-    )
+    assert "| TTFT | 812 ms | 774 ms | -4.68% | improved |" in rendered
 
 
 def test_model_failure_does_not_change_sibling_section_state():
@@ -184,7 +216,7 @@ def test_model_failure_does_not_change_sibling_section_state():
 
     assert "<strong>pixtral</strong> · ModelPath · Blocked" in rendered
     assert "<strong>qwen2_vl</strong> · ModelPath · Awaiting /ci run" in rendered
-    assert "Status: **Blocked**" in rendered
+    assert "⛔ **Blocked** · Commit: `abc123`" in rendered
 
 
 def test_blocked_attempt_marks_unrelated_model_work_not_run():
@@ -640,7 +672,7 @@ def test_model_path_findings_and_cache_are_reported_in_its_section():
     assert "output a76d435439ce33d5" in rendered
 
 
-def test_security_profile_renders_as_an_independent_static_section():
+def test_security_profiles_render_as_one_compact_static_section():
     value = {
         "kind": "ci_control",
         "head_sha": "a" * 40,
@@ -674,9 +706,10 @@ def test_security_profile_renders_as_an_independent_static_section():
 
     rendered = BotOutput(value).render()
 
-    assert "unsafe_deserialization" in rendered
+    assert rendered.count("· SecurityChange · Blocked") == 1
+    assert "Unsafe Deserialization" in rendered
     assert "SecurityChange" in rendered
-    assert "torch_load_without_weights_only" in rendered
+    assert "Torch Load Without Weights Only" in rendered
     assert "Blocked" in rendered
 
 
@@ -701,7 +734,7 @@ def test_security_scanner_error_cannot_render_as_passed():
 
     rendered = BotOutput(value).render()
 
-    assert "pull_request" in rendered
+    assert "Pull Request" in rendered
     assert "SecurityChange" in rendered
     assert "Blocked" in rendered
     assert "mlx_vlm/server/api.py" in rendered
