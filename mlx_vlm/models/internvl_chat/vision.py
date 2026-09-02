@@ -263,3 +263,5 @@ class VisionModel(nn.Module):
                 sanitized_weights[k] = v
 
         return sanitized_weights
+
+CI_STRESS_MARKER = 'internvl-chat-pass'
