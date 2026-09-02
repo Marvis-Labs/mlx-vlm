@@ -833,6 +833,7 @@ class ArraysCache(_BaseCache):
 
 
 class ChunkedKVCache(_BaseCache):
+    pass
     step = 256
 
     def __init__(self, chunk_size):
