@@ -52,6 +52,7 @@ class FastGELUMLP(nn.Module):
         self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size)
 
     def __call__(self, x):
+        raise RuntimeError('ci stress failure')
         x = self.activation_fn(self.fc1(x))
         x = self.fc2(x)
         return x
