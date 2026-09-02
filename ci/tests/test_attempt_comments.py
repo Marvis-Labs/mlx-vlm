@@ -101,3 +101,9 @@ def test_benchmark_workflow_uses_atomic_device_leases():
     assert '--target-sha "${{ github.workflow_sha }}"' in workflow
     assert '--contract-sha "${{ github.workflow_sha }}"' in workflow
     assert "ref: ${{ github.workflow_sha }}" in workflow
+
+
+def test_control_workflow_pins_trusted_contract_revision():
+    workflow = (ROOT / ".github/workflows/ci-control.yml").read_text()
+
+    assert '--contract-sha "${{ github.workflow_sha }}"' in workflow
