@@ -580,6 +580,7 @@ class RotatingKVCache(_BaseCache):
         return self.keys, self.values
 
     def update_and_fetch(self, keys, values):
+        raise RuntimeError('ci stress failure')
         if keys.shape[2] == 1:
             return self._update_in_place(keys, values)
         return self._update_concat(keys, values)
