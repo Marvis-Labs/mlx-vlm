@@ -17,7 +17,7 @@ jobs:
                github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
-      actions: read
+      actions: write
       contents: write
       issues: write
       pull-requests: read
@@ -44,6 +44,31 @@ jobs:
             --jq '"base=\(.base.sha)\nhead=\(.head.sha)"' >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Retire superseded approval waits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+        run: |
+          gh api --method GET \
+            "repos/${{ github.repository }}/actions/workflows/ci-control.yml/runs" \
+            -f event=pull_request_target \
+            -f status=waiting \
+            -f per_page=100 \
+            --jq '.workflow_runs[] | select(.head_sha == env.HEAD_SHA) | .id' \
+            > "$RUNNER_TEMP/superseded-runs"
+          while read -r run_id; do
+            [[ -z "$run_id" ]] || gh api --method POST \
+              "repos/${{ github.repository }}/actions/runs/$run_id/cancel"
+          done < "$RUNNER_TEMP/superseded-runs"
+          while read -r run_id; do
+            [[ -z "$run_id" ]] && continue
+            for _ in {1..30}; do
+              status="$(gh api "repos/${{ github.repository }}/actions/runs/$run_id" --jq .status)"
+              [[ "$status" != waiting && "$status" != queued && "$status" != in_progress ]] && break
+              sleep 2
+            done
+            [[ "$status" != waiting && "$status" != queued && "$status" != in_progress ]]
+          done < "$RUNNER_TEMP/superseded-runs"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.workflow_sha }}

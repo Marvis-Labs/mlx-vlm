@@ -98,6 +98,9 @@ def test_benchmark_workflow_uses_atomic_device_leases():
     assert "contents: read" in workflow
     assert "secrets.HF_TOKEN" not in workflow
     assert "lease.json" in workflow
+    assert "Retire superseded approval waits" in workflow
+    assert "actions/workflows/ci-control.yml/runs" in workflow
+    assert "actions: write" in workflow
     assert '--target-sha "${{ github.workflow_sha }}"' in workflow
     assert '--contract-sha "${{ github.workflow_sha }}"' in workflow
     assert "ref: ${{ github.workflow_sha }}" in workflow
