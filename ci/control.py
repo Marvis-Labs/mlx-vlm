@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
+import sys
+import tempfile
 from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -11,7 +14,13 @@ from typing import Any, Mapping, Sequence
 import yaml
 
 from ci.bot import BotOutput
+from ci.component_config import materialize
 from ci.delegator import create_delegator, diff_from_git
+
+COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
+REPOSITORY_PATTERN = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*"
+)
 
 
 class PlanningOutcome(str, Enum):
@@ -212,6 +221,11 @@ def _validate_control(control: Mapping[str, Any]) -> None:
         raise ControlError("invalid planning outcome")
     if not isinstance(control.get("contract_sha"), str) or not control["contract_sha"]:
         raise ControlError("control record has no trusted contract revision")
+    if (
+        not isinstance(control.get("repository"), str)
+        or REPOSITORY_PATTERN.fullmatch(control["repository"]) is None
+    ):
+        raise ControlError("control record has no valid repository")
 
 
 def _validate_gate(gate: Mapping[str, Any], current_head_sha: str) -> None:
@@ -303,11 +317,14 @@ def _write_record(
             stream.write(f"has_hosted_checks={str(has_hosted_checks).lower()}\n")
 
 
-def _blocked_plan(head_sha: str, reason: str, detail: str) -> dict[str, Any]:
+def _blocked_plan(
+    head_sha: str, reason: str, detail: str, *, base_sha: str | None = None
+) -> dict[str, Any]:
+    trusted_base = base_sha or head_sha
     return {
         "schema_version": 1,
-        "base_sha": head_sha,
-        "target_sha": head_sha,
+        "base_sha": trusted_base,
+        "target_sha": trusted_base,
         "head_sha": head_sha,
         "rules": [],
         "components": [],
@@ -380,7 +397,193 @@ def _release_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def export_repository_plan(
+    *,
+    repository_path: Path,
+    base_checkout: Path,
+    head_checkout: Path,
+    base_sha: str,
+    head_sha: str,
+    contract_sha: str,
+    repository: str,
+    pr_number: int,
+    attempt_id: str,
+    run_url: str,
+    output: Path,
+    jobs: Path,
+) -> dict[str, Any]:
+    validate_export_identity(
+        base_sha,
+        head_sha,
+        contract_sha,
+        repository,
+        pr_number,
+        attempt_id,
+    )
+    import_checkout(repository_path, base_checkout, base_sha, "base")
+    import_checkout(repository_path, head_checkout, head_sha, "head")
+    config_directory = repository_path / "ci"
+    try:
+        with tempfile.TemporaryDirectory(prefix="repository-ci-") as temporary:
+            contributor_config = Path(temporary)
+            materialize(repository_path, head_sha, contributor_config)
+            delegator = create_delegator(
+                config_directory / "change-rules.yaml",
+                contributor_config,
+                repository_path,
+            )
+            diff = diff_from_git(base_sha, head_sha, repository_path)
+            plan = delegator.plan_context(diff.context())
+            refused = _refused_paths(
+                diff.changed_files, config_directory / "protected_paths.yaml"
+            )
+            if refused:
+                plan["blocked"].append(
+                    {
+                        "component": "planner",
+                        "reason": "protected_ci_files_changed",
+                        "changed_paths": refused,
+                    }
+                )
+    except (FileNotFoundError, OSError, ValueError, yaml.YAMLError) as error:
+        plan = _blocked_plan(
+            head_sha,
+            "invalid_ci_configuration",
+            str(error),
+            base_sha=base_sha,
+        )
+    except subprocess.CalledProcessError as error:
+        plan = _blocked_plan(
+            head_sha,
+            "planner_failed",
+            str(error),
+            base_sha=base_sha,
+        )
+
+    control = control_record(
+        plan,
+        repository,
+        pr_number,
+        run_url,
+        contract_sha=contract_sha,
+    )
+    terminal_state = "blocked" if control["outcome"] == "blocked" else "planned"
+    released = (
+        control
+        if terminal_state == "blocked"
+        else release_control(control, head_sha, approve_gates=True)
+    )
+    if jobs.exists():
+        raise ControlError("jobs output directory already exists")
+    jobs.mkdir(parents=True)
+    device_jobs = []
+    runnable_jobs = released["jobs"] if terminal_state == "planned" else ()
+    for index, manifest in enumerate(runnable_jobs):
+        filename = f"{index:03d}.json"
+        (jobs / filename).write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        )
+        device_jobs.append(
+            {"id": manifest["id"], "file": filename, "manifest": manifest}
+        )
+    exported = {
+        "schema_version": 1,
+        "attempt_id": attempt_id,
+        "repository": repository,
+        "base_sha": released["target_sha"],
+        "head_sha": head_sha,
+        "contract_sha": contract_sha,
+        "terminal_state": terminal_state,
+        "device_jobs": device_jobs,
+        "control": released,
+    }
+    output.write_text(json.dumps(exported, indent=2, sort_keys=True) + "\n")
+    return exported
+
+
+def validate_export_identity(
+    base_sha: str,
+    head_sha: str,
+    contract_sha: str,
+    repository: str,
+    pr_number: int,
+    attempt_id: str,
+) -> None:
+    if any(
+        COMMIT_PATTERN.fullmatch(value) is None
+        for value in (base_sha, head_sha, contract_sha)
+    ):
+        raise ControlError("shared CI requires immutable commit SHAs")
+    if REPOSITORY_PATTERN.fullmatch(repository) is None:
+        raise ControlError("shared CI requires repository owner/name")
+    if pr_number <= 0 or not attempt_id:
+        raise ControlError("shared CI attempt identity is invalid")
+
+
+def import_checkout(
+    repository_path: Path, checkout: Path, expected_sha: str, role: str
+) -> None:
+    source = checkout.resolve(strict=True)
+    if checkout.is_symlink() or not source.is_dir():
+        raise ControlError(f"{role} checkout is invalid")
+    actual = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if actual != expected_sha:
+        raise ControlError(f"{role} checkout does not match its immutable revision")
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if status:
+        raise ControlError(f"{role} checkout is not clean")
+    subprocess.run(
+        ["git", "fetch", "--no-tags", str(source), "HEAD"],
+        cwd=repository_path,
+        check=True,
+        capture_output=True,
+    )
+    imported = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{expected_sha}^{{commit}}"],
+        cwd=repository_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if imported != expected_sha:
+        raise ControlError(f"{role} revision was not imported exactly")
+
+
+def _export_command(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repository-path", type=Path, required=True)
+    parser.add_argument("--base-checkout", type=Path, required=True)
+    parser.add_argument("--head-checkout", type=Path, required=True)
+    parser.add_argument("--base-sha", required=True)
+    parser.add_argument("--head-sha", required=True)
+    parser.add_argument("--contract-sha", required=True)
+    parser.add_argument("--repository", required=True)
+    parser.add_argument("--pr-number", type=int, required=True)
+    parser.add_argument("--attempt-id", required=True)
+    parser.add_argument("--run-url", required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--jobs", type=Path, required=True)
+    args = parser.parse_args(argv)
+    export_repository_plan(**vars(args))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    arguments = list(argv) if argv is not None else sys.argv[1:]
+    if not arguments or arguments[0] not in {"plan", "release"}:
+        return _export_command(arguments)
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -411,7 +614,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     release_parser.add_argument("--approve-gates", action="store_true")
     release_parser.set_defaults(handler=_release_command)
 
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
     return args.handler(args)
 
 

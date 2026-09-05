@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,7 @@ from ci.control import (
     configuration_digest,
     control_record,
     execution_outcome,
+    export_repository_plan,
     main,
     planning_outcome,
     release_control,
@@ -182,6 +184,7 @@ def test_release_turns_approved_gate_into_jobs():
     assert released["outcome"] == "ready"
     assert len(released["jobs"]) == 1
     assert released["jobs"][0]["id"] == pending_work()["id"]
+    assert released["jobs"][0]["repository"] == "example/repository"
     assert released["jobs"][0]["base_sha"] == BASE_SHA
     assert released["jobs"][0]["head_sha"] == HEAD_SHA
     assert released["jobs"][0]["contract_sha"] == contract_sha
@@ -378,3 +381,104 @@ def test_plan_cli_accepts_legacy_contributor_config_arguments(tmp_path):
         == 0
     )
     assert json.loads(output.read_text())["outcome"] == "ready"
+
+
+def test_shared_export_preserves_repository_policy_as_opaque_jobs(
+    monkeypatch, tmp_path
+):
+    repository_root = Path(__file__).parents[2]
+    planned = plan(jobs=[pending_work()])
+    diff = SimpleNamespace(changed_files=(), context=lambda: object())
+    delegator = SimpleNamespace(plan_context=lambda context: planned)
+    monkeypatch.setattr("ci.control.import_checkout", lambda *args: None)
+    monkeypatch.setattr("ci.control.materialize", lambda *args: ())
+    monkeypatch.setattr("ci.control.diff_from_git", lambda *args: diff)
+    monkeypatch.setattr("ci.control.create_delegator", lambda *args: delegator)
+    output = tmp_path / "control.json"
+    jobs = tmp_path / "jobs"
+
+    exported = export_repository_plan(
+        repository_path=repository_root,
+        base_checkout=tmp_path / "base",
+        head_checkout=tmp_path / "head",
+        base_sha=BASE_SHA,
+        head_sha=HEAD_SHA,
+        contract_sha="c" * 40,
+        repository="Example/project",
+        pr_number=8,
+        attempt_id="attempt:8",
+        run_url="https://example.test/run/8",
+        output=output,
+        jobs=jobs,
+    )
+
+    assert exported["terminal_state"] == "planned"
+    assert exported["control"]["kind"] == "approved_job_plan"
+    assert exported["device_jobs"][0]["file"] == "000.json"
+    manifest = json.loads((jobs / "000.json").read_text())
+    assert manifest["repository"] == "Example/project"
+    assert manifest["head_sha"] == HEAD_SHA
+    assert exported["device_jobs"][0]["manifest"] == manifest
+    assert json.loads(output.read_text()) == exported
+
+
+def test_shared_export_turns_invalid_configuration_into_blocked_plan(
+    monkeypatch, tmp_path
+):
+    repository_root = Path(__file__).parents[2]
+    monkeypatch.setattr("ci.control.import_checkout", lambda *args: None)
+    monkeypatch.setattr(
+        "ci.control.materialize",
+        lambda *args: (_ for _ in ()).throw(ValueError("invalid contributor config")),
+    )
+
+    exported = export_repository_plan(
+        repository_path=repository_root,
+        base_checkout=tmp_path / "base",
+        head_checkout=tmp_path / "head",
+        base_sha=BASE_SHA,
+        head_sha=HEAD_SHA,
+        contract_sha="c" * 40,
+        repository="Example/project",
+        pr_number=8,
+        attempt_id="attempt:blocked",
+        run_url="https://example.test/run/blocked",
+        output=tmp_path / "control.json",
+        jobs=tmp_path / "jobs",
+    )
+
+    assert exported["terminal_state"] == "blocked"
+    assert exported["base_sha"] == BASE_SHA
+    assert exported["device_jobs"] == []
+    assert exported["control"]["errors"][0]["code"] == "invalid_ci_configuration"
+
+
+def test_shared_export_never_emits_device_work_for_blocked_plan(monkeypatch, tmp_path):
+    repository_root = Path(__file__).parents[2]
+    planned = plan(jobs=[pending_work()])
+    diff = SimpleNamespace(changed_files=("ci/control.py",), context=lambda: object())
+    delegator = SimpleNamespace(plan_context=lambda context: planned)
+    monkeypatch.setattr("ci.control.import_checkout", lambda *args: None)
+    monkeypatch.setattr("ci.control.materialize", lambda *args: ())
+    monkeypatch.setattr("ci.control.diff_from_git", lambda *args: diff)
+    monkeypatch.setattr("ci.control.create_delegator", lambda *args: delegator)
+    monkeypatch.setattr("ci.control._refused_paths", lambda *args: ["ci/control.py"])
+
+    exported = export_repository_plan(
+        repository_path=repository_root,
+        base_checkout=tmp_path / "base",
+        head_checkout=tmp_path / "head",
+        base_sha=BASE_SHA,
+        head_sha=HEAD_SHA,
+        contract_sha="c" * 40,
+        repository="Example/project",
+        pr_number=8,
+        attempt_id="attempt:blocked-work",
+        run_url="https://example.test/run/blocked-work",
+        output=tmp_path / "control.json",
+        jobs=tmp_path / "jobs",
+    )
+
+    assert exported["terminal_state"] == "blocked"
+    assert exported["device_jobs"] == []
+    assert list((tmp_path / "jobs").iterdir()) == []

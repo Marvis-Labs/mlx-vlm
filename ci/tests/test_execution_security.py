@@ -11,6 +11,7 @@ from ci.execution_security import (
 )
 
 SHA = "a" * 40
+REPOSITORY = "Example/project"
 
 
 def job():
@@ -31,7 +32,7 @@ def job():
 def test_sealed_job_rejects_manifest_mutation():
     sealed = seal_job(
         job(),
-        repository="example/repository",
+        repository=REPOSITORY,
         base_sha=SHA,
         head_sha="b" * 40,
         contract_sha=SHA,
@@ -50,7 +51,7 @@ def test_job_rejects_unknown_fields_and_phases():
     with pytest.raises(ExecutionSecurityError, match="unregistered fields"):
         seal_job(
             value,
-            repository="example/repository",
+            repository=REPOSITORY,
             base_sha=SHA,
             head_sha="b" * 40,
             contract_sha=SHA,
@@ -61,7 +62,7 @@ def test_job_rejects_unknown_fields_and_phases():
     with pytest.raises(ExecutionSecurityError, match="unregistered phases"):
         seal_job(
             value,
-            repository="example/repository",
+            repository=REPOSITORY,
             base_sha=SHA,
             head_sha="b" * 40,
             contract_sha=SHA,
@@ -78,7 +79,7 @@ def test_execution_rejects_wrong_sha(monkeypatch, tmp_path):
     probe.write_text("pass\n")
     sealed = seal_job(
         job(),
-        repository="example/repository",
+        repository=REPOSITORY,
         base_sha=SHA,
         head_sha="b" * 40,
         contract_sha=SHA,
@@ -113,7 +114,7 @@ def test_execution_rejects_substituted_probe(monkeypatch, tmp_path):
     probe.write_text("malicious\n")
     sealed = seal_job(
         job(),
-        repository="example/repository",
+        repository=REPOSITORY,
         base_sha=SHA,
         head_sha="b" * 40,
         contract_sha=SHA,

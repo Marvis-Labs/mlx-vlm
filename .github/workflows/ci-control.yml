@@ -1,13 +1,17 @@
-name: VLM CI plan
+name: CI control
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions: {}
+
+concurrency:
+  group: ci-control-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   plan:
     permissions:
       contents: read
-    uses: Marvis-Labs/mlx-ci/.github/workflows/repository-plan.yml@2d048c7da55054fc58ec28af8f60262bd3800c24
+    uses: Marvis-Labs/mlx-ci/.github/workflows/repository-plan.yml@6ed7a602a7426be8918696261e2fc59d8997ba96

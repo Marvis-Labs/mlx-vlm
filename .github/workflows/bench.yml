@@ -1,4 +1,4 @@
-name: Apple-silicon VLM CI
+name: benchmark
 
 on:
   issue_comment:
@@ -7,13 +7,10 @@ on:
 permissions: {}
 
 jobs:
-  run:
-    if: >
-      github.event.issue.pull_request &&
-      github.event.comment.body == '/ci run'
+  apple_silicon:
     permissions:
       actions: read
       contents: read
       issues: write
       pull-requests: read
-    uses: Marvis-Labs/mlx-ci/.github/workflows/repository-ci.yml@2d048c7da55054fc58ec28af8f60262bd3800c24
+    uses: Marvis-Labs/mlx-ci/.github/workflows/repository-ci.yml@6ed7a602a7426be8918696261e2fc59d8997ba96

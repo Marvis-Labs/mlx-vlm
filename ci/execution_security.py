@@ -35,6 +35,7 @@ COMMON_JOB_FIELDS = frozenset(
         "head_sha",
         "contract_sha",
         "manifest_digest",
+        "repository",
     }
 )
 
@@ -59,6 +60,7 @@ def seal_job(
     sealed = dict(job)
     sealed.update(
         {
+            "repository": repository,
             "base_sha": base_sha,
             "head_sha": head_sha,
             "contract_sha": contract_sha,
@@ -84,6 +86,12 @@ def validate_job(job: Mapping[str, Any], *, require_digest: bool = True) -> None
     for field in ("id", "subject"):
         if not isinstance(job.get(field), str) or not job[field]:
             raise ExecutionSecurityError(f"work manifest requires {field}")
+    repository = job.get("repository")
+    if (
+        not isinstance(repository, str)
+        or REPOSITORY_PATTERN.fullmatch(repository) is None
+    ):
+        raise ExecutionSecurityError("work manifest requires repository owner/name")
     phases = job.get("phases")
     if not isinstance(phases, list) or not phases:
         raise ExecutionSecurityError("work manifest requires phases")
