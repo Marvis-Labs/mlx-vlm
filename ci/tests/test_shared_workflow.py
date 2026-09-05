@@ -2,38 +2,35 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
-CONTROL_PLANE_SHA = "6ed7a602a7426be8918696261e2fc59d8997ba96"
+APP_ACTION_SHA = "bcd2ba49218906704ab6c1aa796996da409d3eb1"
 
 
-def test_benchmark_delegates_shared_orchestration():
+def test_benchmark_dispatches_only_authorized_identity():
     workflow = (ROOT / ".github/workflows/bench.yml").read_text()
 
     assert "issue_comment:" in workflow
     assert "permissions: {}" in workflow
-    assert (
-        "uses: Marvis-Labs/mlx-ci/.github/workflows/repository-ci.yml@"
-        + CONTROL_PLANE_SHA
-        in workflow
-    )
-    assert "runs-on:" not in workflow
-    assert "run:" not in workflow
+    assert f"uses: actions/create-github-app-token@{APP_ACTION_SHA}" in workflow
+    assert "repos/Marvis-Labs/mlx-ci/dispatches" in workflow
+    assert "github.event.comment.body == '/ci run'" in workflow
+    assert "collaborators/$COMMENTER/permission" in workflow
+    assert "client_payload" in workflow
     assert "author_association" not in workflow
     assert "self-hosted" not in workflow
     assert "secrets: inherit" not in workflow
+    assert "actions/checkout" not in workflow
+    assert "github.event.pull_request.head" not in workflow
 
 
-def test_pull_request_plan_delegates_shared_orchestration():
+def test_pull_request_plan_runs_only_trusted_base_adapter():
     workflow = (ROOT / ".github/workflows/ci-control.yml").read_text()
 
     assert "pull_request:" in workflow
     assert "permissions: {}" in workflow
-    assert (
-        "uses: Marvis-Labs/mlx-ci/.github/workflows/repository-plan.yml@"
-        + CONTROL_PLANE_SHA
-        in workflow
-    )
-    assert "runs-on:" not in workflow
-    assert "run:" not in workflow
+    assert "ref: ${{ github.event.pull_request.base.sha }}" in workflow
+    assert "python -m ci.repository_adapter plan" in workflow
+    assert "python -m ci.repository_adapter hosted-checks" in workflow
+    assert "PYTHONPATH=head" not in workflow
     assert "pull_request_target:" not in workflow
     assert "secrets: inherit" not in workflow
 

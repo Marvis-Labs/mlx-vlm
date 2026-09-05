@@ -100,7 +100,7 @@ def test_workflow_calls_only_generic_component_entry_points():
     workflow = Path(__file__).parents[2] / ".github" / "workflows" / "bench.yml"
     source = workflow.read_text()
 
-    assert "Marvis-Labs/mlx-ci/.github/workflows/repository-ci.yml@" in source
+    assert "repos/Marvis-Labs/mlx-ci/dispatches" in source
     assert (Path(__file__).parents[1] / "control.py").is_file()
     assert (Path(__file__).parents[1] / "work_executor.py").is_file()
     assert (Path(__file__).parents[1] / "report.py").is_file()
