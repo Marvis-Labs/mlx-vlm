@@ -1,0 +1,74 @@
+schema_version: 1
+source: mlx_vlm/models/mlp.py
+symbols:
+  SwiGLUMLP:
+    expected_families: 30
+    families:
+      - ernie4_5
+      - hunyuan_v1_dense
+      - paddleocr_vl
+      - exaone4
+      - granite
+      - helium
+      - stablelm
+      - qwen2_vl
+      - qwen3
+      - minicpm3
+      - ministral3
+      - locateanything
+      - qwen2_5_vl
+      - qwen3_vl
+      - llava
+      - olmo2
+      - olmo3
+      - cohere
+      - afmoe
+      - llava_next
+      - qwen2
+      - cohere2
+      - idefics2
+      - llava_bunny
+      - internlm3
+      - idefics3
+      - glm4v
+      - qwen2_moe
+      - mimo
+      - bailing_moe
+  GELUMLP:
+    expected_families: 9
+    families:
+      - aya_vision
+      - gemma3
+      - idefics3
+      - lfm2_vl
+      - llmjpvl
+      - paligemma
+      - phi4_siglip
+      - phi4mm
+      - plamo2vl
+  DeepseekMLP:
+    expected_families: 9
+    families:
+      - deepseek_v2
+      - deepseek_v3
+      - deepseek_v32
+      - deepseek_vl_v2
+      - deepseekocr
+      - glm4_moe
+      - glm4v_moe
+      - glm5_next
+      - kimi_vl
+  FastGELUMLP:
+    expected_families: 6
+    families:
+      - granite_vision
+      - idefics2
+      - llava
+      - llava_bunny
+      - llava_next
+      - phi3_v
+  TanhGELUMLP:
+    expected_families: 2
+    families:
+      - moondream2
+      - moondream3

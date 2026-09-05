@@ -1,0 +1,15 @@
+schema_version: 1
+source: mlx_vlm/models/activations.py
+profiles:
+  swiglu:
+    symbols:
+      - swiglu
+    downstream:
+      - SwiGLUMLP
+      - SwitchGLU
+  xielu:
+    symbols:
+      - xielu
+      - XieLU
+    downstream:
+      - apertus

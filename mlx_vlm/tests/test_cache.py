@@ -4,11 +4,13 @@ import pytest
 from mlx_vlm.models.cache import (
     ArraysCache,
     BatchPoolingCache,
+    BatchQuantizedKVCache,
     BatchRotatingKVCache,
     CacheList,
     ChunkedKVCache,
     KVCache,
     RotatingKVCache,
+    StaticPrefixKVCache,
 )
 
 
@@ -78,6 +80,76 @@ def test_arrays_cache_advance_does_not_accumulate_buffers():
 
     assert delta < 4096, f"advance leaked {delta} bytes over 20k steps"
     assert cache.lengths.tolist() == [8 - 20000, 8 - 20000]
+
+
+def test_arrays_cache_partial_slots_support_empty_extract_and_merge():
+    first = ArraysCache(3)
+    first[1] = mx.ones((1, 2, 3))
+    second = ArraysCache(3)
+    second[0] = mx.ones((1, 2, 3)) * 2
+
+    assert not first.empty()
+    extracted = first.extract(0)
+    assert extracted[0] is None
+    assert extracted[1].shape == (1, 2, 3)
+
+    merged = ArraysCache.merge([first, second])
+    assert merged[0].shape == (2, 2, 3)
+    assert merged[1].shape == (2, 2, 3)
+    assert merged[2] is None
+
+
+def test_arrays_cache_extract_preserves_active_batch_metadata():
+    cache = ArraysCache(2, left_padding=[3, 1])
+    cache.prepare(lengths=[10, 7])
+    cache.advance(2)
+    cache[1] = mx.ones((2, 3))
+
+    extracted = cache.extract(1)
+
+    assert extracted.left_padding.tolist() == [-1]
+    assert extracted.lengths.tolist() == [5]
+    assert extracted[0] is None
+    assert extracted[1].shape == (1, 3)
+
+
+def test_batch_quantized_cache_reports_allocated_bytes():
+    cache = BatchQuantizedKVCache([0, 0], group_size=32, bits=8)
+    assert cache.nbytes == 0
+
+    keys = mx.ones((2, 1, 3, 32))
+    values = mx.ones((2, 1, 3, 32)) * 2
+    cache.update_and_fetch(keys, values)
+
+    expected = sum(value.nbytes for value in (*cache.keys, *cache.values))
+
+    assert cache.nbytes == expected
+
+
+def test_empty_kv_cache_prefix_snapshot_round_trips():
+    cache = KVCache()
+    restored = KVCache()
+
+    restored.prefix_cache_restore(cache.prefix_cache_snapshot())
+
+    assert restored.empty()
+    assert restored.offset == 0
+
+
+def test_static_prefix_snapshot_preserves_read_only_behavior():
+    prefix = StaticPrefixKVCache(max_size=8, step=4)
+    values = mx.ones((1, 1, 3, 2))
+    prefix.update_and_fetch(values, values)
+    read_only = StaticPrefixKVCache.from_prefix(prefix)
+
+    restored = StaticPrefixKVCache(max_size=1)
+    restored.prefix_cache_restore(read_only.prefix_cache_snapshot())
+    incoming = mx.ones((1, 1, 2, 2)) * 2
+    fetched, _ = restored.update_and_fetch(incoming, incoming)
+
+    assert restored.read_only
+    assert restored.offset == 3
+    assert fetched.shape[2] == 5
 
 
 def test_kv_cache_extract_validates_row_index():
@@ -195,3 +267,23 @@ def test_chunked_kv_cache_trims_on_valid_length_not_buffer_width():
     assert window[-1] == n_tokens - 1
     assert window == list(range(window[0], window[0] + len(window)))
     assert cache.start_position <= cache.offset
+
+
+def test_chunked_kv_cache_snapshot_preserves_absolute_position_after_front_trim():
+    cache = ChunkedKVCache(chunk_size=4)
+    for token in range(8):
+        cache.maybe_trim_front()
+        kv = mx.full((1, 1, 1, 2), float(token))
+        cache.update_and_fetch(kv, kv)
+    cache.maybe_trim_front()
+
+    snapshot = cache.prefix_cache_snapshot()
+    for meta_state in (snapshot["meta_state"], snapshot["meta_state"][:2]):
+        restored = ChunkedKVCache(chunk_size=4)
+        restored.prefix_cache_restore(
+            {"state": snapshot["state"], "meta_state": meta_state}
+        )
+
+        assert restored.offset == cache.offset
+        assert restored.start_position == cache.start_position
+        assert restored.state[0].tolist() == cache.state[0].tolist()

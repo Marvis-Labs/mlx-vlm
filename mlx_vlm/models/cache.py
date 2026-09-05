@@ -376,6 +376,8 @@ class KVCache(_BaseCache):
 
     @property
     def state(self):
+        if self.keys is None:
+            return None, None
         if self.offset == self.keys.shape[2]:
             return self.keys, self.values
         else:
@@ -387,7 +389,7 @@ class KVCache(_BaseCache):
     @state.setter
     def state(self, v):
         self.keys, self.values = v
-        self.offset = self.keys.shape[2]
+        self.offset = 0 if self.keys is None else self.keys.shape[2]
 
     def prefix_cache_reserve(self, min_capacity_tokens):
         if self.keys is None or self.values is None:
@@ -768,7 +770,11 @@ class ArraysCache(_BaseCache):
 
     def extract(self, idx):
         cache = ArraysCache(len(self.cache))
-        cache.cache = [c[idx : idx + 1] for c in self.cache]
+        cache.cache = [None if c is None else c[idx : idx + 1] for c in self.cache]
+        if self.left_padding is not None:
+            cache.left_padding = self.left_padding[idx : idx + 1]
+        if self.lengths is not None:
+            cache.lengths = self.lengths[idx : idx + 1]
         return cache
 
     def prepare(self, lengths=None, **kwargs):
@@ -806,7 +812,9 @@ class ArraysCache(_BaseCache):
             return cache
 
         for e in range(n_state):
-            c_init = next(iter(c[e] for c in caches if c[e] is not None))
+            c_init = next((c[e] for c in caches if c[e] is not None), None)
+            if c_init is None:
+                continue
             shape = list(c_init.shape)
             shape[0] = B
             cache[e] = mx.zeros(shape, c_init.dtype)
@@ -817,7 +825,7 @@ class ArraysCache(_BaseCache):
         return cache
 
     def empty(self):
-        return self.cache[0] is None
+        return all(c is None for c in self.cache)
 
     @property
     def nbytes(self):
@@ -878,18 +886,15 @@ class ChunkedKVCache(_BaseCache):
 
     @property
     def state(self):
-        if self.offset == self.keys.shape[2]:
-            return self.keys, self.values
-        else:
-            return (
-                self.keys[..., : self.offset, :],
-                self.values[..., : self.offset, :],
-            )
+        if self.keys is None:
+            return None, None
+        length = self.offset - self.start_position
+        return self.keys[..., :length, :], self.values[..., :length, :]
 
     @state.setter
     def state(self, v):
         self.keys, self.values = v
-        self.offset = self.keys.shape[2]
+        self.offset = 0 if self.keys is None else self.keys.shape[2]
 
     def is_trimmable(self):
         return True
@@ -901,11 +906,15 @@ class ChunkedKVCache(_BaseCache):
 
     @property
     def meta_state(self):
-        return tuple(map(str, (self.chunk_size, self.start_position)))
+        return tuple(map(str, (self.chunk_size, self.start_position, self.offset)))
 
     @meta_state.setter
     def meta_state(self, v):
-        self.chunk_size, self.start_position = map(int, v)
+        values = tuple(map(int, v))
+        self.chunk_size, self.start_position = values[:2]
+        self.offset = (
+            values[2] if len(values) > 2 else self.offset + self.start_position
+        )
 
     def empty(self):
         return self.keys is None
@@ -2047,6 +2056,12 @@ class BatchQuantizedKVCache(_BaseCache):
         return self.keys is None
 
     @property
+    def nbytes(self):
+        if self.keys is None:
+            return 0
+        return sum(value.nbytes for value in (*self.keys, *self.values))
+
+    @property
     def batch_size(self):
         if self.keys is not None:
             return int(self.keys[0].shape[0])
@@ -2858,11 +2873,15 @@ class StaticPrefixKVCache(_BaseCache):
 
     @property
     def meta_state(self):
-        return tuple(map(str, (self.max_size, self.step, self.offset)))
+        return tuple(
+            map(str, (self.max_size, self.step, self.offset, int(self.read_only)))
+        )
 
     @meta_state.setter
     def meta_state(self, v):
-        self.max_size, self.step, self.offset = map(int, v)
+        values = tuple(map(int, v))
+        self.max_size, self.step, self.offset = values[:3]
+        self.read_only = bool(values[3]) if len(values) > 3 else False
 
     def is_trimmable(self):
         return True

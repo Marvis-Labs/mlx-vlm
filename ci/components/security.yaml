@@ -1,0 +1,54 @@
+schema_version: 1
+profiles:
+  model_loading:
+    include:
+      - mlx_vlm/utils.py
+      - mlx_vlm/convert.py
+      - mlx_vlm/models/base.py
+      - mlx_vlm/models/**/processing*.py
+      - mlx_vlm/models/**/download.py
+    categories:
+      - remote_code
+      - dynamic_code
+      - unsafe_deserialization
+  remote_input:
+    include:
+      - mlx_vlm/server/**
+      - mlx_vlm/chat_ui.py
+      - mlx_vlm/generate/**
+    categories:
+      - command_execution
+      - unsafe_deserialization
+      - secret_access
+  unsafe_deserialization:
+    include:
+      - mlx_vlm/**
+    categories:
+      - unsafe_deserialization
+  source_execution:
+    include:
+      - mlx_vlm/**
+    categories:
+      - command_execution
+      - dynamic_code
+      - remote_code
+      - secret_access
+  server_surface:
+    include:
+      - mlx_vlm/server/**
+    categories:
+      - command_execution
+      - remote_code
+      - secret_access
+  ci_control:
+    include:
+      - ci/**
+      - .github/workflows/**
+      - pyproject.toml
+      - uv.lock
+    categories:
+      - command_execution
+      - dynamic_code
+      - remote_code
+      - secret_access
+      - unsafe_deserialization

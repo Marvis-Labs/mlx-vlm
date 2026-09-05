@@ -1,0 +1,39 @@
+schema_version: 1
+source: mlx_vlm/models/cache.py
+profiles:
+  dense:
+    implementations:
+      - KVCache
+      - SimpleKVCache
+      - BatchKVCache
+    contract: ci.kv_cache_profiles.dense:dense_contract_cases
+  windowed:
+    implementations:
+      - RotatingKVCache
+      - BufferedRotatingKVCache
+      - BatchRotatingKVCache
+    contract: ci.kv_cache_profiles.windowed:windowed_contract_cases
+  segmented:
+    implementations:
+      - ChunkedKVCache
+      - ConcatenateKVCache
+    contract: ci.kv_cache_profiles.segmented:segmented_contract_cases
+  recurrent:
+    implementations:
+      - ArraysCache
+    contract: ci.kv_cache_profiles.recurrent:recurrent_contract_cases
+  pooling:
+    implementations:
+      - PoolingCache
+      - BatchPoolingCache
+    contract: ci.kv_cache_profiles.pooling:pooling_contract_cases
+  quantized:
+    implementations:
+      - QuantizedKVCache
+      - BatchQuantizedKVCache
+    contract: ci.kv_cache_profiles.quantized:quantized_contract_cases
+  prefix:
+    implementations:
+      - StaticPrefixKVCache
+      - KVCache prefix protocol
+    contract: ci.kv_cache_profiles.prefix:prefix_contract_cases

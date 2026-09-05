@@ -1,0 +1,52 @@
+schema_version: 1
+rules:
+  docs_change:
+    component: docs_change
+    include:
+      - "*.md"
+      - "**/*.md"
+      - mkdocs.yml
+      - docs/**
+    exclude: []
+  security_change:
+    component: security_change
+    include:
+      - mlx_vlm/**
+      - ci/**
+      - .github/workflows/**
+      - pyproject.toml
+      - uv.lock
+    exclude: []
+  kv_cache_change:
+    component: kv_cache_change
+    include:
+      - mlx_vlm/models/cache.py
+    exclude: []
+  activation_change:
+    component: activation_change
+    include:
+      - mlx_vlm/models/activations.py
+    exclude: []
+  mlp_change:
+    component: mlp_change
+    include:
+      - mlx_vlm/models/mlp.py
+    exclude: []
+  new_model_path:
+    component: new_model_path
+    include:
+      - mlx_vlm/models/{model}/**
+    exclude:
+      - mlx_vlm/models/{model}/*.md
+      - mlx_vlm/models/{model}/**/*.md
+    base_path_absent: mlx_vlm/models/{model}
+    head_path_present: mlx_vlm/models/{model}
+    supersedes:
+      - model_path
+  model_path:
+    component: model_path
+    include:
+      - mlx_vlm/models/{model}/**
+    exclude:
+      - mlx_vlm/models/{model}/*.md
+      - mlx_vlm/models/{model}/**/*.md
