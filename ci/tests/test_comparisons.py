@@ -1,4 +1,4 @@
-from ci.model_path_compare import compare, merge_measurements, metric_verdict
+from ci.model_path.checkpoint_compare import compare, merge_measurements, metric_verdict
 
 
 def measurements(**overrides):

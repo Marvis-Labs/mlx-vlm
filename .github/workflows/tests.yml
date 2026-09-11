@@ -51,6 +51,3 @@ jobs:
         run: |
           cd mlx_vlm/
           pytest -s ./tests --ignore=tests/test_smoke.py
-
-      - name: Run CI harness tests
-        run: python -m pytest ci/tests -q

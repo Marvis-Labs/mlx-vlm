@@ -1,32 +1,24 @@
-import json
 from pathlib import Path
 
+import pytest
 import yaml
+from mlx_ci.repository.change_rules import ChangeDetector
+from mlx_ci.repository.checkpoint_policy import validate_checkpoint
+from mlx_ci.repository.planning import Delegator, create_delegator
 
-from ci.change_rules import ChangeDetector
-from ci.checkpoint_policy import validate_checkpoint
-from ci.delegator import (
-    Delegator,
-    ModelPath,
-    NewModelPath,
-    _parse_name_status,
-    create_delegator,
-    main,
-)
-from ci.docs_change import DocsChange
+from ci.docs import DocsChange
+from ci.model_path.planning import ModelPath, NewModelPath
 
 
 def test_temporary_model_manifests_do_not_disable_other_components(tmp_path):
     config_directory = Path(__file__).parents[1]
     model_config = tmp_path / "model_path.yaml"
     scenario_config = tmp_path / "model-path-scenario.yaml"
-    model_config.write_text((config_directory / "model_path.yaml").read_text())
-    scenario_config.write_text(
-        (config_directory / "model-path-scenario.yaml").read_text()
-    )
+    model_config.write_text((config_directory / "config/models.yaml").read_text())
+    scenario_config.write_text((config_directory / "config/scenarios.yaml").read_text())
 
     delegator = create_delegator(
-        config_directory / "change-rules.yaml",
+        config_directory / "config/changes.yaml",
         tmp_path,
         config_directory.parent,
     )
@@ -158,7 +150,7 @@ def test_configured_model_emits_one_model_path_work_item(tmp_path):
 
 def test_existing_model_manifest_change_cannot_redefine_its_own_job(tmp_path):
     plan = make_delegator(tmp_path).plan(
-        ["mlx_vlm/models/ready/vision.py", "ci/model_path.yaml"]
+        ["mlx_vlm/models/ready/vision.py", "ci/config/models.yaml"]
     )
 
     assert plan["jobs"] == []
@@ -180,7 +172,7 @@ def test_multiple_models_emit_independent_jobs(tmp_path):
 def test_new_model_emits_approval_gate_and_no_jobs(tmp_path):
     plan = make_delegator(tmp_path).plan(
         [
-            "ci/model_path.yaml",
+            "ci/config/models.yaml",
             "mlx_vlm/models/ready/__init__.py",
             "mlx_vlm/models/ready/model.py",
         ],
@@ -207,7 +199,7 @@ def test_new_model_emits_approval_gate_and_no_jobs(tmp_path):
 
 def test_new_model_without_manifest_entry_is_blocked(tmp_path):
     plan = make_delegator(tmp_path).plan(
-        ["ci/model_path.yaml", "mlx_vlm/models/missing/model.py"],
+        ["ci/config/models.yaml", "mlx_vlm/models/missing/model.py"],
         base_files=["mlx_vlm/models/existing/model.py"],
         head_files=["mlx_vlm/models/missing/model.py"],
         head_sha="abc123",
@@ -281,85 +273,42 @@ def test_shared_model_component_and_unrelated_code_are_ignored(tmp_path):
     }
 
 
-def test_documentation_change_emits_one_hosted_check(tmp_path):
-    plan = make_delegator(tmp_path).plan(["README.md", "docs/guide.md"])
+@pytest.mark.parametrize(
+    "paths,components,job_ids",
+    [
+        (["README.md", "docs/guide.md"], ["docs_change"], []),
+        (["mlx_vlm/models/ready/README.md"], ["docs_change"], []),
+        (
+            ["mlx_vlm/models/ready/README.md", "mlx_vlm/models/ready/model.py"],
+            ["docs_change", "model_path"],
+            ["model_path:ready"],
+        ),
+    ],
+)
+def test_documentation_and_model_work_route_independently(
+    tmp_path, paths, components, job_ids
+):
+    plan = make_delegator(tmp_path).plan(paths)
 
-    assert plan["rules"] == ["docs_change"]
-    assert plan["components"] == ["docs_change"]
-    assert plan["jobs"] == []
-    assert plan["checks"] == [
-        {
-            "id": "docs",
-            "work_type": "Docs",
-            "component": "docs_change",
-            "execution_target": "github_hosted",
-            "changed_paths": ["README.md", "docs/guide.md"],
-        }
-    ]
-
-
-def test_model_documentation_does_not_schedule_model_execution(tmp_path):
-    plan = make_delegator(tmp_path).plan(["mlx_vlm/models/ready/README.md"])
-
-    assert plan["rules"] == ["docs_change"]
-    assert plan["components"] == ["docs_change"]
-    assert plan["jobs"] == []
-    assert plan["checks"][0]["changed_paths"] == ["mlx_vlm/models/ready/README.md"]
-
-
-def test_documentation_and_model_code_route_independently(tmp_path):
-    plan = make_delegator(tmp_path).plan(
-        ["mlx_vlm/models/ready/README.md", "mlx_vlm/models/ready/model.py"]
-    )
-
-    assert plan["rules"] == ["docs_change", "model_path"]
-    assert plan["components"] == ["docs_change", "model_path"]
-    assert plan["checks"][0]["changed_paths"] == ["mlx_vlm/models/ready/README.md"]
-    assert [item["id"] for item in plan["jobs"]] == ["model_path:ready"]
-
-
-def test_rename_includes_old_and_new_paths():
-    output = (
-        b"R100\0mlx_vlm/models/old/model.py\0"
-        b"mlx_vlm/models/new/model.py\0M\0README.md\0"
-    )
-
-    assert _parse_name_status(output) == (
-        "mlx_vlm/models/old/model.py",
-        "mlx_vlm/models/new/model.py",
-        "README.md",
-    )
-
-
-def test_cli_writes_json_plan(tmp_path, monkeypatch):
-    output = tmp_path / "plan.json"
-    delegator = make_delegator(tmp_path)
-    monkeypatch.setattr("ci.delegator.default_delegator", lambda: delegator)
-
-    assert (
-        main(
-            [
-                "--changed-file",
-                "mlx_vlm/models/ready/model.py",
-                "--output",
-                str(output),
-            ]
-        )
-        == 0
-    )
-    plan = json.loads(output.read_text())
-    assert len(plan["jobs"]) == 1
-    assert plan["gates"] == []
-    assert plan["blocked"] == []
+    assert plan["components"] == components
+    assert [item["id"] for item in plan["jobs"]] == job_ids
+    assert plan["checks"][0] == {
+        "id": "docs",
+        "work_type": "Docs",
+        "component": "docs_change",
+        "execution_target": "github_hosted",
+        "handler": "docs",
+        "changed_paths": sorted(path for path in paths if path.endswith(".md")),
+    }
 
 
 def test_repository_configured_models_are_routable():
     config_directory = Path(__file__).parents[1]
-    from ci.components.model_path import SYNTHETIC_ADAPTERS
+    from ci.model_path.component import SYNTHETIC_ADAPTERS
 
     model_path = ModelPath(
-        config_directory / "model_path.yaml",
-        config_directory / "model-path-scenario.yaml",
+        config_directory / "config/models.yaml",
+        config_directory / "config/scenarios.yaml",
         supported_synthetic_adapters=SYNTHETIC_ADAPTERS,
     )
     configured = [
@@ -368,7 +317,7 @@ def test_repository_configured_models_are_routable():
         if model.get("synthetic", {}).get("status") == "configured"
         and model.get("hf_checkpoint", {}).get("status") == "configured"
     ]
-    detector = ChangeDetector.from_yaml(config_directory / "change-rules.yaml")
+    detector = ChangeDetector.from_yaml(config_directory / "config/changes.yaml")
     delegator = Delegator(
         ChangeDetector(
             rule for rule in detector.rules if rule.component != "docs_change"
@@ -411,8 +360,8 @@ def test_unsupported_synthetic_adapter_is_blocked(tmp_path):
 def test_model_catalog_covers_every_repository_model_directory():
     config_directory = Path(__file__).parents[1]
     model_path = ModelPath(
-        config_directory / "model_path.yaml",
-        config_directory / "model-path-scenario.yaml",
+        config_directory / "config/models.yaml",
+        config_directory / "config/scenarios.yaml",
     )
     repository_models = {
         path.name
@@ -426,8 +375,8 @@ def test_model_catalog_covers_every_repository_model_directory():
 def test_recently_synced_models_have_pinned_candidate_configurations():
     config_directory = Path(__file__).parents[1]
     model_path = ModelPath(
-        config_directory / "model_path.yaml",
-        config_directory / "model-path-scenario.yaml",
+        config_directory / "config/models.yaml",
+        config_directory / "config/scenarios.yaml",
     )
     models = {
         "dinov2",

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 import sys
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
-from ci.components.base import (
+from mlx_ci.repository.components import (
     ComponentContext,
     ComponentRegistration,
     ExecutionContext,
@@ -30,7 +31,7 @@ def resource_requirements(
         return 8, 2
     weight = checkpoint.get("weight")
     if not isinstance(weight, Mapping):
-        raise ValueError("checkpoint has no weight metadata")
+        raise ValueError("checkpoint has no weight metadata")  # noqa: TRY004
     weight_bytes = weight.get("bytes")
     if not isinstance(weight_bytes, int) or weight_bytes <= 0:
         raise ValueError("checkpoint weight bytes must be positive")
@@ -41,47 +42,38 @@ def resource_requirements(
     )
 
 
-def model_path_service(context: ComponentContext):
-    from ci.delegator import ModelPath
+def build_model_path(context: ComponentContext):
+    from ci.model_path.planning import ModelPath
 
-    return context.service(
-        "model_path",
-        lambda: ModelPath(
-            context.config("model_path.yaml", contributor=True),
-            context.config("model-path-scenario.yaml", contributor=True),
-            supported_synthetic_adapters=SYNTHETIC_ADAPTERS,
-        ),
+    return ModelPath(
+        context.config("config/models.yaml", contributor=True),
+        context.config("config/scenarios.yaml", contributor=True),
+        supported_synthetic_adapters=SYNTHETIC_ADAPTERS,
     )
 
 
 def _planners(context: ComponentContext) -> tuple[Any, ...]:
-    from ci.delegator import NewModelPath
+    from ci.model_path.planning import NewModelPath
 
-    model_path = model_path_service(context)
+    model_path = build_model_path(context)
     return NewModelPath(model_path), model_path
-
-
-def _output():
-    from ci.bot import ModelPathOutput
-
-    return ModelPathOutput()
 
 
 def _synthetic(context: ExecutionContext) -> list[str]:
     directory = context.config_directory
     return [
         sys.executable,
-        str(directory / "model_path_synthetic_compare.py"),
+        str(directory / "model_path/synthetic_compare.py"),
         "--job",
         str(context.job_path),
         "--profiles",
-        str(directory / "model_path.yaml"),
+        str(directory / "config/models.yaml"),
         "--base",
         str(context.base),
         "--head",
         str(context.head),
         "--probe",
-        str(directory / "model_path_synthetic_probe.py"),
+        str(directory / "model_path/synthetic_probe.py"),
     ]
 
 
@@ -89,21 +81,21 @@ def _hf_checkpoint(context: ExecutionContext) -> list[str]:
     directory = context.config_directory
     return [
         sys.executable,
-        str(directory / "model_path_compare.py"),
+        str(directory / "model_path/checkpoint_compare.py"),
         "--job",
         str(context.job_path),
         "--scenarios",
-        str(directory / "model-path-scenario.yaml"),
+        str(directory / "config/scenarios.yaml"),
         "--base",
         str(context.base),
         "--head",
         str(context.head),
         "--probe",
-        str(directory / "model_path_probe.py"),
+        str(directory / "model_path/checkpoint_probe.py"),
         "--image",
-        str(context.image),
+        str(directory / "assets/cat.jpg"),
         "--max-tokens",
-        str(context.max_tokens),
+        "16",
     ]
 
 
@@ -111,7 +103,7 @@ def _validate_gate(gate: Mapping[str, Any]) -> None:
     pending_work = gate.get("pending_work")
     requested = gate.get("requested_phases")
     if not isinstance(pending_work, Mapping):
-        raise ValueError("approval gate has no pending work")
+        raise ValueError("approval gate has no pending work")  # noqa: TRY004
     if not isinstance(requested, list) or not requested:
         raise ValueError("approval gate has no requested phases")
     if (
@@ -127,13 +119,12 @@ REGISTRATION = ComponentRegistration(
     name="model_path",
     components=frozenset({"model_path", "new_model_path"}),
     planner_factory=_planners,
-    output_factory=_output,
     work=frozenset({("ModelPath", "model_path")}),
     phases=(
         PhaseRegistration("synthetic", _synthetic),
         PhaseRegistration("hf_checkpoint", _hf_checkpoint),
     ),
-    contributor_configs=frozenset({"model_path.yaml", "model-path-scenario.yaml"}),
+    contributor_configs=frozenset({"config/models.yaml", "config/scenarios.yaml"}),
     gate_validator=_validate_gate,
     job_fields=frozenset(
         {

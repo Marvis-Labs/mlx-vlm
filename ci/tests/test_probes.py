@@ -1,11 +1,13 @@
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import mlx.core as mx
 import numpy as np
 import pytest
+import yaml
 
-from ci.model_path_probe import (
+from ci.model_path.checkpoint_probe import (
     aggregate,
     cached_checkpoint,
     checkpoint,
@@ -15,6 +17,10 @@ from ci.model_path_probe import (
     prepare_processor,
     summarize,
 )
+from ci.model_path.synthetic_probe import ADAPTERS
+from ci.model_path.synthetic_probe import run as run_synthetic
+
+ROOT = Path(__file__).parents[2]
 
 
 def test_embedding_scenario_is_selected_from_model_path_work():
@@ -25,6 +31,16 @@ def test_embedding_scenario_is_selected_from_model_path_work():
         == scenario["embedding"]
     )
     assert embedding_scenario({"scenarios": ["vlm_animal"]}, scenario) is None
+
+
+@pytest.mark.parametrize("model", sorted(ADAPTERS))
+def test_registered_synthetic_adapters_run_finite_forward_passes(model):
+    manifest = yaml.safe_load((ROOT / "ci/config/models.yaml").read_text())
+    result = run_synthetic(manifest["models"][model], manifest["synthetic_profiles"])
+
+    assert result["finite"] is True
+    assert result["output_shape"]
+    assert result["parameter_signature"]
 
 
 def test_embedding_probe_checks_semantics_and_normalization():
@@ -70,7 +86,7 @@ def test_checkpoint_rejects_incomplete_metadata(value):
 
 
 def test_summarize_reports_e2e_metrics(monkeypatch):
-    monkeypatch.setattr("ci.model_path_probe.time.perf_counter", lambda: 3.0)
+    monkeypatch.setattr("ci.model_path.checkpoint_probe.time.perf_counter", lambda: 3.0)
     result = SimpleNamespace(
         text="a cat",
         token=42,
@@ -91,7 +107,7 @@ def test_summarize_reports_e2e_metrics(monkeypatch):
 
 
 def test_summarize_accepts_empty_decoded_text_with_a_generation_result(monkeypatch):
-    monkeypatch.setattr("ci.model_path_probe.time.perf_counter", lambda: 3.0)
+    monkeypatch.setattr("ci.model_path.checkpoint_probe.time.perf_counter", lambda: 3.0)
     result = SimpleNamespace(
         text="",
         token=2,

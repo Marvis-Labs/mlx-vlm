@@ -31,7 +31,7 @@ Embedding models use the same `ModelPath` flow with embedding-specific inputs,
 normalization and semantic-similarity checks, and latency and throughput metrics.
 
 For a new model family, add its synthetic configuration and immutable checkpoint
-metadata to `ci/model_path.yaml`. The initial run waits for a maintainer to issue
+metadata to `ci/config/models.yaml`. The initial run waits for a maintainer to issue
 `/ci run`; later commits and reruns produce separate results tied to their exact
 commit.
 

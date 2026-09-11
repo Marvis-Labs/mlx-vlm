@@ -3,10 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from ci.probe_process import run_project_probe
+from mlx_ci.repository.probe_process import run_project_probe
 
 
 def run_probe(
@@ -27,10 +28,11 @@ def run_probe(
             "--output",
             str(output),
         ],
+        control=Path(__file__).resolve().parents[2],
     )
     value = json.loads(output.read_text())
     if not isinstance(value, Mapping):
-        raise RuntimeError("synthetic probe output must be an object")
+        raise RuntimeError("synthetic probe output must be an object")  # noqa: TRY004
     return value
 
 
@@ -89,7 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         base = run_probe(args.base, args.probe, args.job, args.profiles, base_output)
         head = run_probe(args.head, args.probe, args.job, args.profiles, head_output)
         result = compare(base, head)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         result = {
             "verdict": "test_failure",
             "error": f"{type(error).__name__}: {error}",

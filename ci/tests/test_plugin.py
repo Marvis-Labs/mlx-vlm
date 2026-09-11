@@ -1,29 +1,22 @@
+import hashlib
 from pathlib import Path
 
 import pytest
+import yaml
+from mlx_ci.repository.components import ExecutionContext
 
-from ci.components import registry
-from ci.components.base import ExecutionContext
+from ci import plugin as registry
+
+ROOT = Path(__file__).parents[2]
 
 
 def test_component_registrations_are_unique_and_self_contained():
     names = [registration.name for registration in registry.REGISTRATIONS]
 
     assert len(names) == len(set(names))
-    assert registry.supported_work() == frozenset(
-        {
-            ("ModelPath", "model_path"),
-        }
-    )
-    assert registry.supported_phases() == frozenset(
-        {
-            "synthetic",
-            "hf_checkpoint",
-        }
-    )
     assert registry.contributor_config_paths() == (
-        "model-path-scenario.yaml",
-        "model_path.yaml",
+        "config/models.yaml",
+        "config/scenarios.yaml",
     )
 
 
@@ -35,23 +28,24 @@ def test_removing_a_registration_removes_its_work_and_phases(monkeypatch):
     )
     monkeypatch.setattr(registry, "REGISTRATIONS", retained)
 
-    assert ("ModelPath", "model_path") not in registry.supported_work()
-    assert "synthetic" not in registry.supported_phases()
-    assert all(
-        "model_path" not in output.component_names for output in registry.outputs()
-    )
     context = ExecutionContext(
         Path("job.json"),
         Path("control"),
         Path("base"),
         Path("head"),
-        Path("image.jpg"),
-        16,
     )
     assert "synthetic" not in registry.phase_commands(context)
+    with pytest.raises(ValueError, match="unregistered work item"):
+        registry.validate_job(
+            {
+                "work_type": "ModelPath",
+                "component": "model_path",
+                "phases": ["synthetic"],
+            }
+        )
 
 
-def test_removing_docs_registration_removes_its_planner_and_output(monkeypatch):
+def test_removing_docs_registration_removes_its_planner(monkeypatch):
     retained = tuple(
         registration
         for registration in registry.REGISTRATIONS
@@ -63,9 +57,6 @@ def test_removing_docs_registration_removes_its_planner_and_output(monkeypatch):
         planner.name != "docs_change"
         for planner in registry.planners(Path("ci"), Path("."))
     )
-    assert all(
-        "docs_change" not in output.component_names for output in registry.outputs()
-    )
 
 
 def test_registered_phases_build_commands_without_executor_switches():
@@ -74,17 +65,13 @@ def test_registered_phases_build_commands_without_executor_switches():
         Path("control"),
         Path("base"),
         Path("head"),
-        Path("image.jpg"),
-        16,
     )
 
     commands = registry.phase_commands(context)
 
-    assert set(commands) == registry.supported_phases()
-    assert commands["synthetic"][1].endswith("ci/model_path_synthetic_compare.py")
+    assert set(commands) == {"synthetic", "hf_checkpoint"}
+    assert commands["synthetic"][1].endswith("ci/model_path/synthetic_compare.py")
     assert "--scenarios" in commands["hf_checkpoint"]
-    source = (Path(__file__).parents[1] / "work_executor.py").read_text()
-    assert all(phase not in source for phase in commands)
 
 
 def test_workflow_calls_only_generic_component_entry_points():
@@ -92,9 +79,9 @@ def test_workflow_calls_only_generic_component_entry_points():
     source = workflow.read_text()
 
     assert "repos/Marvis-Labs/mlx-ci/dispatches" in source
-    assert (Path(__file__).parents[1] / "control.py").is_file()
-    assert (Path(__file__).parents[1] / "work_executor.py").is_file()
-    assert (Path(__file__).parents[1] / "report.py").is_file()
+    assert not (Path(__file__).parents[1] / "control.py").exists()
+    assert not (Path(__file__).parents[1] / "work_executor.py").exists()
+    assert not (Path(__file__).parents[1] / "report.py").exists()
     assert "model_path_work.py" not in source
     assert "model_path_compare.py" not in source
     assert "kv_cache_contract_compare.py" not in source
@@ -122,3 +109,24 @@ def test_gate_validation_is_owned_by_the_registered_component(monkeypatch):
 
     with pytest.raises(ValueError, match="no unique gate validator"):
         registry.validate_gate(gate)
+
+
+def test_acceptance_fixture_is_pinned_and_consistent():
+    fixture = yaml.safe_load((ROOT / "ci/config/acceptance.yaml").read_text())
+    profiles = yaml.safe_load((ROOT / "ci/config/models.yaml").read_text())
+    model = profiles["models"][fixture["model"]]
+    checkpoint = fixture["hf_checkpoint"]
+
+    assert fixture["phases"] == ["synthetic", "hf_checkpoint"]
+    assert model["synthetic"]["adapter"] == fixture["synthetic"]["adapter"]
+    assert model["synthetic"]["profile"] == fixture["synthetic"]["profile"]
+    assert model["hf_checkpoint"]["repo"] == checkpoint["repo"]
+    assert model["hf_checkpoint"]["revision"] == checkpoint["revision"]
+    assert model["hf_checkpoint"]["weight"]["bytes"] == checkpoint["weight_bytes"]
+    assert fixture["input"]["max_tokens"] == 16
+    assert fixture["thresholds"]["performance_percent"] == 5.0
+    asset = ROOT / fixture["input"]["asset"]
+    assert (
+        hashlib.sha256(asset.read_bytes()).hexdigest()
+        == fixture["input"]["asset_sha256"]
+    )

@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from ci.model_path_probe import aggregate
-from ci.probe_process import run_project_probe
+from mlx_ci.repository.probe_process import run_project_probe
+
+from ci.model_path.checkpoint_probe import aggregate
 
 POSITIVE_METRICS = {
     "prefill_tps": "tok/s",
@@ -47,10 +49,15 @@ def run_probe(
         "--output",
         str(output),
     ]
-    run_project_probe(project, probe, arguments)
+    run_project_probe(
+        project,
+        probe,
+        arguments,
+        control=Path(__file__).resolve().parents[2],
+    )
     value = json.loads(output.read_text())
     if not isinstance(value, Mapping):
-        raise RuntimeError("model path probe output must be an object")
+        raise RuntimeError("model path probe output must be an object")  # noqa: TRY004
     return value
 
 
@@ -191,7 +198,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 merge_measurements(head, confirmation_head),
             )
             result["performance_confirmation"] = "counterbalanced"
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         result = {
             "verdict": "test_failure",
             "error": f"{type(error).__name__}: {error}",

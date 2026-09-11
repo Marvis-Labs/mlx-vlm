@@ -6,16 +6,17 @@ import json
 import os
 import statistics
 import time
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from ci.change_rules import load_yaml_mapping
+from mlx_ci.repository.change_rules import load_yaml_mapping
 
 
 def checkpoint(job: Mapping[str, Any]) -> tuple[str, str]:
     value = job.get("hf_checkpoint")
     if not isinstance(value, Mapping):
-        raise ValueError("job has no hf_checkpoint")
+        raise ValueError("job has no hf_checkpoint")  # noqa: TRY004
     repo = value.get("repo")
     revision = value.get("revision")
     if not isinstance(repo, str) or not repo:
@@ -178,15 +179,15 @@ def embedding_scenario(
 ) -> Mapping[str, Any] | None:
     configured = job.get("scenarios")
     if not isinstance(configured, list):
-        raise ValueError("ModelPath work has no scenarios")
+        raise ValueError("ModelPath work has no scenarios")  # noqa: TRY004
     if "embedding" not in configured:
         return None
     scenario = scenarios.get("embedding")
     if not isinstance(scenario, Mapping):
-        raise ValueError("embedding scenario is not configured")
+        raise ValueError("embedding scenario is not configured")  # noqa: TRY004
     value = scenario.get("input")
     if not isinstance(value, Mapping):
-        raise ValueError("embedding scenario has no input")
+        raise ValueError("embedding scenario has no input")  # noqa: TRY004
     texts = value.get("texts")
     if (
         not isinstance(texts, list)

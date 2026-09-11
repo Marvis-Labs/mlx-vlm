@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-from ci.change_rules import ChangeContext, ChangeMatch
+from mlx_ci.repository.change_rules import ChangeContext, ChangeMatch
+from mlx_ci.repository.components import ComponentContext, ComponentRegistration
 
 
 class DocsChange:
@@ -22,6 +24,7 @@ class DocsChange:
                     "work_type": "Docs",
                     "component": self.name,
                     "execution_target": "github_hosted",
+                    "handler": "docs",
                     "changed_paths": paths,
                 }
             ],
@@ -29,3 +32,15 @@ class DocsChange:
             "gates": [],
             "blocked": [],
         }
+
+
+def _planners(context: ComponentContext) -> tuple[DocsChange, ...]:
+    return (DocsChange(),)
+
+
+REGISTRATION = ComponentRegistration(
+    name="docs_change",
+    components=frozenset({"docs_change"}),
+    planner_factory=_planners,
+    work=frozenset(),
+)

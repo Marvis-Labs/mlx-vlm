@@ -1,6 +1,6 @@
 refuse:
   - .github/workflows/
-  - ci/protected_paths.yaml
+  - ci/config/protected-paths.yaml
   - pyproject.toml
   - uv.lock
   - setup.py

@@ -22,32 +22,32 @@ def test_benchmark_dispatches_only_authorized_identity():
     assert "github.event.pull_request.head" not in workflow
 
 
-def test_pull_request_plan_runs_only_trusted_base_adapter():
+def test_pull_request_plan_dispatches_metadata_only():
     workflow = (ROOT / ".github/workflows/ci-control.yml").read_text()
 
-    assert "pull_request:" in workflow
+    assert "pull_request_target:" in workflow
     assert "permissions: {}" in workflow
-    assert "ref: ${{ github.event.pull_request.base.sha }}" in workflow
-    assert "python -m ci.repository_adapter plan" in workflow
-    assert "python -m ci.repository_adapter hosted-checks" in workflow
-    assert "PYTHONPATH=head" not in workflow
-    assert "pull_request_target:" not in workflow
+    assert 'event_type:"ci-plan-request"' in workflow
+    assert "repos/Marvis-Labs/mlx-ci/dispatches" in workflow
+    assert "actions/checkout" not in workflow
+    assert "github.event.pull_request.head" not in workflow
+    assert "PYTHONPATH" not in workflow
     assert "secrets: inherit" not in workflow
 
 
 def test_repository_keeps_only_repository_owned_interfaces():
-    assert (ROOT / "ci/control.py").is_file()
-    assert (ROOT / "ci/repository_adapter.py").is_file()
-    assert (ROOT / "ci/work_executor.py").is_file()
-    assert (ROOT / "ci/report.py").is_file()
-    assert (ROOT / "ci/hosted-requirements.txt").is_file()
+    assert (ROOT / "ci/plugin.py").is_file()
+    assert (ROOT / "ci/model_path/planning.py").is_file()
+    assert (ROOT / "ci/model_path/synthetic_probe.py").is_file()
+    assert (ROOT / "ci/model_path/checkpoint_probe.py").is_file()
+    assert (ROOT / "ci/requirements.txt").is_file()
     for name in (
-        "attempt_lease.py",
-        "device_inventory.py",
-        "device_lease.py",
-        "runner_selection.py",
-        "scheduler.py",
-        "workflow_report.py",
+        "control.py",
+        "execution_security.py",
+        "repository_adapter.py",
+        "report.py",
+        "work_executor.py",
+        "worker_result.py",
     ):
         assert not (ROOT / "ci" / name).exists()
 
@@ -59,7 +59,8 @@ def test_workflows_pin_actions_and_minimize_default_permissions():
         path = workflows / name
         source = path.read_text()
         assert "permissions: {}" in source
-        assert re.search(r"^\s*pull_request_target:", source, re.MULTILINE) is None
+        if name != "ci-control.yml":
+            assert re.search(r"^\s*pull_request_target:", source, re.MULTILINE) is None
         assert re.search(r"^\s*workflow_run:", source, re.MULTILINE) is None
         for line in source.splitlines():
             if re.search(r"^\s*-?\s*uses:", line):

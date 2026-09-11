@@ -1,29 +1,13 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
-import os
-import subprocess
 from collections import defaultdict
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Protocol, Sequence
+from typing import Any
 
-from ci.change_rules import (
-    ChangeContext,
-    ChangeDetector,
-    ChangeMatch,
-    load_yaml_mapping,
-)
-
-
-class ChangeComponent(Protocol):
-    name: str
-
-    def plan(
-        self, matches: Sequence[ChangeMatch], context: ChangeContext
-    ) -> dict[str, Any]: ...
+from mlx_ci.repository.change_rules import ChangeContext, ChangeMatch, load_yaml_mapping
 
 
 class ModelPath:
@@ -58,7 +42,7 @@ class ModelPath:
         jobs: list[dict[str, Any]] = []
         blocked = list(invalid)
 
-        if {"ci/model_path.yaml", "ci/model-path-scenario.yaml"} & set(
+        if {"ci/config/models.yaml", "ci/config/scenarios.yaml"} & set(
             context.changed_files
         ):
             blocked.extend(
@@ -107,7 +91,7 @@ class ModelPath:
         *,
         component: str | None = None,
     ) -> dict[str, Any]:
-        from ci.components.model_path import resource_requirements
+        from ci.model_path.component import resource_requirements
 
         checkpoint = dict(configuration["hf_checkpoint"])
         required_memory, required_disk = resource_requirements(checkpoint)
@@ -174,7 +158,7 @@ class ModelPath:
     def _mapping(data: dict[str, Any], key: str, source: Path) -> dict[str, Any]:
         value = data.get(key)
         if not isinstance(value, dict):
-            raise ValueError(f"{source}: {key} must be a mapping")
+            raise ValueError(f"{source}: {key} must be a mapping")  # noqa: TRY004
         return value
 
     @staticmethod
@@ -255,7 +239,10 @@ class ModelPath:
             return "invalid_checkpoint_weight"
         if not isinstance(weight.get("bytes"), int) or weight["bytes"] <= 0:
             return "invalid_checkpoint_weight_bytes"
-        from ci.checkpoint_policy import CheckpointPolicyError, validate_checkpoint
+        from mlx_ci.repository.checkpoint_policy import (
+            CheckpointPolicyError,
+            validate_checkpoint,
+        )
 
         try:
             validate_checkpoint(
@@ -299,7 +286,7 @@ class NewModelPath:
         blocked = list(invalid)
 
         for model_name, paths in sorted(changed_models.items()):
-            if "ci/model_path.yaml" not in context.changed_files:
+            if "ci/config/models.yaml" not in context.changed_files:
                 blocked.append(
                     {
                         "component": self.name,
@@ -364,241 +351,3 @@ class NewModelPath:
             "gates": gates,
             "blocked": blocked,
         }
-
-
-class Delegator:
-    """Detect change ownership and merge independent component plans."""
-
-    def __init__(self, detector: ChangeDetector, components: Sequence[ChangeComponent]):
-        self.detector = detector
-        self.components = tuple(components)
-        names = [component.name for component in self.components]
-        if len(names) != len(set(names)):
-            raise ValueError("component names must be unique")
-
-    def plan(
-        self,
-        changed_files: Iterable[str],
-        *,
-        base_files: Iterable[str] = (),
-        head_files: Iterable[str] = (),
-        head_sha: str | None = None,
-        base_sha: str | None = None,
-        target_sha: str | None = None,
-        tree_state_known: bool = False,
-    ) -> dict[str, Any]:
-        context = ChangeContext.create(
-            changed_files,
-            base_files,
-            head_files,
-            head_sha,
-            base_sha,
-            target_sha,
-            tree_state_known,
-        )
-        return self.plan_context(context)
-
-    def plan_context(self, context: ChangeContext) -> dict[str, Any]:
-        matches = self.detector.detect(context)
-        matches_by_component: dict[str, list[ChangeMatch]] = defaultdict(list)
-        for match in matches:
-            matches_by_component[match.component].append(match)
-
-        plans: list[dict[str, Any]] = []
-        for component in self.components:
-            component_matches = matches_by_component.pop(component.name, [])
-            if component_matches:
-                plans.append(component.plan(component_matches, context))
-
-        unregistered = [
-            {
-                "component": component,
-                "rule": component_matches[0].rule,
-                "changed_paths": sorted(match.path for match in component_matches),
-                "reason": "unregistered_component",
-            }
-            for component, component_matches in sorted(matches_by_component.items())
-        ]
-        return {
-            "schema_version": 1,
-            "base_sha": context.base_sha,
-            "target_sha": context.target_sha,
-            "head_sha": context.head_sha,
-            "rules": list(dict.fromkeys(match.rule for match in matches)),
-            "components": [plan["component"] for plan in plans],
-            "jobs": [job for plan in plans for job in plan["jobs"]],
-            "gates": [gate for plan in plans for gate in plan["gates"]],
-            "checks": [check for plan in plans for check in plan.get("checks", [])],
-            "blocked": [item for plan in plans for item in plan["blocked"]]
-            + unregistered,
-        }
-
-
-@dataclass(frozen=True)
-class GitDiff:
-    base_sha: str
-    target_sha: str
-    head_sha: str
-    changed_files: tuple[str, ...]
-    base_files: tuple[str, ...]
-    head_files: tuple[str, ...]
-
-    def context(self) -> ChangeContext:
-        return ChangeContext.create(
-            self.changed_files,
-            self.base_files,
-            self.head_files,
-            head_sha=self.head_sha,
-            base_sha=self.base_sha,
-            target_sha=self.target_sha,
-            tree_state_known=True,
-        )
-
-
-def _resolve_commit(ref: str, cwd: Path | None) -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout.strip()
-
-
-def _merge_base(base: str, head: str, cwd: Path | None) -> str:
-    result = subprocess.run(
-        ["git", "merge-base", base, head],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout.strip()
-
-
-def _parse_name_status(output: bytes) -> tuple[str, ...]:
-    fields = output.rstrip(b"\0").split(b"\0") if output else []
-    changed: list[str] = []
-    index = 0
-    while index < len(fields):
-        status = fields[index].decode("ascii")
-        index += 1
-        path_count = 2 if status.startswith(("R", "C")) else 1
-        if index + path_count > len(fields):
-            raise ValueError("malformed git diff output")
-        changed.extend(os.fsdecode(path) for path in fields[index : index + path_count])
-        index += path_count
-    return tuple(changed)
-
-
-def _tree_files(commit: str, cwd: Path | None) -> tuple[str, ...]:
-    result = subprocess.run(
-        ["git", "ls-tree", "-r", "--name-only", "-z", commit, "--"],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-    )
-    return tuple(
-        os.fsdecode(path) for path in result.stdout.rstrip(b"\0").split(b"\0") if path
-    )
-
-
-def diff_from_git(base: str, head: str, cwd: Path | None = None) -> GitDiff:
-    """Load changed paths and immutable base/head tree snapshots."""
-
-    base_commit = _resolve_commit(base, cwd)
-    head_commit = _resolve_commit(head, cwd)
-    base_tree = _merge_base(base_commit, head_commit, cwd)
-    result = subprocess.run(
-        [
-            "git",
-            "diff",
-            "--name-status",
-            "-z",
-            "--find-renames",
-            "--diff-filter=ACDMRTUXB",
-            f"{base_tree}..{head_commit}",
-            "--",
-        ],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-    )
-    return GitDiff(
-        base_sha=base_tree,
-        target_sha=base_commit,
-        head_sha=head_commit,
-        changed_files=_parse_name_status(result.stdout),
-        base_files=_tree_files(base_tree, cwd),
-        head_files=_tree_files(head_commit, cwd),
-    )
-
-
-def changed_files_from_git(
-    base: str, head: str, cwd: Path | None = None
-) -> tuple[str, ...]:
-    """Return changed paths between the merge base and head."""
-
-    return diff_from_git(base, head, cwd).changed_files
-
-
-def create_delegator(
-    rules_config: Path,
-    contributor_config_directory: Path | None = None,
-    repository: Path | None = None,
-) -> Delegator:
-    """Create a delegator from trusted rules and registered component plugins."""
-
-    from ci.components.registry import planners
-
-    config_directory = rules_config.parent
-    components = planners(
-        config_directory,
-        repository or config_directory.parent,
-        contributor_config_directory,
-    )
-    return Delegator(ChangeDetector.from_yaml(rules_config), components)
-
-
-def default_delegator(config_directory: Path | None = None) -> Delegator:
-    """Create the delegator using repository rules and model manifests."""
-
-    config_directory = config_directory or Path(__file__).resolve().parent
-    return create_delegator(
-        config_directory / "change-rules.yaml",
-        repository=config_directory.parent,
-    )
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base")
-    parser.add_argument("--head")
-    parser.add_argument("--changed-file", action="append", default=[])
-    parser.add_argument("--output", type=Path)
-    args = parser.parse_args(argv)
-
-    if args.changed_file and (args.base or args.head):
-        parser.error("use --changed-file or --base/--head, not both")
-    if bool(args.base) != bool(args.head):
-        parser.error("--base and --head must be provided together")
-    if not args.changed_file and not args.base:
-        parser.error("provide --changed-file or --base/--head")
-
-    delegator = default_delegator()
-    plan = (
-        delegator.plan(args.changed_file)
-        if args.changed_file
-        else delegator.plan_context(diff_from_git(args.base, args.head).context())
-    )
-    output = json.dumps(plan, indent=2) + "\n"
-    if args.output:
-        args.output.write_text(output)
-    else:
-        print(output, end="")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

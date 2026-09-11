@@ -4,11 +4,13 @@ import argparse
 import hashlib
 import json
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from ci.change_rules import load_yaml_mapping
-from ci.components.model_path import SYNTHETIC_ADAPTERS
+from mlx_ci.repository.change_rules import load_yaml_mapping
+
+from ci.model_path.component import SYNTHETIC_ADAPTERS
 
 
 def _bert(profile: Mapping[str, Any]) -> tuple[Any, Any]:
@@ -377,13 +379,15 @@ if frozenset(ADAPTERS) != SYNTHETIC_ADAPTERS:
 def _profile(job: Mapping[str, Any], profiles: Mapping[str, Any]) -> Mapping[str, Any]:
     synthetic = job.get("synthetic")
     if not isinstance(synthetic, Mapping):
-        raise ValueError("ModelPath work has no synthetic configuration")
+        raise ValueError(  # noqa: TRY004
+            "ModelPath work has no synthetic configuration"
+        )
     name = synthetic.get("profile")
     if not isinstance(name, str) or name not in profiles:
         raise ValueError("synthetic profile is not configured")
     value = profiles[name]
     if not isinstance(value, Mapping):
-        raise ValueError("synthetic profile must be an object")
+        raise ValueError("synthetic profile must be an object")  # noqa: TRY004
     if value.get("base"):
         base = profiles.get(value["base"])
         if not isinstance(base, Mapping):
