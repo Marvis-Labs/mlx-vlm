@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import statistics
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -69,6 +70,42 @@ def metric_verdict(name: str, change_pct: float, threshold: float = 5.0) -> str:
     return "improved" if change_pct < 0 else "regressed"
 
 
+def measurement_interval(
+    measurement: Mapping[str, Any], name: str
+) -> tuple[float, float] | None:
+    runs = measurement.get("runs")
+    if not isinstance(runs, Sequence) or isinstance(runs, str | bytes) or len(runs) < 6:
+        return None
+    values = [
+        float(run[name]) for run in runs if isinstance(run, Mapping) and name in run
+    ]
+    if len(values) != len(runs):
+        return None
+    lower, _, upper = statistics.quantiles(values, n=4, method="inclusive")
+    return round(lower, 4), round(upper, 4)
+
+
+def measured_metric_verdict(
+    name: str,
+    change_pct: float,
+    base: Mapping[str, Any],
+    head: Mapping[str, Any],
+) -> tuple[str, dict[str, list[float]] | None]:
+    verdict = metric_verdict(name, change_pct)
+    base_interval = measurement_interval(base, name)
+    head_interval = measurement_interval(head, name)
+    if verdict == "noise" or base_interval is None or head_interval is None:
+        return verdict, None
+    intervals = {
+        "base_iqr": list(base_interval),
+        "head_iqr": list(head_interval),
+    }
+    separated = (
+        head_interval[0] > base_interval[1] or base_interval[0] > head_interval[1]
+    )
+    return (verdict if separated else "inconclusive"), intervals
+
+
 def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
     metrics: dict[str, dict[str, Any]] = {}
     unavailable_metrics: dict[str, dict[str, Any]] = {}
@@ -92,13 +129,16 @@ def compare(base: Mapping[str, Any], head: Mapping[str, Any]) -> dict[str, Any]:
         base_value = float(base[name])
         head_value = float(head[name])
         change_pct = ((head_value - base_value) / base_value * 100) if base_value else 0
+        verdict, variability = measured_metric_verdict(name, change_pct, base, head)
         metrics[name] = {
             "base": round(base_value, 4),
             "head": round(head_value, 4),
             "change_pct": round(change_pct, 2),
-            "verdict": metric_verdict(name, change_pct),
+            "verdict": verdict,
             "unit": unit,
         }
+        if variability is not None:
+            metrics[name]["variability"] = variability
 
     hashes_match = base.get("output_hash") == head.get("output_hash")
     checks = [base.get("correctness_checks"), head.get("correctness_checks")]

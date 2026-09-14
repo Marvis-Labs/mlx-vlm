@@ -1,5 +1,6 @@
 from ci.model_path.checkpoint_compare import (
     compare,
+    measured_metric_verdict,
     merge_measurements,
     metric_verdict,
     needs_counterbalance,
@@ -102,3 +103,34 @@ def test_counterbalance_confirms_improvements_and_regressions_only():
     assert needs_counterbalance(compare(measurements(), measurements(prefill_tps=110)))
     assert needs_counterbalance(compare(measurements(), measurements(prefill_tps=90)))
     assert not needs_counterbalance(compare(measurements(), measurements()))
+
+
+def test_counterbalanced_variability_must_not_be_reported_as_improvement():
+    base = measurements(prefill_tps=110)
+    head = measurements(prefill_tps=120)
+    base["runs"] = [
+        measurements(prefill_tps=value) for value in (90, 100, 110, 120, 130, 140)
+    ]
+    head["runs"] = [
+        measurements(prefill_tps=value) for value in (100, 110, 120, 130, 140, 150)
+    ]
+
+    verdict, intervals = measured_metric_verdict("prefill_tps", 9.09, base, head)
+
+    assert verdict == "inconclusive"
+    assert intervals == {"base_iqr": [102.5, 127.5], "head_iqr": [112.5, 137.5]}
+
+
+def test_counterbalanced_separation_confirms_improvement():
+    base = measurements(prefill_tps=100)
+    head = measurements(prefill_tps=120)
+    base["runs"] = [
+        measurements(prefill_tps=value) for value in (97, 98, 99, 100, 101, 102)
+    ]
+    head["runs"] = [
+        measurements(prefill_tps=value) for value in (117, 118, 119, 120, 121, 122)
+    ]
+
+    verdict, _ = measured_metric_verdict("prefill_tps", 20, base, head)
+
+    assert verdict == "improved"
