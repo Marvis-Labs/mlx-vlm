@@ -1,4 +1,9 @@
-from ci.model_path.checkpoint_compare import compare, merge_measurements, metric_verdict
+from ci.model_path.checkpoint_compare import (
+    compare,
+    merge_measurements,
+    metric_verdict,
+    needs_counterbalance,
+)
 
 
 def measurements(**overrides):
@@ -91,3 +96,9 @@ def test_merge_measurements_counterbalances_order_drift():
     assert merged["prefill_tps"] == 110.0
     assert merged["ttft_ms"] == 450.0
     assert len(merged["runs"]) == 2
+
+
+def test_counterbalance_confirms_improvements_and_regressions_only():
+    assert needs_counterbalance(compare(measurements(), measurements(prefill_tps=110)))
+    assert needs_counterbalance(compare(measurements(), measurements(prefill_tps=90)))
+    assert not needs_counterbalance(compare(measurements(), measurements()))

@@ -140,6 +140,15 @@ def merge_measurements(*measurements: Mapping[str, Any]) -> dict[str, Any]:
     return aggregate(runs)
 
 
+def needs_counterbalance(result: Mapping[str, Any]) -> bool:
+    metrics = result.get("metrics")
+    return isinstance(metrics, Mapping) and any(
+        isinstance(metric, Mapping)
+        and metric.get("verdict") in {"improved", "regressed"}
+        for metric in metrics.values()
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job", type=Path, required=True)
@@ -174,7 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             head_output,
         )
         result = compare(base, head)
-        if result["verdict"] == "regressed":
+        if needs_counterbalance(result):
             confirmation_head = run_probe(
                 args.head,
                 args.probe,
