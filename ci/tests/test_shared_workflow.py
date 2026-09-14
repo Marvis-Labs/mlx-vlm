@@ -15,6 +15,7 @@ def test_benchmark_dispatches_only_authorized_identity():
     assert "github.event.comment.body == '/ci run'" in workflow
     assert "collaborators/$COMMENTER/permission" in workflow
     assert "client_payload" in workflow
+    assert "Blaizzy/mlx-vlm" not in workflow
     assert "author_association" not in workflow
     assert "self-hosted" not in workflow
     assert "secrets: inherit" not in workflow
