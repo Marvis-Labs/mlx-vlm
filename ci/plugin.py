@@ -66,6 +66,10 @@ def failure_messages() -> Mapping[str, str]:
     return FAILURE_MESSAGES
 
 
+def phase_environment() -> Mapping[str, str]:
+    return {"CI_NETWORK_DISABLED": "1"}
+
+
 def validate_job(job: Mapping[str, Any]) -> None:
     common = {
         "id",

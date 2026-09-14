@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from mlx_ci.repository.probe_process import run_project_probe
+from mlx_ci.repository.isolated_probe import run_project_probe
 
 from ci.model_path.checkpoint_probe import aggregate
 
