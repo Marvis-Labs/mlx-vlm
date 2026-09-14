@@ -90,7 +90,7 @@ def measured_metric_verdict(
     change_pct: float,
     base: Mapping[str, Any],
     head: Mapping[str, Any],
-) -> tuple[str, dict[str, list[float]] | None]:
+) -> tuple[str, dict[str, Any] | None]:
     verdict = metric_verdict(name, change_pct)
     base_interval = measurement_interval(base, name)
     head_interval = measurement_interval(head, name)
@@ -100,6 +100,13 @@ def measured_metric_verdict(
         "base_iqr": list(base_interval),
         "head_iqr": list(head_interval),
     }
+    base_variation = round_variation(base, name)
+    head_variation = round_variation(head, name)
+    if base_variation is not None and head_variation is not None:
+        intervals["base_round_variation_pct"] = base_variation
+        intervals["head_round_variation_pct"] = head_variation
+        if max(base_variation, head_variation) >= 5.0:
+            return "inconclusive", intervals
     separated = (
         head_interval[0] > base_interval[1] or base_interval[0] > head_interval[1]
     )
@@ -177,7 +184,27 @@ def merge_measurements(*measurements: Mapping[str, Any]) -> dict[str, Any]:
         for measurement in measurements
         for run in measurement.get("runs", [measurement])
     ]
-    return aggregate(runs)
+    result = aggregate(runs)
+    result["rounds"] = [
+        {key: value for key, value in measurement.items() if key != "runs"}
+        for measurement in measurements
+    ]
+    return result
+
+
+def round_variation(measurement: Mapping[str, Any], name: str) -> float | None:
+    rounds = measurement.get("rounds")
+    if not isinstance(rounds, Sequence) or isinstance(rounds, str | bytes):
+        return None
+    values = [
+        float(round_value[name])
+        for round_value in rounds
+        if isinstance(round_value, Mapping) and name in round_value
+    ]
+    if len(values) != len(rounds) or len(values) < 2:
+        return None
+    midpoint = statistics.median(values)
+    return round((max(values) - min(values)) / midpoint * 100, 2) if midpoint else 0.0
 
 
 def needs_counterbalance(result: Mapping[str, Any]) -> bool:

@@ -97,6 +97,7 @@ def test_merge_measurements_counterbalances_order_drift():
     assert merged["prefill_tps"] == 110.0
     assert merged["ttft_ms"] == 450.0
     assert len(merged["runs"]) == 2
+    assert len(merged["rounds"]) == 2
 
 
 def test_counterbalance_confirms_improvements_and_regressions_only():
@@ -134,3 +135,22 @@ def test_counterbalanced_separation_confirms_improvement():
     verdict, _ = measured_metric_verdict("prefill_tps", 20, base, head)
 
     assert verdict == "improved"
+
+
+def test_counterbalanced_rounds_must_reproduce_the_signal():
+    base = measurements(prefill_tps=100)
+    head = measurements(prefill_tps=120)
+    base["runs"] = [
+        measurements(prefill_tps=value) for value in (97, 98, 99, 100, 101, 102)
+    ]
+    head["runs"] = [
+        measurements(prefill_tps=value) for value in (117, 118, 119, 120, 121, 122)
+    ]
+    base["rounds"] = [measurements(prefill_tps=99), measurements(prefill_tps=101)]
+    head["rounds"] = [measurements(prefill_tps=110), measurements(prefill_tps=130)]
+
+    verdict, variability = measured_metric_verdict("prefill_tps", 20, base, head)
+
+    assert verdict == "inconclusive"
+    assert variability["base_round_variation_pct"] == 2.0
+    assert variability["head_round_variation_pct"] == 16.67
