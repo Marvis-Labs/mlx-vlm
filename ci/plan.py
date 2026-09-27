@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import tempfile
+from pathlib import Path, PurePosixPath
+from typing import Any, Iterable
+
+GIB = 1 << 30
+FAMILY = re.compile(r"[a-z0-9][a-z0-9_]{0,63}\Z")
+MODEL_PREFIX = ("mlx_vlm", "models")
+CATALOG = Path(__file__).resolve().parents[1] / "mlx_vlm" / "tests" / "model_cases.json"
+
+
+class ModelPlanError(ValueError):
+    pass
+
+
+def _families(changed_files: Iterable[str]) -> list[str]:
+    families = set()
+    for changed in changed_files:
+        if not isinstance(changed, str) or "\0" in changed:
+            raise ModelPlanError("changed file is invalid")
+        parts = PurePosixPath(changed).parts
+        if len(parts) >= 4 and parts[:2] == MODEL_PREFIX:
+            family = parts[2]
+            if FAMILY.fullmatch(family) is None:
+                raise ModelPlanError("model family is invalid")
+            families.add(family)
+    return sorted(families)
+
+
+def _synthetic_tests(catalog: dict[str, Any]) -> dict[str, list[str]]:
+    tests: dict[str, list[str]] = {}
+    for case in catalog.get("cases", []):
+        family, case_id = case.get("module"), case.get("id")
+        if not isinstance(family, str) or not isinstance(case_id, str):
+            raise ModelPlanError("model case is invalid")
+        tests.setdefault(family, []).append(
+            f"mlx_vlm/tests/test_models.py::test_model_contract[{case_id}]"
+        )
+    dense = catalog.get("dense", {})
+    if not isinstance(dense, dict):
+        raise ModelPlanError("dense model cases are invalid")
+    for family in dense:
+        tests.setdefault(family, []).append(
+            f"mlx_vlm/tests/test_models.py::test_dense_model[{family}]"
+        )
+    return tests
+
+
+def _resources(checkpoint: dict[str, Any] | None) -> dict[str, int]:
+    resident = checkpoint["tensor_bytes"] if checkpoint else 256 << 20
+    return {
+        "resident_bytes": resident,
+        "fixed_bytes": (2 if checkpoint else 1) * GIB,
+        "bytes_per_unit": (2 << 20) if checkpoint else (256 << 10),
+        "units": 512,
+        "batch_size": 1,
+        "workspace_bytes": 4 * GIB,
+    }
+
+
+def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, Any]:
+    """Return repository CI work for a set of changed paths."""
+    if not isinstance(catalog, dict) or catalog.get("version") != 2:
+        raise ModelPlanError("unsupported model catalog")
+    tests = _synthetic_tests(catalog)
+    checkpoints = catalog.get("ci", {}).get("checkpoints", {})
+    if not isinstance(checkpoints, dict):
+        raise ModelPlanError("checkpoint catalog is invalid")
+    jobs, blocked = [], []
+    for family in _families(changed_files):
+        selectors = tests.get(family)
+        if not selectors:
+            blocked.append(
+                {
+                    "component": "model_path",
+                    "subject": family,
+                    "reason": "model_case_missing",
+                }
+            )
+            continue
+        checkpoint = checkpoints.get(family)
+        if checkpoint is not None:
+            if (
+                not isinstance(checkpoint, dict)
+                or set(checkpoint) != {"repository", "revision", "tensor_bytes"}
+                or not isinstance(checkpoint["tensor_bytes"], int)
+                or checkpoint["tensor_bytes"] <= 0
+            ):
+                raise ModelPlanError(f"checkpoint for {family} is invalid")
+        phases = ["synthetic"]
+        work: dict[str, Any] = {"synthetic": {"selectors": selectors}}
+        artifact = None
+        if checkpoint:
+            phases.append("checkpoint")
+            work["checkpoint"] = {"prompt_tokens": 512, "max_tokens": 16}
+            artifact = {"kind": "huggingface", **checkpoint}
+        jobs.append(
+            {
+                "id": f"model-path-{family}",
+                "component": "model_path",
+                "subject": family,
+                "phases": phases,
+                "work": work,
+                "resources": _resources(checkpoint),
+                "artifact": artifact,
+            }
+        )
+    return {"schema_version": 1, "jobs": jobs, "blocked": blocked}
+
+
+def _write_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, delete=False
+    ) as stream:
+        json.dump(value, stream, sort_keys=True)
+        stream.write("\n")
+        temporary = Path(stream.name)
+    os.replace(temporary, path)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--attempt", required=True, type=Path)
+    parser.add_argument("--catalog", default=CATALOG, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    arguments = parser.parse_args()
+    attempt = json.loads(arguments.attempt.read_text(encoding="utf-8"))
+    catalog = json.loads(arguments.catalog.read_text(encoding="utf-8"))
+    changed_files = attempt.get("changed_files")
+    if not isinstance(changed_files, list):
+        raise ModelPlanError("attempt has no changed files")
+    _write_json(arguments.output, plan_ci(changed_files, catalog))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

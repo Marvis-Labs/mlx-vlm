@@ -1,5 +1,109 @@
 {
   "version": 2,
+  "ci": {
+    "checkpoints": {
+      "deepseek_vl_v2": {
+        "repository": "mlx-community/deepseek-vl2-tiny-4bit",
+        "revision": "4772de7c997d0b115d14593051621bcf0fdcce84",
+        "tensor_bytes": 2099712075
+      },
+      "deepseekocr": {
+        "repository": "mlx-community/DeepSeek-OCR-4bit",
+        "revision": "4958b6b0d46d7dc3cf27556989dab659996ea426",
+        "tensor_bytes": 2451214926
+      },
+      "florence2": {
+        "repository": "mlx-community/Florence-2-base-ft-4bit",
+        "revision": "cfed5ed3e86826b6aa2902abf6cf2e406fd94504",
+        "tensor_bytes": 163524711
+      },
+      "gemma3": {
+        "repository": "mlx-community/gemma-3-4b-it-qat-4bit",
+        "revision": "3d9ef289111449933c22761961f16a5df237ce2a",
+        "tensor_bytes": 2995351814
+      },
+      "gemma3n": {
+        "repository": "mlx-community/gemma-3n-E2B-it-4bit",
+        "revision": "66e7276cfc589073b4f92ebed58c05301f990222",
+        "tensor_bytes": 4462976625
+      },
+      "glm4v": {
+        "repository": "mlx-community/GLM-4.1V-9B-Thinking-4bit",
+        "revision": "74017f107021b8ade1aa0f1f5422e0a0dee0e86c",
+        "tensor_bytes": 7074017754
+      },
+      "glm4v_moe": {
+        "repository": "mlx-community/GLM-4.5V-4bit",
+        "revision": "355a83dee508784046339f5a5a3b4154733db54d",
+        "tensor_bytes": 61857424876
+      },
+      "granite_vision": {
+        "repository": "mlx-community/granite-vision-3.2-2b-4bit",
+        "revision": "351831ab5218b1f66bbfdfd57bd8f20d81ce8baf",
+        "tensor_bytes": 2346291044
+      },
+      "internvl_chat": {
+        "repository": "mlx-community/InternVL3-1B-4bit",
+        "revision": "7927bb6b86987f19398a14eee20a73c45fdb1867",
+        "tensor_bytes": 964986994
+      },
+      "llama4": {
+        "repository": "mlx-community/Llama-4-Scout-17B-16E-Instruct-4bit",
+        "revision": "f89d3ebf0bb8f9b512d6c732aff83937deb55c3e",
+        "tensor_bytes": 61115340220
+      },
+      "llava": {
+        "repository": "mlx-community/llava-1.5-7b-4bit",
+        "revision": "9c5dd50281d1abcf34ed128b5bf0013997f2af3f",
+        "tensor_bytes": 3975094479
+      },
+      "llava_next": {
+        "repository": "mlx-community/llava-v1.6-mistral-7b-4bit",
+        "revision": "e3f381cf0bb6388d01ae1fc9a736948c4057c955",
+        "tensor_bytes": 4258218323
+      },
+      "mistral3": {
+        "repository": "mlx-community/Ministral-3-3B-Instruct-2512-4bit",
+        "revision": "a962dcb09eee4169c890e544c9eb938f1113fdee",
+        "tensor_bytes": 2745210934
+      },
+      "molmo": {
+        "repository": "mlx-community/Molmo-7B-D-0924-4bit",
+        "revision": "5c04b3a418979597b1968e41414ad799c87533e8",
+        "tensor_bytes": 5298715127
+      },
+      "paligemma": {
+        "repository": "mlx-community/paligemma2-3b-mix-224-4bit",
+        "revision": "92d7b1bdd82b493d6d640a567529d480c1c68887",
+        "tensor_bytes": 2299016937
+      },
+      "phi3_v": {
+        "repository": "mlx-community/Phi-3.5-vision-instruct-4bit",
+        "revision": "9055619fe9dec921b8323f689064c23cd2c540d3",
+        "tensor_bytes": 2334279041
+      },
+      "qwen2_5_vl": {
+        "repository": "mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
+        "revision": "46d4cf06a06ffc1a766c214174f9cbed2f45bcab",
+        "tensor_bytes": 3073720461
+      },
+      "qwen2_vl": {
+        "repository": "mlx-community/Qwen2-VL-2B-Instruct-4bit",
+        "revision": "01af461cdb9574acc09084a0ef94e216e142b085",
+        "tensor_bytes": 1245868907
+      },
+      "qwen3_vl": {
+        "repository": "mlx-community/Qwen3-VL-2B-Instruct-4bit",
+        "revision": "9c4f5209e57b31f4b9dfba735de3fb983739c9cc",
+        "tensor_bytes": 1782040921
+      },
+      "qwen3_vl_moe": {
+        "repository": "mlx-community/Qwen3-VL-30B-A3B-Instruct-4bit",
+        "revision": "0555d34cb1ed80c0e61a5635194c70027b4c2ff3",
+        "tensor_bytes": 18252103673
+      }
+    }
+  },
   "cases": [
     {
       "id": "lfm2_encoder",
