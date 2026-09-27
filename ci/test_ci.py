@@ -1,7 +1,9 @@
+import hashlib
 import json
 from pathlib import Path
 
 from ci import plan_ci, render_comment
+from ci.execution_security import ExecutionSecurityError, validate_job
 from ci.output import OutputError, validate_bundle, validate_dispatch
 
 CATALOG = json.loads(
@@ -194,3 +196,38 @@ def test_mixie_renders_missing_device_as_unavailable():
         "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
     )
     assert "Device: unavailable" in rendered
+
+
+def test_runner_execution_rejects_manifest_tampering():
+    job = {
+        "schema_version": 2,
+        "engine": "vlm",
+        "repository": "Marvis-Labs/mlx-vlm",
+        "pull_request": 42,
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "head_repository": "contributor/mlx-vlm",
+        "contract_sha": "a" * 40,
+        "id": "model-path-qwen2_vl",
+        "component": "model_path",
+        "subject": "qwen2_vl",
+        "phases": ["synthetic"],
+        "work": {"synthetic": {"selectors": ["model-contract"]}},
+        "resources": {},
+        "artifact": None,
+        "estimated_peak_bytes": 1,
+        "required_memory_gib": 16,
+        "required_disk_gib": 4,
+    }
+    encoded = json.dumps(
+        job, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode()
+    job["manifest_digest"] = hashlib.sha256(encoded).hexdigest()
+    validate_job(job)
+    job["head_sha"] = "c" * 40
+    try:
+        validate_job(job)
+    except ExecutionSecurityError:
+        pass
+    else:
+        raise AssertionError("tampered manifest was accepted")
