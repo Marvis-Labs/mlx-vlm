@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from ci import plan_ci, render_comment
+from ci.output import OutputError, validate_bundle, validate_dispatch
 
 CATALOG = json.loads(
     (Path(__file__).parents[1] / "mlx_vlm/tests/model_cases.json").read_text()
@@ -108,7 +109,88 @@ def test_output_hides_runner_identity_and_bolds_four_percent():
         "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
     )
     assert "Apple M4 · 16 GB unified memory" in rendered
+    assert "### Mixie" in rendered
     assert "runner" not in rendered.lower()
     assert "**+4.00%**" in rendered
     assert "+3.99%" in rendered and "**+3.99%**" not in rendered
     assert not any(character in rendered for character in "✅❌⚠️⏳")
+
+
+def test_mixie_validates_result_dispatch_and_bundle():
+    run_id, run_attempt = validate_dispatch(
+        {
+            "action": "ci-run-result",
+            "client_payload": {
+                "schema_version": 1,
+                "run_id": 1842,
+                "run_attempt": 2,
+            },
+        }
+    )
+    attempt = {
+        "repository": "Marvis-Labs/mlx-vlm",
+        "pull_request": 42,
+        "run_id": run_id,
+        "run_attempt": run_attempt,
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+    }
+    job = {
+        "id": "model-path-qwen2_vl",
+        "repository": attempt["repository"],
+        "base_sha": attempt["base_sha"],
+        "head_sha": attempt["head_sha"],
+        "manifest_digest": "c" * 64,
+    }
+    result = {"job_id": job["id"], "manifest_digest": job["manifest_digest"]}
+    bundle = {
+        "schema_version": 1,
+        "attempt": attempt,
+        "jobs": {"jobs": [job]},
+        "results": [result],
+        "run_url": "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
+    }
+    validate_bundle(bundle, attempt["repository"], run_id, run_attempt)
+    bundle["results"][0]["manifest_digest"] = "d" * 64
+    try:
+        validate_bundle(bundle, attempt["repository"], run_id, run_attempt)
+    except OutputError:
+        pass
+    else:
+        raise AssertionError("unbound result was accepted")
+
+
+def test_mixie_renders_missing_device_as_unavailable():
+    attempt = {
+        "run_id": 1842,
+        "run_attempt": 1,
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "changed_files": ["mlx_vlm/server/openai.py"],
+    }
+    job = plan_ci(attempt["changed_files"], CATALOG)["jobs"][0]
+    job.update(manifest_digest="c" * 64)
+    result = {
+        "job_id": job["id"],
+        "manifest_digest": job["manifest_digest"],
+        "status": "infrastructure_failure",
+        "device": None,
+        "cache": "not_applicable",
+        "duration_ms": 0,
+        "checks": [
+            {
+                "name": "Runner",
+                "category": "infrastructure",
+                "status": "infrastructure_failure",
+                "detail": "No eligible runner reported a result",
+            }
+        ],
+        "metrics": [],
+    }
+    rendered = render_comment(
+        attempt,
+        {"jobs": [job], "blocked": []},
+        [result],
+        "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
+    )
+    assert "Device: unavailable" in rendered

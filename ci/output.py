@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import argparse
 import html
+import json
 import math
+import os
+import re
+import tempfile
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
 class OutputError(ValueError):
     pass
+
+
+SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 
 COMPONENT_LABELS = {
@@ -105,9 +114,12 @@ def _section(
         lines.extend(["Result has not been reported.", "", "</details>"])
         return lines
     device = result["device"]
-    lines.append(
-        f"Device: {_text(device['chip'])} · {_text(device['memory_gib'])} GB unified memory  "
-    )
+    if device is None:
+        lines.append("Device: unavailable  ")
+    else:
+        lines.append(
+            f"Device: {_text(device['chip'])} · {_text(device['memory_gib'])} GB unified memory  "
+        )
     artifact = job.get("artifact")
     cache = str(result["cache"]).replace("_", " ").capitalize()
     if artifact:
@@ -167,7 +179,9 @@ def render_comment(
         overall = "Pending"
     attempt_id = f"{attempt['run_id']}.{attempt['run_attempt']}"
     lines = [
-        f"<!-- mlx-ci:attempt:{attempt_id} -->",
+        f"<!-- mixie:attempt:{attempt_id} -->",
+        "### Mixie",
+        "",
         f"{overall} — {passed} of {len(jobs)} sections passed",
         "",
         f"PR `{str(attempt['head_sha'])[:8]}` against main "
@@ -177,3 +191,146 @@ def render_comment(
     for job in jobs:
         lines.extend(["", *_section(attempt, job, by_id.get(job["id"]))])
     return "\n".join(lines) + "\n"
+
+
+def validate_dispatch(event: Mapping[str, Any]) -> tuple[int, int]:
+    if (
+        not {"action", "client_payload"}.issubset(event)
+        or event.get("action") != "ci-run-result"
+    ):
+        raise OutputError("unsupported result event")
+    payload = event.get("client_payload")
+    if not isinstance(payload, Mapping) or set(payload) != {
+        "schema_version",
+        "run_id",
+        "run_attempt",
+    }:
+        raise OutputError("result event fields are invalid")
+    if payload["schema_version"] != 1 or type(payload["schema_version"]) is not int:
+        raise OutputError("unsupported result event version")
+    run_id, run_attempt = payload["run_id"], payload["run_attempt"]
+    if (
+        type(run_id) is not int
+        or not 1 <= run_id <= 10**18
+        or type(run_attempt) is not int
+        or not 1 <= run_attempt <= 1_000
+    ):
+        raise OutputError("result run identity is invalid")
+    return run_id, run_attempt
+
+
+def validate_bundle(
+    bundle: Mapping[str, Any], repository: str, run_id: int, run_attempt: int
+) -> tuple[Mapping[str, Any], Mapping[str, Any], list[Mapping[str, Any]], str]:
+    if not isinstance(bundle, Mapping) or set(bundle) != {
+        "schema_version",
+        "attempt",
+        "jobs",
+        "results",
+        "run_url",
+    }:
+        raise OutputError("result bundle fields are invalid")
+    if bundle["schema_version"] != 1 or type(bundle["schema_version"]) is not int:
+        raise OutputError("unsupported result bundle version")
+    attempt, jobs_document, results = (
+        bundle["attempt"],
+        bundle["jobs"],
+        bundle["results"],
+    )
+    if not isinstance(attempt, Mapping) or not isinstance(jobs_document, Mapping):
+        raise OutputError("result bundle identity is invalid")
+    if (
+        attempt.get("repository") != repository
+        or attempt.get("run_id") != run_id
+        or attempt.get("run_attempt") != run_attempt
+        or not isinstance(attempt.get("pull_request"), int)
+        or SHA.fullmatch(str(attempt.get("base_sha", ""))) is None
+        or SHA.fullmatch(str(attempt.get("head_sha", ""))) is None
+    ):
+        raise OutputError("result bundle does not match this run")
+    jobs = jobs_document.get("jobs")
+    if not isinstance(jobs, list) or not isinstance(results, list):
+        raise OutputError("result bundle work is invalid")
+    by_id = {
+        result.get("job_id"): result
+        for result in results
+        if isinstance(result, Mapping)
+    }
+    if len(by_id) != len(results) or len(results) != len(jobs):
+        raise OutputError("result bundle is incomplete")
+    for job in jobs:
+        if not isinstance(job, Mapping):
+            raise OutputError("result bundle job is invalid")
+        result = by_id.get(job.get("id"))
+        if (
+            result is None
+            or result.get("manifest_digest") != job.get("manifest_digest")
+            or job.get("repository") != repository
+            or job.get("base_sha") != attempt["base_sha"]
+            or job.get("head_sha") != attempt["head_sha"]
+        ):
+            raise OutputError("result is not bound to its sealed job")
+    run_url = bundle["run_url"]
+    expected = f"https://github.com/Marvis-Labs/mlx-ci/actions/runs/{run_id}"
+    if run_url != expected:
+        raise OutputError("result run URL is invalid")
+    return attempt, jobs_document, results, run_url
+
+
+def _read(path: Path) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000:
+        raise OutputError("input must be a bounded regular file")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise OutputError("input is invalid JSON") from error
+    if not isinstance(value, dict):
+        raise OutputError("input must be an object")
+    return value
+
+
+def _write(path: Path, value: str) -> None:
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, delete=False
+    ) as stream:
+        stream.write(value)
+        temporary = Path(stream.name)
+    os.replace(temporary, path)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    dispatch = subparsers.add_parser("dispatch")
+    dispatch.add_argument("--event", required=True, type=Path)
+    dispatch.add_argument("--github-output", required=True, type=Path)
+    comment = subparsers.add_parser("comment")
+    comment.add_argument("--bundle", required=True, type=Path)
+    comment.add_argument("--repository", required=True)
+    comment.add_argument("--run-id", required=True, type=int)
+    comment.add_argument("--run-attempt", required=True, type=int)
+    comment.add_argument("--output", required=True, type=Path)
+    comment.add_argument("--request", required=True, type=Path)
+    comment.add_argument("--github-output", required=True, type=Path)
+    arguments = parser.parse_args()
+    if arguments.command == "dispatch":
+        run_id, run_attempt = validate_dispatch(_read(arguments.event))
+        with arguments.github_output.open("a", encoding="utf-8") as stream:
+            stream.write(f"run_id={run_id}\nrun_attempt={run_attempt}\n")
+        return 0
+    attempt, jobs, results, run_url = validate_bundle(
+        _read(arguments.bundle),
+        arguments.repository,
+        arguments.run_id,
+        arguments.run_attempt,
+    )
+    body = render_comment(attempt, jobs, results, run_url)
+    _write(arguments.output, body)
+    _write(arguments.request, json.dumps({"body": body}, ensure_ascii=False) + "\n")
+    with arguments.github_output.open("a", encoding="utf-8") as stream:
+        stream.write(f"pull_request={attempt['pull_request']}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
