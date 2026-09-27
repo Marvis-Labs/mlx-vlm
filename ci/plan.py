@@ -11,6 +11,23 @@ from typing import Any, Iterable
 GIB = 1 << 30
 FAMILY = re.compile(r"[a-z0-9][a-z0-9_]{0,63}\Z")
 MODEL_PREFIX = ("mlx_vlm", "models")
+SERVER_PREFIX = ("mlx_vlm", "server")
+SERVER_TEST = "mlx_vlm/tests/test_server.py"
+SERVER_PROFILES = {
+    "anthropic.py": "anthropic",
+    "audio.py": "audio",
+    "embeddings.py": "embeddings",
+    "generation.py": "generation",
+    "model_discovery.py": "model_discovery",
+    "openai.py": "openai",
+    "realtime.py": "realtime",
+    "request_normalization.py": "openai",
+    "reranking.py": "reranking",
+    "responses_state.py": "openai",
+    "runtime.py": "runtime",
+    "runtime_config.py": "runtime",
+    "schemas.py": "openai",
+}
 CATALOG = Path(__file__).resolve().parents[1] / "mlx_vlm" / "tests" / "model_cases.json"
 
 
@@ -18,11 +35,18 @@ class ModelPlanError(ValueError):
     pass
 
 
-def _families(changed_files: Iterable[str]) -> list[str]:
-    families = set()
+def _paths(changed_files: Iterable[str]) -> tuple[str, ...]:
+    paths = []
     for changed in changed_files:
         if not isinstance(changed, str) or "\0" in changed:
             raise ModelPlanError("changed file is invalid")
+        paths.append(changed)
+    return tuple(paths)
+
+
+def _families(changed_files: Iterable[str]) -> list[str]:
+    families = set()
+    for changed in changed_files:
         parts = PurePosixPath(changed).parts
         if len(parts) >= 4 and parts[:2] == MODEL_PREFIX:
             family = parts[2]
@@ -30,6 +54,17 @@ def _families(changed_files: Iterable[str]) -> list[str]:
                 raise ModelPlanError("model family is invalid")
             families.add(family)
     return sorted(families)
+
+
+def _server_profiles(changed_files: Iterable[str]) -> list[str]:
+    profiles = set()
+    for changed in changed_files:
+        if changed == SERVER_TEST:
+            return ["all"]
+        parts = PurePosixPath(changed).parts
+        if len(parts) == 3 and parts[:2] == SERVER_PREFIX:
+            profiles.add(SERVER_PROFILES.get(parts[2], "core"))
+    return sorted(profiles)
 
 
 def _synthetic_tests(catalog: dict[str, Any]) -> dict[str, list[str]]:
@@ -67,6 +102,7 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
     """Return repository CI work for a set of changed paths."""
     if not isinstance(catalog, dict) or catalog.get("version") != 2:
         raise ModelPlanError("unsupported model catalog")
+    changed_files = _paths(changed_files)
     tests = _synthetic_tests(catalog)
     checkpoints = catalog.get("ci", {}).get("checkpoints", {})
     if not isinstance(checkpoints, dict):
@@ -108,6 +144,31 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                 "work": work,
                 "resources": _resources(checkpoint),
                 "artifact": artifact,
+            }
+        )
+    profiles = _server_profiles(changed_files)
+    if profiles:
+        jobs.append(
+            {
+                "id": "server-change",
+                "component": "server_change",
+                "subject": "server",
+                "phases": ["server_contract"],
+                "work": {
+                    "server_contract": {
+                        "profiles": profiles,
+                        "selectors": [SERVER_TEST],
+                    }
+                },
+                "resources": {
+                    "resident_bytes": 256 << 20,
+                    "fixed_bytes": 1 * GIB,
+                    "bytes_per_unit": 0,
+                    "units": 0,
+                    "batch_size": 1,
+                    "workspace_bytes": 2 * GIB,
+                },
+                "artifact": None,
             }
         )
     return {"schema_version": 1, "jobs": jobs, "blocked": blocked}

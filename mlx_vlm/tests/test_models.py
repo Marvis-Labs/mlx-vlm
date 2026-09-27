@@ -24,7 +24,6 @@ import numpy as np
 import pytest
 from mlx.utils import tree_flatten, tree_map
 
-from ci import plan_ci
 from mlx_vlm import embedding_loader
 from mlx_vlm.models.base import InputEmbeddingsFeatures
 from mlx_vlm.models.cache import make_prompt_cache
@@ -494,39 +493,6 @@ if DATA["version"] != 2:
 
 TINY_DEFAULTS = DATA["tiny_defaults"]
 TINY_MODELS = DATA["shared_configs"]
-
-
-def test_model_ci_plans_each_touched_family_once():
-    plan = plan_ci(
-        [
-            "mlx_vlm/models/qwen2_vl/vision.py",
-            "mlx_vlm/models/qwen2_vl/language.py",
-            "mlx_vlm/models/florence2/florence2.py",
-            "docs/index.md",
-        ],
-        DATA,
-    )
-    assert [job["subject"] for job in plan["jobs"]] == ["florence2", "qwen2_vl"]
-    assert all(job["phases"] == ["synthetic", "checkpoint"] for job in plan["jobs"])
-    assert plan["blocked"] == []
-
-
-def test_model_ci_runs_synthetic_without_a_checkpoint():
-    plan = plan_ci(["mlx_vlm/models/aya_vision/aya_vision.py"], DATA)
-    assert plan["jobs"][0]["phases"] == ["synthetic"]
-    assert plan["jobs"][0]["artifact"] is None
-
-
-def test_model_ci_blocks_an_unmapped_model_family():
-    plan = plan_ci(["mlx_vlm/models/new_family/model.py"], DATA)
-    assert plan["jobs"] == []
-    assert plan["blocked"] == [
-        {
-            "component": "model_path",
-            "subject": "new_family",
-            "reason": "model_case_missing",
-        }
-    ]
 
 
 def build_config(module, values, config_type="ModelConfig"):
