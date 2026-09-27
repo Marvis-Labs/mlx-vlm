@@ -1,0 +1,114 @@
+import json
+from pathlib import Path
+
+from ci import plan_ci, render_comment
+
+CATALOG = json.loads(
+    (Path(__file__).parents[1] / "mlx_vlm/tests/model_cases.json").read_text()
+)
+
+
+def test_model_path_planning():
+    plan = plan_ci(
+        [
+            "mlx_vlm/models/qwen2_vl/vision.py",
+            "mlx_vlm/models/qwen2_vl/language.py",
+            "mlx_vlm/models/florence2/florence2.py",
+        ],
+        CATALOG,
+    )
+    assert [job["subject"] for job in plan["jobs"]] == ["florence2", "qwen2_vl"]
+    assert all(job["phases"] == ["synthetic", "checkpoint"] for job in plan["jobs"])
+
+
+def test_model_path_without_checkpoint_and_missing_case():
+    synthetic = plan_ci(["mlx_vlm/models/aya_vision/aya_vision.py"], CATALOG)
+    assert synthetic["jobs"][0]["phases"] == ["synthetic"]
+    assert synthetic["jobs"][0]["artifact"] is None
+    blocked = plan_ci(["mlx_vlm/models/new_family/model.py"], CATALOG)
+    assert blocked["jobs"] == []
+    assert blocked["blocked"][0]["reason"] == "model_case_missing"
+
+
+def test_server_change_is_one_independent_job():
+    plan = plan_ci(
+        [
+            "mlx_vlm/models/qwen2_vl/vision.py",
+            "mlx_vlm/server/openai.py",
+            "mlx_vlm/server/embeddings.py",
+        ],
+        CATALOG,
+    )
+    server = [job for job in plan["jobs"] if job["component"] == "server_change"]
+    assert len(server) == 1
+    assert server[0]["work"]["server_contract"]["profiles"] == [
+        "embeddings",
+        "openai",
+    ]
+    assert server[0]["work"]["server_contract"]["selectors"] == [
+        "mlx_vlm/tests/test_server.py"
+    ]
+
+
+def test_server_test_change_selects_all_profiles():
+    plan = plan_ci(["mlx_vlm/tests/test_server.py"], CATALOG)
+    assert plan["jobs"][0]["component"] == "server_change"
+    assert plan["jobs"][0]["work"]["server_contract"]["profiles"] == ["all"]
+
+
+def test_output_hides_runner_identity_and_bolds_four_percent():
+    attempt = {
+        "run_id": 1842,
+        "run_attempt": 1,
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "changed_files": ["mlx_vlm/server/openai.py"],
+    }
+    job = plan_ci(attempt["changed_files"], CATALOG)["jobs"][0]
+    job.update(manifest_digest="c" * 64)
+    result = {
+        "schema_version": 2,
+        "job_id": "server-change",
+        "manifest_digest": "c" * 64,
+        "status": "passed",
+        "device": {"chip": "Apple M4", "memory_gib": 16},
+        "cache": "not_applicable",
+        "duration_ms": 1250,
+        "checks": [
+            {
+                "name": "Server contract",
+                "category": "correctness",
+                "status": "passed",
+                "detail": "All endpoint tests passed",
+            }
+        ],
+        "metrics": [
+            {
+                "name": "TTFT",
+                "unit": "ms",
+                "base": 100,
+                "head": 104,
+                "change_pct": 4.0,
+                "verdict": "regressed",
+            },
+            {
+                "name": "Wall time",
+                "unit": "ms",
+                "base": 100,
+                "head": 103.99,
+                "change_pct": 3.99,
+                "verdict": "stable",
+            },
+        ],
+    }
+    rendered = render_comment(
+        attempt,
+        {"jobs": [job], "blocked": []},
+        [result],
+        "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
+    )
+    assert "Apple M4 · 16 GB unified memory" in rendered
+    assert "runner" not in rendered.lower()
+    assert "**+4.00%**" in rendered
+    assert "+3.99%" in rendered and "**+3.99%**" not in rendered
+    assert not any(character in rendered for character in "✅❌⚠️⏳")

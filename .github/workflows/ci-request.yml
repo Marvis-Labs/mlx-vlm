@@ -1,0 +1,39 @@
+name: Apple-silicon CI request
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/ci run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
+        with:
+          client-id: ${{ vars.MLX_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MLX_CI_APP_PRIVATE_KEY }}
+          owner: Marvis-Labs
+          repositories: mlx-ci
+          permission-contents: write
+      - name: Request CI
+        env:
+          COMMENT_ID: ${{ github.event.comment.id }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          jq -n \
+            --arg repository "$REPOSITORY" \
+            --argjson pull_request "$PR_NUMBER" \
+            --argjson comment_id "$COMMENT_ID" \
+            '{event_type:"ci-run-request",client_payload:{schema_version:1,engine:"vlm",repository:$repository,pull_request:$pull_request,comment_id:$comment_id}}' \
+            > "$RUNNER_TEMP/request.json"
+          gh api repos/Marvis-Labs/mlx-ci/dispatches \
+            --method POST --input "$RUNNER_TEMP/request.json"
