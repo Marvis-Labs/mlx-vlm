@@ -659,6 +659,28 @@ def test_lfm2_colbert_sanitize_and_loader(tmp_path, monkeypatch):
     assert captured["model_remapping"]["lfm2"] == "lfm2_colbert"
     assert captured["config_overrides"]["embedding_dim"] == 128
 
+    (dense_dir / "config.json").unlink()
+    (tmp_path / "config.json").write_text(
+        json.dumps({"model_type": "lfm2", "mlx": {"head": "colbert", "proj_dim": 96}})
+    )
+    captured.clear()
+    embedding_loader.load_embedding_model(tmp_path)
+    assert captured["model_remapping"]["lfm2"] == "lfm2_colbert"
+    assert captured["config_overrides"]["embedding_dim"] == 96
+
+    native = model.sanitize(
+        {
+            "dense.weight": mx.zeros((8, 16)),
+            "dense.scales": mx.zeros((8, 1)),
+            "dense.biases": mx.zeros((8, 1)),
+        }
+    )
+    assert set(native) == {
+        "projection.weight",
+        "projection.scales",
+        "projection.biases",
+    }
+
 
 @pytest.mark.parametrize("name", DATA["dense"])
 def test_dense_model(name):

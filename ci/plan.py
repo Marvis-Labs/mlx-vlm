@@ -67,35 +67,73 @@ def _server_profiles(changed_files: Iterable[str]) -> list[str]:
     return sorted(profiles)
 
 
-def _synthetic_tests(catalog: dict[str, Any]) -> dict[str, list[str]]:
-    tests: dict[str, list[str]] = {}
+def _model_tests(catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    tests: dict[str, dict[str, Any]] = {}
     for case in catalog.get("cases", []):
         family, case_id = case.get("module"), case.get("id")
         if not isinstance(family, str) or not isinstance(case_id, str):
             raise ModelPlanError("model case is invalid")
-        tests.setdefault(family, []).append(
+        model = tests.setdefault(
+            family, {"selectors": [], "checks": set(), "batch_size": 1}
+        )
+        model["selectors"].append(
             f"mlx_vlm/tests/test_models.py::test_model_contract[{case_id}]"
         )
+        model["checks"].update(case.get("checks", []))
+        batch_sizes = case.get("multimodal", {}).get("batch_sizes", [])
+        if batch_sizes:
+            model["batch_size"] = max(model["batch_size"], *batch_sizes)
     dense = catalog.get("dense", {})
     if not isinstance(dense, dict):
         raise ModelPlanError("dense model cases are invalid")
     for family in dense:
-        tests.setdefault(family, []).append(
+        model = tests.setdefault(
+            family, {"selectors": [], "checks": set(), "batch_size": 1}
+        )
+        model["selectors"].append(
             f"mlx_vlm/tests/test_models.py::test_dense_model[{family}]"
         )
     return tests
 
 
-def _resources(checkpoint: dict[str, Any] | None) -> dict[str, int]:
+def _resources(
+    checkpoint: dict[str, Any] | None,
+    profile: dict[str, Any] | None = None,
+    batch_size: int = 1,
+) -> dict[str, int]:
     resident = checkpoint["tensor_bytes"] if checkpoint else 256 << 20
+    profile = profile or {}
     return {
         "resident_bytes": resident,
         "fixed_bytes": (2 if checkpoint else 1) * GIB,
         "bytes_per_unit": (2 << 20) if checkpoint else (256 << 10),
-        "units": 512,
-        "batch_size": 1,
+        "units": int(profile.get("prompt_tokens", 512)),
+        "batch_size": max(batch_size, int(profile.get("batch_size", 1))),
         "workspace_bytes": 4 * GIB,
     }
+
+
+def _validate_profile(
+    family: str, profile: Any, model_checks: list[str]
+) -> dict[str, Any]:
+    if not isinstance(profile, dict):
+        raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+    batch_size = profile.get("batch_size", 1)
+    prompt_tokens = profile.get("prompt_tokens")
+    if (
+        type(batch_size) is not int
+        or not 1 <= batch_size <= 8
+        or type(prompt_tokens) is not int
+        or not 1 <= prompt_tokens <= 8192
+    ):
+        raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+    if "token_embeddings" not in model_checks:
+        max_tokens = profile.get("max_tokens")
+        if type(max_tokens) is not int or not 1 <= max_tokens <= 128:
+            raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+    elif not isinstance(profile.get("texts"), list) or len(profile["texts"]) < 3:
+        raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+    return profile
 
 
 def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, Any]:
@@ -103,7 +141,7 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
     if not isinstance(catalog, dict) or catalog.get("version") != 2:
         raise ModelPlanError("unsupported model catalog")
     changed_files = _paths(changed_files)
-    tests = _synthetic_tests(catalog)
+    tests = _model_tests(catalog)
     ci = catalog.get("ci", {})
     checkpoints = ci.get("checkpoints", {})
     profiles = ci.get("checkpoint_profiles", {})
@@ -118,8 +156,8 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
         raise ModelPlanError("checkpoint profiles are invalid")
     jobs, blocked = [], []
     for family in _families(changed_files):
-        selectors = tests.get(family)
-        if not selectors:
+        model_test = tests.get(family)
+        if not model_test:
             blocked.append(
                 {
                     "component": "model_path",
@@ -128,7 +166,11 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                 }
             )
             continue
+        selectors = model_test["selectors"]
+        model_checks = sorted(model_test["checks"])
+        test_batch_size = model_test["batch_size"]
         checkpoint = checkpoints.get(family)
+        profile = None
         if checkpoint is not None:
             if (
                 not isinstance(checkpoint, dict)
@@ -140,15 +182,20 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
             ):
                 raise ModelPlanError(f"checkpoint for {family} is invalid")
             profile_name = checkpoint.get("profile", default_profile)
-            profile = profiles.get(profile_name)
-            if not isinstance(profile, dict):
-                raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+            profile = _validate_profile(
+                family, profiles.get(profile_name), model_checks
+            )
         phases = ["synthetic"]
         work: dict[str, Any] = {"synthetic": {"selectors": selectors}}
         artifact = None
         if checkpoint:
             phases.append("checkpoint")
-            work["checkpoint"] = {"profile": profile_name, **profile}
+            work["checkpoint"] = {
+                "profile": profile_name,
+                "model_checks": model_checks,
+                **profile,
+                "batch_size": max(test_batch_size, int(profile.get("batch_size", 1))),
+            }
             artifact = {
                 "kind": "huggingface",
                 **{
@@ -163,7 +210,7 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                 "subject": family,
                 "phases": phases,
                 "work": work,
-                "resources": _resources(checkpoint),
+                "resources": _resources(checkpoint, profile, test_batch_size),
                 "artifact": artifact,
             }
         )

@@ -27,5 +27,12 @@ class Model(Lfm2BidirectionalModel):
 
     def sanitize(self, weights):
         out = super().sanitize(weights)
-        out["projection.weight"] = out.pop("model.1_Dense.linear.weight")
+        for source, target in (
+            ("model.1_Dense.linear.weight", "projection.weight"),
+            ("model.dense.weight", "projection.weight"),
+            ("model.dense.scales", "projection.scales"),
+            ("model.dense.biases", "projection.biases"),
+        ):
+            if source in out:
+                out[target] = out.pop(source)
         return out
