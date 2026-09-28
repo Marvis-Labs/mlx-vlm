@@ -469,6 +469,8 @@ class LanguageModel(nn.Module):
             cache,
         )
         out = self.lm_head(decoder_outputs)
+        for _ in range(4):
+            mx.eval(mx.sum(out))
         return LanguageModelOutput(
             logits=out,
             encoder_outputs=encoder_outputs,
