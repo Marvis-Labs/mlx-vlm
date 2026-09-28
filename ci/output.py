@@ -196,7 +196,9 @@ def render_comment(
     statuses = [_section_status(by_id.get(job["id"])) for job in jobs]
     passed = statuses.count("Passed")
     total = len(jobs) + len(blocked)
-    if blocked:
+    if not total:
+        overall = "Not covered"
+    elif blocked:
         overall = "Blocked"
     elif jobs and passed == len(jobs):
         overall = "Passed"
@@ -213,7 +215,11 @@ def render_comment(
         f"<!-- mixie:attempt:{attempt_id} -->",
         "### Mixie",
         "",
-        f"{overall} — {passed} of {total} sections passed",
+        (
+            "Not covered — no registered CI change type matched"
+            if not total
+            else f"{overall} — {passed} of {total} sections passed"
+        ),
         "",
         f"PR `{str(attempt['head_sha'])[:8]}` against main "
         f"`{str(attempt['base_sha'])[:8]}` · Attempt `{attempt_id}` · "

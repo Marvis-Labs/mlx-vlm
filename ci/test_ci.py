@@ -319,6 +319,23 @@ def test_mixie_renders_blocked_work_as_a_terminal_section():
     assert "No synthetic model case is registered for this family." in rendered
 
 
+def test_mixie_reports_when_no_change_type_matches():
+    rendered = render_comment(
+        {
+            "run_id": 1842,
+            "run_attempt": 1,
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+            "changed_files": ["mlx_vlm/convert.py"],
+        },
+        {"jobs": [], "blocked": []},
+        [],
+        "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
+    )
+    assert "Not covered — no registered CI change type matched" in rendered
+    assert "Pending" not in rendered
+
+
 def test_mixie_renders_each_coalesced_command_as_a_new_notice():
     pull_request, rendered = render_coalesced(
         {
