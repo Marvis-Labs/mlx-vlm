@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import statistics
 import subprocess
 import sys
 import time
@@ -181,8 +182,13 @@ def _checkpoint(
     if type(max_tokens) is not int or not 1 <= max_tokens <= 128:
         raise ValueError("checkpoint token count is invalid")
     encoded = json.dumps(configuration, separators=(",", ":"))
-    observations = []
-    for project in (base, head):
+    observations = {"base": [], "head": []}
+    for label, project in (
+        ("base", base),
+        ("head", head),
+        ("head", head),
+        ("base", base),
+    ):
         result = _run(
             [
                 sys.executable,
@@ -199,8 +205,8 @@ def _checkpoint(
             raise RuntimeError(
                 result.stderr.strip()[-500:] or "checkpoint probe failed"
             )
-        observations.append(json.loads(result.stdout.strip().splitlines()[-1]))
-    base_result, head_result = observations
+        observations[label].append(json.loads(result.stdout.strip().splitlines()[-1]))
+    base_results, head_results = observations["base"], observations["head"]
     metrics = []
     for name, unit, higher_is_better in (
         ("prefill_tps", "tok/s", True),
@@ -209,7 +215,8 @@ def _checkpoint(
         ("wall_ms", "ms", False),
         ("peak_memory_gib", "GiB", False),
     ):
-        base_value, head_value = float(base_result[name]), float(head_result[name])
+        base_value = statistics.median(float(result[name]) for result in base_results)
+        head_value = statistics.median(float(result[name]) for result in head_results)
         change = (
             0.0 if base_value == 0 else (head_value - base_value) / base_value * 100
         )
@@ -226,7 +233,9 @@ def _checkpoint(
                 "verdict": verdict,
             }
         )
-    match = base_result["text"] == head_result["text"]
+    base_texts = {result["text"] for result in base_results}
+    head_texts = {result["text"] for result in head_results}
+    match = len(base_texts) == len(head_texts) == 1 and base_texts == head_texts
     if not match:
         for metric in metrics:
             metric["verdict"] = "advisory"

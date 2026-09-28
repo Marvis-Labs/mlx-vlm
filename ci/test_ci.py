@@ -6,7 +6,7 @@ from pathlib import Path
 from ci import plan_ci, render_comment
 from ci.execution_security import ExecutionSecurityError, validate_job
 from ci.output import OutputError, render_coalesced, validate_bundle, validate_dispatch
-from ci.work_executor import _server_contract, execute
+from ci.work_executor import _checkpoint, _server_contract, execute
 
 CATALOG = json.loads(
     (Path(__file__).parents[1] / "mlx_vlm/tests/model_cases.json").read_text()
@@ -131,6 +131,31 @@ def test_synthetic_failure_identifies_pr_and_stops_before_checkpoint(monkeypatch
             "detail": "PR tiny random-weight contract failed",
         }
     ]
+
+
+def test_checkpoint_uses_balanced_order_and_median(monkeypatch):
+    job = plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG)["jobs"][0]
+    projects = []
+    values = iter((100, 80, 84, 104))
+
+    def probe(_, project):
+        projects.append(project)
+        value = next(values)
+        output = {
+            "text": "same",
+            "prefill_tps": value,
+            "decode_tps": value,
+            "ttft_ms": value,
+            "wall_ms": value,
+            "peak_memory_gib": 1,
+        }
+        return subprocess.CompletedProcess([], 0, json.dumps(output), "")
+
+    monkeypatch.setattr("ci.work_executor._run", probe)
+    _, metrics = _checkpoint(job, Path("control"), Path("base"), Path("head"))
+    assert projects == [Path("base"), Path("head"), Path("head"), Path("base")]
+    assert metrics[0]["base"] == 102
+    assert metrics[0]["head"] == 82
 
 
 def test_output_hides_runner_identity_and_bolds_four_percent():
