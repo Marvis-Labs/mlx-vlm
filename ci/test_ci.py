@@ -47,12 +47,30 @@ def test_glm5_next_model_path_uses_its_model_contract():
     ]
 
 
-def test_gemma4_model_path_uses_omni_checkpoint():
-    plan = plan_ci(["mlx_vlm/models/gemma4/audio.py"], CATALOG)
-    job = plan["jobs"][0]
-    assert job["phases"] == ["synthetic", "checkpoint"]
-    assert job["work"]["checkpoint"]["profile"] == "omni"
-    assert job["artifact"]["revision"] == ("238767527555cb75a05732a84dff5d6ba0dd6809")
+def test_omni_models_use_image_and_audio_checkpoint_profile():
+    for family in ("gemma3n", "gemma4"):
+        job = plan_ci([f"mlx_vlm/models/{family}/audio.py"], CATALOG)["jobs"][0]
+        assert job["phases"] == ["synthetic", "checkpoint"]
+        assert job["work"]["checkpoint"]["profile"] == "omni"
+        assert job["work"]["checkpoint"]["assets"] == [
+            "image/image.json",
+            "audio/audio.json",
+        ]
+
+
+def test_qwen3_vl_opts_into_image_batching():
+    job = plan_ci(["mlx_vlm/models/qwen3_vl/vision.py"], CATALOG)["jobs"][0]
+    assert job["work"]["checkpoint"]["profile"] == "image"
+    assert "multimodal" in job["work"]["checkpoint"]["model_checks"]
+    assert job["resources"]["batch_size"] == 2
+
+
+def test_colbert_reuses_token_embedding_contract():
+    job = plan_ci(["mlx_vlm/models/lfm2_colbert/model.py"], CATALOG)["jobs"][0]
+    assert job["work"]["checkpoint"]["model_checks"] == ["token_embeddings"]
+    assert job["artifact"]["tensor_bytes"] == 198948592
+    assert job["resources"]["batch_size"] == 3
+    assert job["resources"]["units"] == 64
 
 
 def test_server_change_is_one_independent_job():
@@ -142,12 +160,14 @@ def test_checkpoint_uses_balanced_order_and_median(monkeypatch):
         projects.append(project)
         value = next(values)
         output = {
-            "text": "same",
-            "prefill_tps": value,
-            "decode_tps": value,
-            "ttft_ms": value,
-            "wall_ms": value,
-            "peak_memory_gib": 1,
+            "signature": ["same"],
+            "metrics": {
+                "prefill_tps": value,
+                "decode_tps": value,
+                "ttft_ms": value,
+                "wall_ms": value,
+                "peak_memory_gib": 1,
+            },
         }
         return subprocess.CompletedProcess([], 0, json.dumps(output), "")
 

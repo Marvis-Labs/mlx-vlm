@@ -19,6 +19,15 @@
         "max_tokens": 16,
         "prompt": "Describe the image and audio briefly.",
         "prompt_tokens": 512
+      },
+      "late_interaction": {
+        "batch_size": 3,
+        "prompt_tokens": 64,
+        "texts": [
+          "A cat sits on a mat.",
+          "A feline is resting on a rug.",
+          "The stock market closed higher today."
+        ]
       }
     },
     "default_checkpoint_profile": "image",
@@ -44,6 +53,7 @@
         "tensor_bytes": 2995351814
       },
       "gemma3n": {
+        "profile": "omni",
         "repository": "mlx-community/gemma-3n-E2B-it-4bit",
         "revision": "66e7276cfc589073b4f92ebed58c05301f990222",
         "tensor_bytes": 4462976625
@@ -53,6 +63,12 @@
         "repository": "mlx-community/gemma-4-e2b-it-4bit",
         "revision": "238767527555cb75a05732a84dff5d6ba0dd6809",
         "tensor_bytes": 3550670554
+      },
+      "lfm2_colbert": {
+        "profile": "late_interaction",
+        "repository": "mlx-community/LFM2.5-ColBERT-350M-4bit",
+        "revision": "9763c9ae0b7e178fb458cfa3f72a7dd181fa48d6",
+        "tensor_bytes": 198948592
       },
       "glm4v": {
         "repository": "mlx-community/GLM-4.1V-9B-Thinking-4bit",

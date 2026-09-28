@@ -46,6 +46,7 @@ for selector in selectors:
 """
 
 CHECKPOINT_PROBE = r"""
+import hashlib
 import json
 import os
 import sys
@@ -54,10 +55,15 @@ import time
 import wave
 from pathlib import Path
 
+import mlx.core as mx
+import numpy as np
 from PIL import Image
 
 sys.path.insert(0, sys.argv[1])
-from mlx_vlm import apply_chat_template, generate, load
+from mlx_vlm import apply_chat_template, batch_generate, generate, load
+from mlx_vlm.embedding_loader import load_embedding_model
+from mlx_vlm.models.pooling import read_pooling_config
+from mlx_vlm.utils import load_processor
 
 path = os.environ["CI_CHECKPOINT_PATH"]
 configuration = json.loads(sys.argv[3])
@@ -82,49 +88,115 @@ def audio_fixture(relative):
         stream.writeframes(b"".join(int(max(-1, min(1, sample)) * 32767).to_bytes(2, "little", signed=True) for sample in samples))
     return str(target)
 
-profile = configuration["profile"]
-image = audio = None
-if profile == "image":
-    image = [image_fixture(configuration["asset"])]
-elif profile == "audio":
-    audio = [audio_fixture(configuration["asset"])]
-elif profile == "omni":
-    image = [image_fixture(configuration["assets"][0])]
-    audio = [audio_fixture(configuration["assets"][1])]
-else:
-    raise ValueError("unsupported checkpoint profile")
+def generation_probe():
+    profile = configuration["profile"]
+    image = audio = None
+    if profile == "image":
+        image = image_fixture(configuration["asset"])
+    elif profile == "audio":
+        audio = audio_fixture(configuration["asset"])
+    elif profile == "omni":
+        image = image_fixture(configuration["assets"][0])
+        audio = audio_fixture(configuration["assets"][1])
+    else:
+        raise ValueError("unsupported generation profile")
+    model, processor = load(path)
+    batch_size = configuration.get("batch_size", 1)
+    prompt = apply_chat_template(
+        processor,
+        model.config,
+        configuration["prompt"],
+        num_images=int(image is not None),
+        num_audios=int(audio is not None),
+    )
+    started = time.perf_counter()
+    if batch_size == 1:
+        result = generate(
+            model,
+            processor,
+            prompt,
+            image=[image] if image else None,
+            audio=[audio] if audio else None,
+            max_tokens=int(sys.argv[2]),
+            temperature=0.0,
+            verbose=False,
+        )
+        texts = [result.text]
+        stats = result
+    else:
+        result = batch_generate(
+            model,
+            processor,
+            images=[image] * batch_size if image else None,
+            audios=[audio] * batch_size if audio else None,
+            prompts=[prompt] * batch_size,
+            max_tokens=int(sys.argv[2]),
+            verbose=False,
+        )
+        texts = result.texts
+        stats = result.stats
+    wall_ms = (time.perf_counter() - started) * 1000
+    ttft_ms = stats.prompt_tokens / stats.prompt_tps * 1000 if stats.prompt_tps > 0 else wall_ms
+    return {
+        "signature": texts,
+        "metrics": {
+            "prefill_tps": stats.prompt_tps,
+            "decode_tps": stats.generation_tps,
+            "ttft_ms": ttft_ms,
+            "wall_ms": wall_ms,
+            "peak_memory_gib": stats.peak_memory,
+        },
+    }
 
-model, processor = load(path)
-prompt = apply_chat_template(
-    processor,
-    model.config,
-    configuration["prompt"],
-    num_images=len(image or []),
-    num_audios=len(audio or []),
+def token_embedding_probe():
+    model_dir = Path(path)
+    model = load_embedding_model(model_dir)
+    model.pooling_config = read_pooling_config(model_dir)
+    processor = load_processor(model_dir, add_detokenizer=False)
+    tokenizer = getattr(processor, "tokenizer", processor)
+    texts = configuration["texts"]
+    encoded = tokenizer(
+        texts,
+        padding=True,
+        truncation=True,
+        max_length=configuration["prompt_tokens"],
+        return_tensors="np",
+    )
+    input_ids = mx.array(encoded["input_ids"])
+    attention_mask = mx.array(encoded["attention_mask"])
+    mx.reset_peak_memory()
+    started = time.perf_counter()
+    output = model(input_ids, attention_mask=attention_mask).text_embeds
+    mx.eval(output)
+    wall_ms = (time.perf_counter() - started) * 1000
+    vectors = np.asarray(output.astype(mx.float32))
+    mask = np.asarray(encoded["attention_mask"], dtype=bool)
+    query = vectors[0][mask[0]]
+    scores = np.asarray([
+        np.max(query @ vectors[index][mask[index]].T, axis=1).sum()
+        for index in range(1, len(vectors))
+    ])
+    if float(scores[0]) <= float(scores[1]):
+        raise RuntimeError("checkpoint failed the semantic ordering fixture")
+    return {
+        "signature": {
+            "digest": hashlib.sha256(vectors.tobytes()).hexdigest(),
+            "shape": list(vectors.shape),
+            "positive_first": True,
+        },
+        "metrics": {
+            "items_per_second": len(texts) / max(wall_ms / 1000, 1e-9),
+            "wall_ms": wall_ms,
+            "peak_memory_gib": mx.get_peak_memory() / 1e9,
+        },
+    }
+
+payload = (
+    token_embedding_probe()
+    if "token_embeddings" in configuration["model_checks"]
+    else generation_probe()
 )
-started = time.perf_counter()
-result = generate(
-    model,
-    processor,
-    prompt,
-    image=image,
-    audio=audio,
-    max_tokens=int(sys.argv[2]),
-    temperature=0.0,
-    verbose=False,
-)
-wall_ms = (time.perf_counter() - started) * 1000
-ttft_ms = (
-    result.prompt_tokens / result.prompt_tps * 1000 if result.prompt_tps > 0 else wall_ms
-)
-print(json.dumps({
-    "text": result.text,
-    "prefill_tps": result.prompt_tps,
-    "decode_tps": result.generation_tps,
-    "ttft_ms": ttft_ms,
-    "wall_ms": wall_ms,
-    "peak_memory_gib": result.peak_memory,
-}, sort_keys=True))
+print(json.dumps(payload, sort_keys=True))
 """
 
 
@@ -178,7 +250,7 @@ def _checkpoint(
     job: Mapping[str, Any], control: Path, base: Path, head: Path
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     configuration = job["work"]["checkpoint"]
-    max_tokens = configuration.get("max_tokens")
+    max_tokens = configuration.get("max_tokens", 1)
     if type(max_tokens) is not int or not 1 <= max_tokens <= 128:
         raise ValueError("checkpoint token count is invalid")
     encoded = json.dumps(configuration, separators=(",", ":"))
@@ -207,23 +279,33 @@ def _checkpoint(
             )
         observations[label].append(json.loads(result.stdout.strip().splitlines()[-1]))
     base_results, head_results = observations["base"], observations["head"]
+    metric_specs = {
+        "items_per_second": ("items/s", True),
+        "prefill_tps": ("tok/s", True),
+        "decode_tps": ("tok/s", True),
+        "ttft_ms": ("ms", False),
+        "wall_ms": ("ms", False),
+        "peak_memory_gib": ("GiB", False),
+    }
+    names = set(base_results[0]["metrics"]) & set(head_results[0]["metrics"])
     metrics = []
-    for name, unit, higher_is_better in (
-        ("prefill_tps", "tok/s", True),
-        ("decode_tps", "tok/s", True),
-        ("ttft_ms", "ms", False),
-        ("wall_ms", "ms", False),
-        ("peak_memory_gib", "GiB", False),
-    ):
-        base_value = statistics.median(float(result[name]) for result in base_results)
-        head_value = statistics.median(float(result[name]) for result in head_results)
+    for name in metric_specs:
+        if name not in names:
+            continue
+        unit, higher_is_better = metric_specs[name]
+        base_value = statistics.median(
+            float(result["metrics"][name]) for result in base_results
+        )
+        head_value = statistics.median(
+            float(result["metrics"][name]) for result in head_results
+        )
         change = (
             0.0 if base_value == 0 else (head_value - base_value) / base_value * 100
         )
         paired_changes = []
         for base_result, head_result in zip(base_results, head_results):
-            paired_base = float(base_result[name])
-            paired_head = float(head_result[name])
+            paired_base = float(base_result["metrics"][name])
+            paired_head = float(head_result["metrics"][name])
             paired_changes.append(
                 0.0
                 if paired_base == 0
@@ -248,9 +330,16 @@ def _checkpoint(
                 "verdict": verdict,
             }
         )
-    base_texts = {result["text"] for result in base_results}
-    head_texts = {result["text"] for result in head_results}
-    match = len(base_texts) == len(head_texts) == 1 and base_texts == head_texts
+    base_signatures = {
+        json.dumps(result["signature"], sort_keys=True) for result in base_results
+    }
+    head_signatures = {
+        json.dumps(result["signature"], sort_keys=True) for result in head_results
+    }
+    match = (
+        len(base_signatures) == len(head_signatures) == 1
+        and base_signatures == head_signatures
+    )
     if not match:
         for metric in metrics:
             metric["verdict"] = "advisory"
@@ -259,9 +348,9 @@ def _checkpoint(
         "category": "correctness",
         "status": "passed" if match else "failed",
         "detail": (
-            "Main and PR generated the same text"
+            "Main and PR produced the same checkpoint output"
             if match
-            else "Main and PR generated different text"
+            else "Main and PR produced different checkpoint output"
         ),
     }, metrics
 

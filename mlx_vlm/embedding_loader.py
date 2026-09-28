@@ -23,6 +23,12 @@ def load_embedding_model(model_path: Path, lazy: bool = False, **kwargs) -> nn.M
             "embedding_dim": load_config(dense_config.parent)["out_features"]
         }
         model_remapping = {**model_remapping, "lfm2": "lfm2_colbert"}
+    else:
+        config = load_config(model_path)
+        mlx_config = config.get("mlx", {})
+        if mlx_config.get("head") == "colbert":
+            config_overrides = {"embedding_dim": mlx_config["proj_dim"]}
+            model_remapping = {**model_remapping, "lfm2": "lfm2_colbert"}
     return load_encoder_model(
         model_path,
         model_remapping=model_remapping,
