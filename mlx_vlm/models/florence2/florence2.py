@@ -329,11 +329,7 @@ class Model(nn.Module):
         decoder_input_ids = mx.array([[decoder_start_token_id]])
         decoder_inputs_embeds = self.language_model.model.shared(decoder_input_ids)
 
-        return InputEmbeddingsFeatures(
-            inputs_embeds=inputs_embeds,
-            attention_mask=attention_mask,  # Use attention_mask for encoder-decoder
-            decoder_inputs_embeds=decoder_inputs_embeds,
-        )
+        return inputs_embeds
 
     def __call__(
         self,
