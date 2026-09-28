@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from ci.execution_security import verify_execution
+from ci.execution_security import ExecutionSecurityError, verify_execution
 
 MODEL_PROBE = r"""
 import importlib
@@ -311,7 +311,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if isinstance(error, subprocess.CalledProcessError) and error.stderr:
             message = error.stderr.strip()
         findings = {
-            "verdict": "test_failure",
+            "verdict": (
+                "infrastructure_failure"
+                if isinstance(error, ExecutionSecurityError)
+                else "test_failure"
+            ),
             "error": f"{type(error).__name__}: {message}"[-500:],
             "metrics": [],
             "duration_ms": int((time.perf_counter() - started) * 1000),
