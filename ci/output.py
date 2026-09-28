@@ -29,6 +29,9 @@ STATUS_LABELS = {
     "skipped": "Skipped",
     "infrastructure_failure": "Infrastructure failure",
 }
+BLOCK_REASONS = {
+    "model_case_missing": "No synthetic model case is registered for this family.",
+}
 
 
 def _text(value: Any) -> str:
@@ -158,6 +161,23 @@ def _section(
     return lines
 
 
+def _blocked_section(blocked: Mapping[str, Any]) -> list[str]:
+    component = str(blocked.get("component", ""))
+    subject = str(blocked.get("subject", ""))
+    reason = BLOCK_REASONS.get(
+        str(blocked.get("reason", "")), "This CI section is not configured."
+    )
+    return [
+        "<details open>",
+        f"<summary><strong>{_text(subject)}</strong> · "
+        f"{_text(COMPONENT_LABELS.get(component, component))} · Blocked</summary>",
+        "",
+        _text(reason),
+        "",
+        "</details>",
+    ]
+
+
 def render_comment(
     attempt: Mapping[str, Any],
     jobs_document: Mapping[str, Any],
@@ -165,12 +185,16 @@ def render_comment(
     run_url: str,
 ) -> str:
     jobs = jobs_document.get("jobs", [])
+    blocked = jobs_document.get("blocked", [])
     by_id = {result.get("job_id"): result for result in results}
     if len(by_id) != len(results):
         raise OutputError("result identifiers are duplicated")
     statuses = [_section_status(by_id.get(job["id"])) for job in jobs]
     passed = statuses.count("Passed")
-    if jobs and passed == len(jobs):
+    total = len(jobs) + len(blocked)
+    if blocked:
+        overall = "Blocked"
+    elif jobs and passed == len(jobs):
         overall = "Passed"
     elif any(status == "Infrastructure failure" for status in statuses):
         overall = "Infrastructure failure"
@@ -183,7 +207,7 @@ def render_comment(
         f"<!-- mixie:attempt:{attempt_id} -->",
         "### Mixie",
         "",
-        f"{overall} — {passed} of {len(jobs)} sections passed",
+        f"{overall} — {passed} of {total} sections passed",
         "",
         f"PR `{str(attempt['head_sha'])[:8]}` against main "
         f"`{str(attempt['base_sha'])[:8]}` · Attempt `{attempt_id}` · "
@@ -191,6 +215,8 @@ def render_comment(
     ]
     for job in jobs:
         lines.extend(["", *_section(attempt, job, by_id.get(job["id"]))])
+    for item in blocked:
+        lines.extend(["", *_blocked_section(item)])
     return "\n".join(lines) + "\n"
 
 

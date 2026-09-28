@@ -39,6 +39,14 @@ def test_model_path_without_checkpoint_and_missing_case():
     assert blocked["blocked"][0]["reason"] == "model_case_missing"
 
 
+def test_glm5_next_model_path_uses_its_model_contract():
+    plan = plan_ci(["mlx_vlm/models/glm5_next/language.py"], CATALOG)
+    assert plan["blocked"] == []
+    assert plan["jobs"][0]["work"]["synthetic"]["selectors"] == [
+        "mlx_vlm/tests/test_models.py::test_model_contract[TestModels.glm5_next]"
+    ]
+
+
 def test_server_change_is_one_independent_job():
     plan = plan_ci(
         [
@@ -233,6 +241,25 @@ def test_mixie_renders_missing_device_as_unavailable():
         "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
     )
     assert "Device: unavailable" in rendered
+
+
+def test_mixie_renders_blocked_work_as_a_terminal_section():
+    attempt = {
+        "run_id": 1842,
+        "run_attempt": 1,
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "changed_files": ["mlx_vlm/models/new_family/model.py"],
+    }
+    rendered = render_comment(
+        attempt,
+        plan_ci(attempt["changed_files"], CATALOG),
+        [],
+        "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
+    )
+    assert "Blocked — 0 of 1 sections passed" in rendered
+    assert "<strong>new_family</strong> · ModelPath · Blocked" in rendered
+    assert "No synthetic model case is registered for this family." in rendered
 
 
 def test_mixie_renders_each_coalesced_command_as_a_new_notice():
