@@ -146,7 +146,7 @@ def _synthetic(
     if not isinstance(selectors, list) or not selectors:
         raise ValueError("synthetic selectors are invalid")
     encoded = json.dumps(selectors, separators=(",", ":"))
-    for project in (base, head):
+    for label, project in (("Main", base), ("PR", head)):
         result = _run(
             [
                 sys.executable,
@@ -159,7 +159,12 @@ def _synthetic(
             project,
         )
         if result.returncode:
-            raise RuntimeError(result.stderr.strip()[-500:] or "synthetic probe failed")
+            return {
+                "name": "Synthetic structure",
+                "category": "correctness",
+                "status": "failed",
+                "detail": f"{label} tiny random-weight contract failed",
+            }
     return {
         "name": "Synthetic structure",
         "category": "correctness",
@@ -291,7 +296,10 @@ def execute(
     checks, metrics = [], []
     for phase in job["phases"]:
         if phase == "synthetic":
-            checks.append(_synthetic(job, control, base, head))
+            check = _synthetic(job, control, base, head)
+            checks.append(check)
+            if check["status"] != "passed":
+                break
         elif phase == "checkpoint":
             check, metrics = _checkpoint(job, control, base, head)
             checks.append(check)

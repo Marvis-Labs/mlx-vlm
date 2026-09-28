@@ -59,6 +59,10 @@ def _section_status(result: Mapping[str, Any] | None) -> str:
     if result is None:
         return "Pending"
     status = str(result.get("status", ""))
+    if status == "passed" and any(
+        metric.get("verdict") == "regressed" for metric in result.get("metrics", [])
+    ):
+        return "Performance regressed"
     if status != "failed":
         return STATUS_LABELS.get(status, "Failed")
     failed = {
@@ -198,6 +202,8 @@ def render_comment(
         overall = "Passed"
     elif any(status == "Infrastructure failure" for status in statuses):
         overall = "Infrastructure failure"
+    elif any(status == "Performance regressed" for status in statuses):
+        overall = "Performance regressed"
     elif any(status not in {"Passed", "Pending"} for status in statuses):
         overall = "Failed"
     else:

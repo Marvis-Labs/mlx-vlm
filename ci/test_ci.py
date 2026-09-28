@@ -6,7 +6,7 @@ from pathlib import Path
 from ci import plan_ci, render_comment
 from ci.execution_security import ExecutionSecurityError, validate_job
 from ci.output import OutputError, render_coalesced, validate_bundle, validate_dispatch
-from ci.work_executor import _server_contract
+from ci.work_executor import _server_contract, execute
 
 CATALOG = json.loads(
     (Path(__file__).parents[1] / "mlx_vlm/tests/model_cases.json").read_text()
@@ -45,6 +45,14 @@ def test_glm5_next_model_path_uses_its_model_contract():
     assert plan["jobs"][0]["work"]["synthetic"]["selectors"] == [
         "mlx_vlm/tests/test_models.py::test_model_contract[TestModels.glm5_next]"
     ]
+
+
+def test_gemma4_model_path_uses_omni_checkpoint():
+    plan = plan_ci(["mlx_vlm/models/gemma4/audio.py"], CATALOG)
+    job = plan["jobs"][0]
+    assert job["phases"] == ["synthetic", "checkpoint"]
+    assert job["work"]["checkpoint"]["profile"] == "omni"
+    assert job["artifact"]["revision"] == ("238767527555cb75a05732a84dff5d6ba0dd6809")
 
 
 def test_server_change_is_one_independent_job():
@@ -104,6 +112,27 @@ def test_server_contract_fails_when_head_fails(monkeypatch):
     assert result["status"] == "failed"
 
 
+def test_synthetic_failure_identifies_pr_and_stops_before_checkpoint(monkeypatch):
+    job = plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG)["jobs"][0]
+    outcomes = iter(
+        [
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 1, "", "contract failed"),
+        ]
+    )
+    monkeypatch.setattr("ci.work_executor._run", lambda *_: next(outcomes))
+    result = execute(job, Path("control"), Path("base"), Path("head"))
+    assert result["verdict"] == "regressed"
+    assert result["checks"] == [
+        {
+            "name": "Synthetic structure",
+            "category": "correctness",
+            "status": "failed",
+            "detail": "PR tiny random-weight contract failed",
+        }
+    ]
+
+
 def test_output_hides_runner_identity_and_bolds_four_percent():
     attempt = {
         "run_id": 1842,
@@ -158,6 +187,8 @@ def test_output_hides_runner_identity_and_bolds_four_percent():
     assert "Apple M4 · 16 GB unified memory" in rendered
     assert "### Mixie" in rendered
     assert "runner" not in rendered.lower()
+    assert "Performance regressed — 0 of 1 sections passed" in rendered
+    assert "ServerChange · Performance regressed" in rendered
     assert "**+4.00%**" in rendered
     assert "+3.99%" in rendered and "**+3.99%**" not in rendered
     assert not any(character in rendered for character in "✅❌⚠️⏳")

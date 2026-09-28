@@ -48,6 +48,12 @@
         "revision": "66e7276cfc589073b4f92ebed58c05301f990222",
         "tensor_bytes": 4462976625
       },
+      "gemma4": {
+        "profile": "omni",
+        "repository": "mlx-community/gemma-4-e2b-it-4bit",
+        "revision": "238767527555cb75a05732a84dff5d6ba0dd6809",
+        "tensor_bytes": 3550670554
+      },
       "glm4v": {
         "repository": "mlx-community/GLM-4.1V-9B-Thinking-4bit",
         "revision": "74017f107021b8ade1aa0f1f5422e0a0dee0e86c",
