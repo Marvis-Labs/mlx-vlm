@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ci import plan_ci, render_comment
 from ci.execution_security import ExecutionSecurityError, validate_job
-from ci.output import OutputError, render_coalesced, validate_bundle, validate_dispatch
+from ci.output import OutputError, render_coalesced, validate_bundle
 from ci.work_executor import _checkpoint, _server_contract, execute
 
 CATALOG = json.loads(
@@ -220,17 +220,8 @@ def test_output_hides_runner_identity_and_bolds_four_percent():
     assert not any(character in rendered for character in "✅❌⚠️⏳")
 
 
-def test_mixie_validates_result_dispatch_and_bundle():
-    run_id, run_attempt = validate_dispatch(
-        {
-            "action": "ci-run-result",
-            "client_payload": {
-                "schema_version": 1,
-                "run_id": 1842,
-                "run_attempt": 2,
-            },
-        }
-    )
+def test_mixie_validates_result_bundle():
+    run_id, run_attempt = 1842, 2
     attempt = {
         "repository": "Marvis-Labs/mlx-vlm",
         "pull_request": 42,

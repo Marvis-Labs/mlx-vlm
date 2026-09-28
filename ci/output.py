@@ -232,32 +232,6 @@ def render_comment(
     return "\n".join(lines) + "\n"
 
 
-def validate_dispatch(event: Mapping[str, Any]) -> tuple[int, int]:
-    if (
-        not {"action", "client_payload"}.issubset(event)
-        or event.get("action") != "ci-run-result"
-    ):
-        raise OutputError("unsupported result event")
-    payload = event.get("client_payload")
-    if not isinstance(payload, Mapping) or set(payload) != {
-        "schema_version",
-        "run_id",
-        "run_attempt",
-    }:
-        raise OutputError("result event fields are invalid")
-    if payload["schema_version"] != 1 or type(payload["schema_version"]) is not int:
-        raise OutputError("unsupported result event version")
-    run_id, run_attempt = payload["run_id"], payload["run_attempt"]
-    if (
-        type(run_id) is not int
-        or not 1 <= run_id <= 10**18
-        or type(run_attempt) is not int
-        or not 1 <= run_attempt <= 1_000
-    ):
-        raise OutputError("result run identity is invalid")
-    return run_id, run_attempt
-
-
 def render_coalesced(event: Mapping[str, Any]) -> tuple[int, str]:
     if event.get("action") != "ci-run-coalesced":
         raise OutputError("unsupported coalesced event")
@@ -389,9 +363,6 @@ def _write(path: Path, value: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    dispatch = subparsers.add_parser("dispatch")
-    dispatch.add_argument("--event", required=True, type=Path)
-    dispatch.add_argument("--github-output", required=True, type=Path)
     comment = subparsers.add_parser("comment")
     comment.add_argument("--bundle", required=True, type=Path)
     comment.add_argument("--repository", required=True)
@@ -405,11 +376,6 @@ def main() -> int:
     coalesced.add_argument("--request", required=True, type=Path)
     coalesced.add_argument("--github-output", required=True, type=Path)
     arguments = parser.parse_args()
-    if arguments.command == "dispatch":
-        run_id, run_attempt = validate_dispatch(_read(arguments.event))
-        with arguments.github_output.open("a", encoding="utf-8") as stream:
-            stream.write(f"run_id={run_id}\nrun_attempt={run_attempt}\n")
-        return 0
     if arguments.command == "coalesced":
         pull_request, body = render_coalesced(_read(arguments.event))
         _write(arguments.request, json.dumps({"body": body}, ensure_ascii=False) + "\n")
