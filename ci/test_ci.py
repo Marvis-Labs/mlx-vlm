@@ -84,7 +84,7 @@ def test_server_contract_uses_main_as_context_and_head_as_verdict(monkeypatch):
         ]
     )
     monkeypatch.setattr("ci.work_executor._run", lambda *_: next(outcomes))
-    result = _server_contract(job, Path("base"), Path("head"))
+    result = _server_contract(job, Path("control"), Path("base"), Path("head"))
     assert result["status"] == "passed"
     assert result["detail"] == (
         "Main: 1 failed in 1.0s; PR: 12 passed in 2.0s; profiles: openai"
@@ -100,7 +100,7 @@ def test_server_contract_fails_when_head_fails(monkeypatch):
         ]
     )
     monkeypatch.setattr("ci.work_executor._run", lambda *_: next(outcomes))
-    result = _server_contract(job, Path("base"), Path("head"))
+    result = _server_contract(job, Path("control"), Path("base"), Path("head"))
     assert result["status"] == "failed"
 
 

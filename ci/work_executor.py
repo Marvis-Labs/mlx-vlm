@@ -13,7 +13,9 @@ from ci.execution_security import ExecutionSecurityError, verify_execution
 
 MODEL_PROBE = r"""
 import importlib
+import importlib.util
 import json
+from pathlib import Path
 import sys
 import types
 
@@ -25,9 +27,12 @@ pytest = types.ModuleType("pytest")
 pytest.mark = Mark()
 pytest.raises = lambda *args, **kwargs: None
 sys.modules["pytest"] = pytest
-project, selectors = sys.argv[1], json.loads(sys.argv[2])
+project, control, selectors = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
 sys.path.insert(0, project)
-tests = importlib.import_module("mlx_vlm.tests.test_models")
+test_path = Path(control) / "mlx_vlm/tests/test_models.py"
+spec = importlib.util.spec_from_file_location("mlx_vlm_ci_test_models", test_path)
+tests = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(tests)
 cases = {case["id"]: case for case in tests.DATA["cases"]}
 for selector in selectors:
     name = selector.rsplit("::", 1)[-1]
@@ -134,14 +139,24 @@ def _run(command: list[str], project: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _synthetic(job: Mapping[str, Any], base: Path, head: Path) -> dict[str, Any]:
+def _synthetic(
+    job: Mapping[str, Any], control: Path, base: Path, head: Path
+) -> dict[str, Any]:
     selectors = job["work"]["synthetic"].get("selectors")
     if not isinstance(selectors, list) or not selectors:
         raise ValueError("synthetic selectors are invalid")
     encoded = json.dumps(selectors, separators=(",", ":"))
     for project in (base, head):
         result = _run(
-            [sys.executable, "-c", MODEL_PROBE, str(project), encoded], project
+            [
+                sys.executable,
+                "-c",
+                MODEL_PROBE,
+                str(project),
+                str(control),
+                encoded,
+            ],
+            project,
         )
         if result.returncode:
             raise RuntimeError(result.stderr.strip()[-500:] or "synthetic probe failed")
@@ -229,7 +244,9 @@ def _test_summary(result: subprocess.CompletedProcess[str]) -> str:
     return " ".join(summary.split())[:70]
 
 
-def _server_contract(job: Mapping[str, Any], base: Path, head: Path) -> dict[str, Any]:
+def _server_contract(
+    job: Mapping[str, Any], control: Path, base: Path, head: Path
+) -> dict[str, Any]:
     configuration = job["work"]["server_contract"]
     profiles = configuration.get("profiles")
     selectors = configuration.get("selectors")
@@ -249,7 +266,8 @@ def _server_contract(job: Mapping[str, Any], base: Path, head: Path) -> dict[str
         "--disable-warnings",
         "-p",
         "no:cacheprovider",
-        *selectors,
+        "--import-mode=importlib",
+        str(control / selectors[0]),
     ]
     base_result = _run(command, base)
     head_result = _run(command, head)
@@ -273,12 +291,12 @@ def execute(
     checks, metrics = [], []
     for phase in job["phases"]:
         if phase == "synthetic":
-            checks.append(_synthetic(job, base, head))
+            checks.append(_synthetic(job, control, base, head))
         elif phase == "checkpoint":
             check, metrics = _checkpoint(job, control, base, head)
             checks.append(check)
         elif phase == "server_contract":
-            checks.append(_server_contract(job, base, head))
+            checks.append(_server_contract(job, control, base, head))
     matched = all(check["status"] == "passed" for check in checks)
     return {
         "verdict": "passed" if matched else "regressed",
