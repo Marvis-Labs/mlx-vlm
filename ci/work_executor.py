@@ -220,8 +220,23 @@ def _checkpoint(
         change = (
             0.0 if base_value == 0 else (head_value - base_value) / base_value * 100
         )
-        improved = change >= 4 if higher_is_better else change <= -4
-        regressed = change <= -4 if higher_is_better else change >= 4
+        paired_changes = []
+        for base_result, head_result in zip(base_results, head_results):
+            paired_base = float(base_result[name])
+            paired_head = float(head_result[name])
+            paired_changes.append(
+                0.0
+                if paired_base == 0
+                else (paired_head - paired_base) / paired_base * 100
+            )
+        improved = all(
+            paired >= 4 if higher_is_better else paired <= -4
+            for paired in paired_changes
+        )
+        regressed = all(
+            paired <= -4 if higher_is_better else paired >= 4
+            for paired in paired_changes
+        )
         verdict = "improved" if improved else "regressed" if regressed else "stable"
         metrics.append(
             {

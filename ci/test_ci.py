@@ -156,6 +156,7 @@ def test_checkpoint_uses_balanced_order_and_median(monkeypatch):
     assert projects == [Path("base"), Path("head"), Path("head"), Path("base")]
     assert metrics[0]["base"] == 102
     assert metrics[0]["head"] == 82
+    assert metrics[0]["verdict"] == "regressed"
 
 
 def test_output_hides_runner_identity_and_bolds_four_percent():
