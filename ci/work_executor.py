@@ -307,9 +307,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         findings = execute(job, arguments.control, arguments.base, arguments.head)
         findings["duration_ms"] = int((time.perf_counter() - started) * 1000)
     except Exception as error:
+        message = str(error)
+        if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+            message = error.stderr.strip()
         findings = {
             "verdict": "test_failure",
-            "error": f"{type(error).__name__}: {error}"[:500],
+            "error": f"{type(error).__name__}: {message}"[-500:],
             "metrics": [],
             "duration_ms": int((time.perf_counter() - started) * 1000),
         }
