@@ -105,7 +105,7 @@ def verify_execution(
 
 def _git(path: Path, *arguments: str) -> str:
     return subprocess.run(
-        ["git", *arguments],
+        ["git", "-c", f"safe.directory={path}", *arguments],
         cwd=path,
         check=True,
         capture_output=True,
