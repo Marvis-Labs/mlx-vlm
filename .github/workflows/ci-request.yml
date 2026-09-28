@@ -4,7 +4,7 @@ on:
   issue_comment:
     types: [created]
   repository_dispatch:
-    types: [ci-run-result]
+    types: [ci-run-result, ci-run-coalesced]
 
 permissions: {}
 
@@ -13,7 +13,8 @@ jobs:
     if: >-
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      github.event.comment.body == '/ci run'
+      github.event.comment.body == '/ci run' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -43,7 +44,7 @@ jobs:
 
   report:
     name: Mixie
-    if: github.event_name == 'repository_dispatch'
+    if: github.event.action == 'ci-run-result'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -90,6 +91,34 @@ jobs:
           --run-id "$RUN_ID"
           --run-attempt "$RUN_ATTEMPT"
           --output "$RUNNER_TEMP/comment.md"
+          --request "$RUNNER_TEMP/comment.json"
+          --github-output "$GITHUB_OUTPUT"
+      - name: Post Mixie comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.comment.outputs.pull_request }}
+        run: >-
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
+          --method POST
+          --input "$RUNNER_TEMP/comment.json"
+
+  coalesced:
+    name: Mixie queued request
+    if: github.event.action == 'ci-run-coalesced'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate and render coalesced request
+        id: comment
+        run: >-
+          python -m ci.output coalesced
+          --event "$GITHUB_EVENT_PATH"
           --request "$RUNNER_TEMP/comment.json"
           --github-output "$GITHUB_OUTPUT"
       - name: Post Mixie comment

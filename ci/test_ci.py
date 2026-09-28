@@ -1,10 +1,12 @@
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 from ci import plan_ci, render_comment
 from ci.execution_security import ExecutionSecurityError, validate_job
-from ci.output import OutputError, validate_bundle, validate_dispatch
+from ci.output import OutputError, render_coalesced, validate_bundle, validate_dispatch
+from ci.work_executor import _server_contract
 
 CATALOG = json.loads(
     (Path(__file__).parents[1] / "mlx_vlm/tests/model_cases.json").read_text()
@@ -22,6 +24,10 @@ def test_model_path_planning():
     )
     assert [job["subject"] for job in plan["jobs"]] == ["florence2", "qwen2_vl"]
     assert all(job["phases"] == ["synthetic", "checkpoint"] for job in plan["jobs"])
+    assert all(job["work"]["checkpoint"]["profile"] == "image" for job in plan["jobs"])
+    assert all(
+        job["work"]["checkpoint"]["asset"] == "image/image.json" for job in plan["jobs"]
+    )
 
 
 def test_model_path_without_checkpoint_and_missing_case():
@@ -57,6 +63,37 @@ def test_server_test_change_selects_all_profiles():
     plan = plan_ci(["mlx_vlm/tests/test_server.py"], CATALOG)
     assert plan["jobs"][0]["component"] == "server_change"
     assert plan["jobs"][0]["work"]["server_contract"]["profiles"] == ["all"]
+
+
+def test_server_contract_uses_main_as_context_and_head_as_verdict(monkeypatch):
+    job = plan_ci(["mlx_vlm/server/openai.py"], CATALOG)["jobs"][0]
+    outcomes = iter(
+        [
+            subprocess.CompletedProcess([], 1, "1 failed in 1.0s\n", ""),
+            subprocess.CompletedProcess(
+                [], 0, "12 passed in 2.0s\n", "trailing warning\n"
+            ),
+        ]
+    )
+    monkeypatch.setattr("ci.work_executor._run", lambda *_: next(outcomes))
+    result = _server_contract(job, Path("base"), Path("head"))
+    assert result["status"] == "passed"
+    assert result["detail"] == (
+        "Main: 1 failed in 1.0s; PR: 12 passed in 2.0s; profiles: openai"
+    )
+
+
+def test_server_contract_fails_when_head_fails(monkeypatch):
+    job = plan_ci(["mlx_vlm/server/openai.py"], CATALOG)["jobs"][0]
+    outcomes = iter(
+        [
+            subprocess.CompletedProcess([], 0, "12 passed in 2.0s\n", ""),
+            subprocess.CompletedProcess([], 1, "1 failed in 1.0s\n", ""),
+        ]
+    )
+    monkeypatch.setattr("ci.work_executor._run", lambda *_: next(outcomes))
+    result = _server_contract(job, Path("base"), Path("head"))
+    assert result["status"] == "failed"
 
 
 def test_output_hides_runner_identity_and_bolds_four_percent():
@@ -196,6 +233,25 @@ def test_mixie_renders_missing_device_as_unavailable():
         "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
     )
     assert "Device: unavailable" in rendered
+
+
+def test_mixie_renders_each_coalesced_command_as_a_new_notice():
+    pull_request, rendered = render_coalesced(
+        {
+            "action": "ci-run-coalesced",
+            "client_payload": {
+                "schema_version": 1,
+                "pull_request": 42,
+                "comment_id": 987,
+                "requested_at": "2026-09-28T14:30:00Z",
+                "base_sha": "a" * 40,
+                "head_sha": "b" * 40,
+            },
+        }
+    )
+    assert pull_request == 42
+    assert "mixie:coalesced:987" in rendered
+    assert "No duplicate runner work was started" in rendered
 
 
 def test_runner_execution_rejects_manifest_tampering():

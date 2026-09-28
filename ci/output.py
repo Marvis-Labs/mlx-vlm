@@ -7,6 +7,7 @@ import math
 import os
 import re
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -219,6 +220,55 @@ def validate_dispatch(event: Mapping[str, Any]) -> tuple[int, int]:
     return run_id, run_attempt
 
 
+def render_coalesced(event: Mapping[str, Any]) -> tuple[int, str]:
+    if event.get("action") != "ci-run-coalesced":
+        raise OutputError("unsupported coalesced event")
+    payload = event.get("client_payload")
+    expected = {
+        "schema_version",
+        "pull_request",
+        "comment_id",
+        "requested_at",
+        "base_sha",
+        "head_sha",
+    }
+    if not isinstance(payload, Mapping) or set(payload) != expected:
+        raise OutputError("coalesced event fields are invalid")
+    if payload["schema_version"] != 1 or type(payload["schema_version"]) is not int:
+        raise OutputError("unsupported coalesced event version")
+    pull_request, comment_id = payload["pull_request"], payload["comment_id"]
+    if (
+        type(pull_request) is not int
+        or not 1 <= pull_request <= 1_000_000
+        or type(comment_id) is not int
+        or not 1 <= comment_id <= 10**18
+        or SHA.fullmatch(str(payload["base_sha"])) is None
+        or SHA.fullmatch(str(payload["head_sha"])) is None
+    ):
+        raise OutputError("coalesced event identity is invalid")
+    requested_at = payload["requested_at"]
+    try:
+        parsed = datetime.fromisoformat(str(requested_at).replace("Z", "+00:00"))
+    except ValueError as error:
+        raise OutputError("coalesced request time is invalid") from error
+    if parsed.tzinfo is None:
+        raise OutputError("coalesced request time is invalid")
+    body = "\n".join(
+        [
+            f"<!-- mixie:coalesced:{comment_id} -->",
+            "### Mixie",
+            "",
+            "This request joined the active CI attempt for "
+            f"PR `{str(payload['head_sha'])[:8]}` against main "
+            f"`{str(payload['base_sha'])[:8]}`.",
+            "",
+            f"Requested at `{_text(requested_at)}`. No duplicate runner work was started.",
+            "",
+        ]
+    )
+    return pull_request, body
+
+
 def validate_bundle(
     bundle: Mapping[str, Any], repository: str, run_id: int, run_attempt: int
 ) -> tuple[Mapping[str, Any], Mapping[str, Any], list[Mapping[str, Any]], str]:
@@ -312,11 +362,21 @@ def main() -> int:
     comment.add_argument("--output", required=True, type=Path)
     comment.add_argument("--request", required=True, type=Path)
     comment.add_argument("--github-output", required=True, type=Path)
+    coalesced = subparsers.add_parser("coalesced")
+    coalesced.add_argument("--event", required=True, type=Path)
+    coalesced.add_argument("--request", required=True, type=Path)
+    coalesced.add_argument("--github-output", required=True, type=Path)
     arguments = parser.parse_args()
     if arguments.command == "dispatch":
         run_id, run_attempt = validate_dispatch(_read(arguments.event))
         with arguments.github_output.open("a", encoding="utf-8") as stream:
             stream.write(f"run_id={run_id}\nrun_attempt={run_attempt}\n")
+        return 0
+    if arguments.command == "coalesced":
+        pull_request, body = render_coalesced(_read(arguments.event))
+        _write(arguments.request, json.dumps({"body": body}, ensure_ascii=False) + "\n")
+        with arguments.github_output.open("a", encoding="utf-8") as stream:
+            stream.write(f"pull_request={pull_request}\n")
         return 0
     attempt, jobs, results, run_url = validate_bundle(
         _read(arguments.bundle),

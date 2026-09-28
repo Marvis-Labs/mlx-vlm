@@ -104,9 +104,18 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
         raise ModelPlanError("unsupported model catalog")
     changed_files = _paths(changed_files)
     tests = _synthetic_tests(catalog)
-    checkpoints = catalog.get("ci", {}).get("checkpoints", {})
+    ci = catalog.get("ci", {})
+    checkpoints = ci.get("checkpoints", {})
+    profiles = ci.get("checkpoint_profiles", {})
+    default_profile = ci.get("default_checkpoint_profile")
     if not isinstance(checkpoints, dict):
         raise ModelPlanError("checkpoint catalog is invalid")
+    if (
+        not isinstance(profiles, dict)
+        or not isinstance(default_profile, str)
+        or default_profile not in profiles
+    ):
+        raise ModelPlanError("checkpoint profiles are invalid")
     jobs, blocked = [], []
     for family in _families(changed_files):
         selectors = tests.get(family)
@@ -123,18 +132,30 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
         if checkpoint is not None:
             if (
                 not isinstance(checkpoint, dict)
-                or set(checkpoint) != {"repository", "revision", "tensor_bytes"}
+                or not {"repository", "revision", "tensor_bytes"}.issubset(checkpoint)
+                or set(checkpoint)
+                - {"repository", "revision", "tensor_bytes", "profile"}
                 or not isinstance(checkpoint["tensor_bytes"], int)
                 or checkpoint["tensor_bytes"] <= 0
             ):
                 raise ModelPlanError(f"checkpoint for {family} is invalid")
+            profile_name = checkpoint.get("profile", default_profile)
+            profile = profiles.get(profile_name)
+            if not isinstance(profile, dict):
+                raise ModelPlanError(f"checkpoint profile for {family} is invalid")
         phases = ["synthetic"]
         work: dict[str, Any] = {"synthetic": {"selectors": selectors}}
         artifact = None
         if checkpoint:
             phases.append("checkpoint")
-            work["checkpoint"] = {"prompt_tokens": 512, "max_tokens": 16}
-            artifact = {"kind": "huggingface", **checkpoint}
+            work["checkpoint"] = {"profile": profile_name, **profile}
+            artifact = {
+                "kind": "huggingface",
+                **{
+                    key: checkpoint[key]
+                    for key in ("repository", "revision", "tensor_bytes")
+                },
+            }
         jobs.append(
             {
                 "id": f"model-path-{family}",

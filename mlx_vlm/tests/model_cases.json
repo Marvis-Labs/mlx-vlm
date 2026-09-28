@@ -1,6 +1,27 @@
 {
   "version": 2,
   "ci": {
+    "checkpoint_profiles": {
+      "image": {
+        "asset": "image/image.json",
+        "max_tokens": 16,
+        "prompt": "Describe the image in one short sentence.",
+        "prompt_tokens": 512
+      },
+      "audio": {
+        "asset": "audio/audio.json",
+        "max_tokens": 16,
+        "prompt": "Transcribe the audio briefly.",
+        "prompt_tokens": 512
+      },
+      "omni": {
+        "assets": ["image/image.json", "audio/audio.json"],
+        "max_tokens": 16,
+        "prompt": "Describe the image and audio briefly.",
+        "prompt_tokens": 512
+      }
+    },
+    "default_checkpoint_profile": "image",
     "checkpoints": {
       "deepseek_vl_v2": {
         "repository": "mlx-community/deepseek-vl2-tiny-4bit",
