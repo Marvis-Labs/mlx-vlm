@@ -60,20 +60,17 @@ jobs:
           --event "$GITHUB_EVENT_PATH"
           --github-output "$GITHUB_OUTPUT"
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app
+        id: artifacts
         with:
           client-id: ${{ vars.MLX_CI_APP_CLIENT_ID }}
           private-key: ${{ secrets.MLX_CI_APP_PRIVATE_KEY }}
           owner: Marvis-Labs
-          repositories: |
-            mlx-ci
-            mlx-vlm
+          repositories: mlx-ci
           permission-actions: read
           permission-contents: read
-          permission-issues: write
       - name: Download validated CI results
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_TOKEN: ${{ steps.artifacts.outputs.token }}
           RUN_ATTEMPT: ${{ steps.dispatch.outputs.run_attempt }}
           RUN_ID: ${{ steps.dispatch.outputs.run_id }}
         run: >-
@@ -95,9 +92,17 @@ jobs:
           --output "$RUNNER_TEMP/comment.md"
           --request "$RUNNER_TEMP/comment.json"
           --github-output "$GITHUB_OUTPUT"
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: comment-token
+        with:
+          client-id: ${{ vars.MLX_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MLX_CI_APP_PRIVATE_KEY }}
+          owner: Marvis-Labs
+          repositories: mlx-vlm
+          permission-issues: write
       - name: Post Mixie comment
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_TOKEN: ${{ steps.comment-token.outputs.token }}
           PR_NUMBER: ${{ steps.comment.outputs.pull_request }}
         run: >-
           gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
