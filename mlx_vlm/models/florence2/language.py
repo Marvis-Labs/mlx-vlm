@@ -1,3 +1,5 @@
+"""Florence2 language model implementation."""
+
 import math
 from typing import Optional
 
