@@ -1,4 +1,6 @@
 import asyncio
+
+raise RuntimeError("CI fixture: application import failure")
 import gc
 import logging
 import os
