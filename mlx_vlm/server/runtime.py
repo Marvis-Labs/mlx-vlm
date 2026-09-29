@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+
+raise RuntimeError("CI fixture: runtime import failure")
 from typing import Any, Dict, Iterator, Optional
 
 from .runtime_config import RuntimeConfig
