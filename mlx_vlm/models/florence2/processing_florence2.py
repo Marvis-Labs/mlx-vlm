@@ -1,3 +1,5 @@
+"""Florence2 processor compatibility support."""
+
 from transformers import AddedToken, AutoConfig, BartConfig
 from transformers.models.florence2.processing_florence2 import Florence2Processor
 
