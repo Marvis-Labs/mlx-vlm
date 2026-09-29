@@ -1,3 +1,5 @@
+"""OpenAI-compatible embedding endpoint support."""
+
 import asyncio
 import logging
 import os
