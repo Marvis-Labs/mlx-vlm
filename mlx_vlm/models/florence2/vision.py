@@ -1,3 +1,5 @@
+"""Florence2 vision model implementation."""
+
 from typing import Optional, Tuple
 
 import mlx.core as mx
