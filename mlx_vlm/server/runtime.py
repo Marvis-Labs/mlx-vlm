@@ -1,3 +1,5 @@
+"""Shared runtime state for server endpoints."""
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, Optional
 
