@@ -92,6 +92,14 @@ class ModelChecks:
             mx.linalg.norm(output.text_embeds, axis=-1), mx.array(1.0), atol=1e-5
         )
 
+    def sentence_embeddings(self, model, config):
+        output = model(mx.array([[1, 2, 3]]))
+        assert output.last_hidden_state.shape == (1, 3, config.hidden_size)
+        assert output.text_embeds.shape == (1, config.hidden_size)
+        assert mx.allclose(
+            mx.linalg.norm(output.text_embeds, axis=-1), mx.array(1.0), atol=1e-5
+        )
+
     def assert_close(self, actual, expected, *, logits=False):
         assert actual.shape == expected.shape
         assert mx.all(mx.isfinite(actual)).item()
@@ -521,7 +529,7 @@ def check_arguments(kind, case, model, config):
     )
     if kind == "forward_cache":
         return (model, text.vocab_size), case.get("forward_cache", {})
-    if kind in {"masked_lm", "token_embeddings"}:
+    if kind in {"masked_lm", "sentence_embeddings", "token_embeddings"}:
         return (model, config), {}
     if kind == "multimodal":
         return (model, config), case["multimodal"]
@@ -596,8 +604,7 @@ def check_arguments(kind, case, model, config):
 
 @pytest.mark.parametrize("case", DATA["cases"], ids=lambda case: case["id"])
 def test_model_contract(case):
-    if "multimodal" in case["checks"]:
-        mx.random.seed(17)
+    mx.random.seed(17)
     module = importlib.import_module("mlx_vlm.models." + case["module"])
     config = build_config(module, case["config"])
     model = module.Model(config)

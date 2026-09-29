@@ -113,9 +113,7 @@ def _resources(
     }
 
 
-def _validate_profile(
-    family: str, profile: Any, model_checks: list[str]
-) -> dict[str, Any]:
+def _validate_profile(family: str, profile_name: str, profile: Any) -> dict[str, Any]:
     if not isinstance(profile, dict):
         raise ModelPlanError(f"checkpoint profile for {family} is invalid")
     batch_size = profile.get("batch_size", 1)
@@ -127,11 +125,23 @@ def _validate_profile(
         or not 1 <= prompt_tokens <= 8192
     ):
         raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    if "token_embeddings" not in model_checks:
+    if profile_name in {"image", "audio", "omni", "text"}:
         max_tokens = profile.get("max_tokens")
         if type(max_tokens) is not int or not 1 <= max_tokens <= 128:
             raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    elif not isinstance(profile.get("texts"), list) or len(profile["texts"]) < 3:
+    elif profile_name == "embedding":
+        if not isinstance(profile.get("texts"), list) or len(profile["texts"]) < 3:
+            raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+    elif profile_name == "rerank":
+        documents = profile.get("documents")
+        if (
+            not isinstance(profile.get("query"), str)
+            or not isinstance(profile.get("instruction"), str)
+            or not isinstance(documents, list)
+            or len(documents) < 2
+        ):
+            raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+    else:
         raise ModelPlanError(f"checkpoint profile for {family} is invalid")
     return profile
 
@@ -183,14 +193,21 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                 raise ModelPlanError(f"checkpoint for {family} is invalid")
             profile_name = checkpoint.get("profile", default_profile)
             profile = _validate_profile(
-                family, profiles.get(profile_name), model_checks
+                family, profile_name, profiles.get(profile_name)
             )
-        phases = ["synthetic"]
-        work: dict[str, Any] = {"synthetic": {"selectors": selectors}}
-        artifact = None
+        jobs.append(
+            {
+                "id": f"model-path-{family}-synthetic",
+                "component": "model_path",
+                "subject": family,
+                "phases": ["synthetic"],
+                "work": {"synthetic": {"selectors": selectors}},
+                "resources": _resources(None, None, test_batch_size),
+                "artifact": None,
+            }
+        )
         if checkpoint:
-            phases.append("checkpoint")
-            work["checkpoint"] = {
+            work = {
                 "profile": profile_name,
                 "model_checks": model_checks,
                 **profile,
@@ -203,17 +220,17 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                     for key in ("repository", "revision", "tensor_bytes")
                 },
             }
-        jobs.append(
-            {
-                "id": f"model-path-{family}",
-                "component": "model_path",
-                "subject": family,
-                "phases": phases,
-                "work": work,
-                "resources": _resources(checkpoint, profile, test_batch_size),
-                "artifact": artifact,
-            }
-        )
+            jobs.append(
+                {
+                    "id": f"model-path-{family}-checkpoint",
+                    "component": "model_path",
+                    "subject": family,
+                    "phases": ["checkpoint"],
+                    "work": {"checkpoint": work},
+                    "resources": _resources(checkpoint, profile, test_batch_size),
+                    "artifact": artifact,
+                }
+            )
     profiles = _server_profiles(changed_files)
     if profiles:
         jobs.append(

@@ -13,6 +13,14 @@ CATALOG = json.loads(
 )
 
 
+def model_job(plan, family, phase):
+    return next(
+        job
+        for job in plan["jobs"]
+        if job["subject"] == family and job["phases"] == [phase]
+    )
+
+
 def test_model_path_planning():
     plan = plan_ci(
         [
@@ -22,11 +30,19 @@ def test_model_path_planning():
         ],
         CATALOG,
     )
-    assert [job["subject"] for job in plan["jobs"]] == ["florence2", "qwen2_vl"]
-    assert all(job["phases"] == ["synthetic", "checkpoint"] for job in plan["jobs"])
-    assert all(job["work"]["checkpoint"]["profile"] == "image" for job in plan["jobs"])
+    assert [job["subject"] for job in plan["jobs"]] == [
+        "florence2",
+        "florence2",
+        "qwen2_vl",
+        "qwen2_vl",
+    ]
+    checkpoint_jobs = [job for job in plan["jobs"] if job["phases"] == ["checkpoint"]]
     assert all(
-        job["work"]["checkpoint"]["asset"] == "image/image.json" for job in plan["jobs"]
+        job["work"]["checkpoint"]["profile"] == "image" for job in checkpoint_jobs
+    )
+    assert all(
+        job["work"]["checkpoint"]["asset"] == "image/image.json"
+        for job in checkpoint_jobs
     )
 
 
@@ -49,8 +65,8 @@ def test_glm5_next_model_path_uses_its_model_contract():
 
 def test_omni_models_use_image_and_audio_checkpoint_profile():
     for family in ("gemma3n", "gemma4"):
-        job = plan_ci([f"mlx_vlm/models/{family}/audio.py"], CATALOG)["jobs"][0]
-        assert job["phases"] == ["synthetic", "checkpoint"]
+        plan = plan_ci([f"mlx_vlm/models/{family}/audio.py"], CATALOG)
+        job = model_job(plan, family, "checkpoint")
         assert job["work"]["checkpoint"]["profile"] == "omni"
         assert job["work"]["checkpoint"]["assets"] == [
             "image/image.json",
@@ -59,18 +75,51 @@ def test_omni_models_use_image_and_audio_checkpoint_profile():
 
 
 def test_qwen3_vl_opts_into_image_batching():
-    job = plan_ci(["mlx_vlm/models/qwen3_vl/vision.py"], CATALOG)["jobs"][0]
+    job = model_job(
+        plan_ci(["mlx_vlm/models/qwen3_vl/vision.py"], CATALOG),
+        "qwen3_vl",
+        "checkpoint",
+    )
     assert job["work"]["checkpoint"]["profile"] == "image"
     assert "multimodal" in job["work"]["checkpoint"]["model_checks"]
     assert job["resources"]["batch_size"] == 2
 
 
 def test_colbert_reuses_token_embedding_contract():
-    job = plan_ci(["mlx_vlm/models/lfm2_colbert/model.py"], CATALOG)["jobs"][0]
+    job = model_job(
+        plan_ci(["mlx_vlm/models/lfm2_colbert/model.py"], CATALOG),
+        "lfm2_colbert",
+        "checkpoint",
+    )
     assert job["work"]["checkpoint"]["model_checks"] == ["token_embeddings"]
     assert job["artifact"]["tensor_bytes"] == 198948592
     assert job["resources"]["batch_size"] == 3
     assert job["resources"]["units"] == 64
+
+
+def test_text_embedding_rerank_and_omni_profiles_are_explicit():
+    cases = {
+        "qwen3_5_text": ("text", "language"),
+        "qwen3_embedding": ("embedding", "sentence_embeddings"),
+        "qwen3": ("rerank", "language"),
+        "qwen3_omni_moe": ("omni", "input_embeddings"),
+    }
+    for family, (profile, check) in cases.items():
+        job = model_job(
+            plan_ci([f"mlx_vlm/models/{family}/model.py"], CATALOG),
+            family,
+            "checkpoint",
+        )
+        assert job["work"]["checkpoint"]["profile"] == profile
+        assert check in job["work"]["checkpoint"]["model_checks"]
+
+
+def test_large_checkpoint_does_not_raise_synthetic_requirement():
+    plan = plan_ci(["mlx_vlm/models/llama4/vision.py"], CATALOG)
+    synthetic = model_job(plan, "llama4", "synthetic")
+    checkpoint = model_job(plan, "llama4", "checkpoint")
+    assert synthetic["resources"]["resident_bytes"] == 256 << 20
+    assert checkpoint["resources"]["resident_bytes"] > 60_000_000_000
 
 
 def test_server_change_is_one_independent_job():
@@ -144,7 +193,11 @@ def test_server_contract_fails_when_head_fails(monkeypatch):
 
 
 def test_synthetic_failure_identifies_pr_and_stops_before_checkpoint(monkeypatch):
-    job = plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG)["jobs"][0]
+    job = model_job(
+        plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG),
+        "florence2",
+        "synthetic",
+    )
     outcomes = iter(
         [
             subprocess.CompletedProcess([], 0, "", ""),
@@ -165,7 +218,11 @@ def test_synthetic_failure_identifies_pr_and_stops_before_checkpoint(monkeypatch
 
 
 def test_checkpoint_uses_balanced_order_and_median(monkeypatch):
-    job = plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG)["jobs"][0]
+    job = model_job(
+        plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG),
+        "florence2",
+        "checkpoint",
+    )
     projects = []
     values = iter((100, 80, 84, 104))
 
@@ -322,6 +379,70 @@ def test_mixie_renders_missing_device_as_unavailable():
         "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
     )
     assert "Device: unavailable" in rendered
+
+
+def test_mixie_groups_synthetic_pass_and_capability_skip():
+    attempt = {
+        "run_id": 1842,
+        "run_attempt": 1,
+        "base_sha": "a" * 40,
+        "head_sha": "b" * 40,
+        "changed_files": ["mlx_vlm/models/llama4/vision.py"],
+    }
+    plan = plan_ci(attempt["changed_files"], CATALOG)
+    for index, job in enumerate(plan["jobs"]):
+        job["manifest_digest"] = str(index) * 64
+    synthetic, checkpoint = plan["jobs"]
+    results = [
+        {
+            "job_id": synthetic["id"],
+            "manifest_digest": synthetic["manifest_digest"],
+            "status": "passed",
+            "device": {"chip": "Apple M4", "memory_gib": 16},
+            "cache": "not_applicable",
+            "duration_ms": 50,
+            "checks": [
+                {
+                    "name": "Synthetic structure",
+                    "category": "correctness",
+                    "status": "passed",
+                    "detail": "Tiny random-weight contracts passed on main and PR",
+                }
+            ],
+            "metrics": [],
+        },
+        {
+            "job_id": checkpoint["id"],
+            "manifest_digest": checkpoint["manifest_digest"],
+            "status": "skipped",
+            "device": None,
+            "cache": "not_applicable",
+            "duration_ms": 0,
+            "checks": [
+                {
+                    "name": "Checkpoint output",
+                    "category": "infrastructure",
+                    "status": "skipped",
+                    "detail": "Needs a capable runner with at least 128 GB unified memory",
+                }
+            ],
+            "metrics": [],
+        },
+    ]
+    rendered = render_comment(
+        attempt,
+        plan,
+        results,
+        "https://github.com/Marvis-Labs/mlx-ci/actions/runs/1842",
+    )
+    assert rendered.count("<strong>llama4</strong>") == 1
+    assert (
+        "Incomplete — checkpoint validation needs a capable runner for 1 of 1 sections"
+        in rendered
+    )
+    assert "ModelPath · Needs capable runner" in rendered
+    assert "Synthetic structure | Passed" in rendered
+    assert "Checkpoint output | Skipped" in rendered
 
 
 def test_mixie_renders_blocked_work_as_a_terminal_section():

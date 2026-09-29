@@ -55,18 +55,16 @@ def _paths(attempt: Mapping[str, Any], job: Mapping[str, Any]) -> list[str]:
     return []
 
 
-def _section_status(result: Mapping[str, Any] | None) -> str:
-    if result is None:
+def _section_status(results: Sequence[Mapping[str, Any] | None]) -> str:
+    if not results or any(result is None for result in results):
         return "Pending"
-    status = str(result.get("status", ""))
-    if status == "passed" and any(
-        metric.get("verdict") == "regressed" for metric in result.get("metrics", [])
-    ):
-        return "Performance regressed"
-    if status != "failed":
-        return STATUS_LABELS.get(status, "Failed")
+    reported = [result for result in results if result is not None]
+    statuses = {str(result.get("status", "")) for result in reported}
+    if "infrastructure_failure" in statuses:
+        return "Infrastructure failure"
     failed = {
         check.get("category")
+        for result in reported
         for check in result.get("checks", [])
         if check.get("status") == "failed"
     }
@@ -74,7 +72,17 @@ def _section_status(result: Mapping[str, Any] | None) -> str:
         return "Correctness failed"
     if "performance" in failed:
         return "Performance regressed"
-    return "Failed"
+    if "failed" in statuses:
+        return "Failed"
+    if any(
+        metric.get("verdict") == "regressed"
+        for result in reported
+        for metric in result.get("metrics", [])
+    ):
+        return "Performance regressed"
+    if "skipped" in statuses:
+        return "Needs capable runner"
+    return "Passed"
 
 
 def _measurement(value: Any, unit: str) -> str:
@@ -101,10 +109,11 @@ def _change(value: Any) -> str:
 
 def _section(
     attempt: Mapping[str, Any],
-    job: Mapping[str, Any],
-    result: Mapping[str, Any] | None,
+    jobs: Sequence[Mapping[str, Any]],
+    results: Sequence[Mapping[str, Any] | None],
 ) -> list[str]:
-    status = _section_status(result)
+    job = jobs[0]
+    status = _section_status(results)
     details = "<details>" if status == "Passed" else "<details open>"
     lines = [
         details,
@@ -118,25 +127,45 @@ def _section(
         if len(paths) > 8:
             shown += f", and {len(paths) - 8} more"
         lines.extend([f"Changed: {shown}", ""])
-    if result is None:
+    if any(result is None for result in results):
         lines.extend(["Result has not been reported.", "", "</details>"])
         return lines
-    device = result["device"]
-    if device is None:
+    reported = [result for result in results if result is not None]
+    devices = {
+        (result["device"]["chip"], result["device"]["memory_gib"])
+        for result in reported
+        if result["device"] is not None
+    }
+    if not devices:
         lines.append("Device: unavailable  ")
     else:
-        lines.append(
-            f"Device: {_text(device['chip'])} · {_text(device['memory_gib'])} GB unified memory  "
+        rendered_devices = ", ".join(
+            f"{_text(chip)} · {_text(memory)} GB unified memory"
+            for chip, memory in sorted(devices)
         )
-    artifact = job.get("artifact")
-    cache = str(result["cache"]).replace("_", " ").capitalize()
+        lines.append(f"Device: {rendered_devices}  ")
+    checkpoint = next(
+        (
+            (candidate, result)
+            for candidate, result in zip(jobs, reported)
+            if candidate.get("artifact")
+        ),
+        None,
+    )
+    artifact = checkpoint[0]["artifact"] if checkpoint else None
     if artifact:
+        cache = (
+            "Not run"
+            if checkpoint[1]["status"] == "skipped"
+            else str(checkpoint[1]["cache"]).replace("_", " ").capitalize()
+        )
         revision = str(artifact["revision"])[:8]
         lines.append(
             f"Checkpoint: {_text(cache)} · `{_text(artifact['repository'])}@{revision}`  "
         )
-    lines.extend([f"Duration: {_measurement(result['duration_ms'], 'ms')}", ""])
-    checks = result.get("checks", [])
+    duration = sum(result["duration_ms"] for result in reported)
+    lines.extend([f"Duration: {_measurement(duration, 'ms')}", ""])
+    checks = [check for result in reported for check in result.get("checks", [])]
     if checks:
         lines.extend(["| Validation | Result | Details |", "|---|---|---|"])
         for check in checks:
@@ -144,7 +173,7 @@ def _section(
                 f"| {_text(check['name'])} | {_text(STATUS_LABELS[check['status']])} "
                 f"| {_text(check['detail'])} |"
             )
-    metrics = result.get("metrics", [])
+    metrics = [metric for result in reported for metric in result.get("metrics", [])]
     if metrics:
         lines.extend(
             [
@@ -163,6 +192,13 @@ def _section(
             )
     lines.extend(["", "</details>"])
     return lines
+
+
+def _groups(jobs: Sequence[Mapping[str, Any]]) -> list[list[Mapping[str, Any]]]:
+    grouped: dict[tuple[Any, Any], list[Mapping[str, Any]]] = {}
+    for job in jobs:
+        grouped.setdefault((job.get("component"), job.get("subject")), []).append(job)
+    return list(grouped.values())
 
 
 def _blocked_section(blocked: Mapping[str, Any]) -> list[str]:
@@ -193,9 +229,13 @@ def render_comment(
     by_id = {result.get("job_id"): result for result in results}
     if len(by_id) != len(results):
         raise OutputError("result identifiers are duplicated")
-    statuses = [_section_status(by_id.get(job["id"])) for job in jobs]
+    groups = _groups(jobs)
+    statuses = [
+        _section_status([by_id.get(job["id"]) for job in group]) for group in groups
+    ]
     passed = statuses.count("Passed")
-    total = len(jobs) + len(blocked)
+    needs_runner = statuses.count("Needs capable runner")
+    total = len(groups) + len(blocked)
     if not total:
         overall = "Not covered"
     elif blocked:
@@ -206,6 +246,8 @@ def render_comment(
         overall = "Infrastructure failure"
     elif any(status == "Performance regressed" for status in statuses):
         overall = "Performance regressed"
+    elif any(status == "Needs capable runner" for status in statuses):
+        overall = "Incomplete"
     elif any(status not in {"Passed", "Pending"} for status in statuses):
         overall = "Failed"
     else:
@@ -218,15 +260,29 @@ def render_comment(
         (
             "Not covered — no registered CI change type matched"
             if not total
-            else f"{overall} — {passed} of {total} sections passed"
+            else (
+                "Incomplete — checkpoint validation needs a capable runner for "
+                f"{needs_runner} of {total} sections"
+                if overall == "Incomplete"
+                else f"{overall} — {passed} of {total} sections passed"
+            )
         ),
         "",
         f"PR `{str(attempt['head_sha'])[:8]}` against main "
         f"`{str(attempt['base_sha'])[:8]}` · Attempt `{attempt_id}` · "
         f"[Workflow run]({_text(run_url)})",
     ]
-    for job in jobs:
-        lines.extend(["", *_section(attempt, job, by_id.get(job["id"]))])
+    for group in groups:
+        lines.extend(
+            [
+                "",
+                *_section(
+                    attempt,
+                    group,
+                    [by_id.get(job["id"]) for job in group],
+                ),
+            ]
+        )
     for item in blocked:
         lines.extend(["", *_blocked_section(item)])
     return "\n".join(lines) + "\n"

@@ -20,7 +20,12 @@
         "prompt": "Describe the image and audio briefly.",
         "prompt_tokens": 512
       },
-      "late_interaction": {
+      "text": {
+        "max_tokens": 16,
+        "prompt": "Reply with one short sentence about Apple silicon.",
+        "prompt_tokens": 512
+      },
+      "embedding": {
         "batch_size": 3,
         "prompt_tokens": 64,
         "texts": [
@@ -28,6 +33,15 @@
           "A feline is resting on a rug.",
           "The stock market closed higher today."
         ]
+      },
+      "rerank": {
+        "documents": [
+          "A feline is resting on a rug.",
+          "The stock market closed higher today."
+        ],
+        "instruction": "Find the document most relevant to the query.",
+        "prompt_tokens": 128,
+        "query": "A cat sits on a mat."
       }
     },
     "default_checkpoint_profile": "image",
@@ -65,7 +79,7 @@
         "tensor_bytes": 3550670554
       },
       "lfm2_colbert": {
-        "profile": "late_interaction",
+        "profile": "embedding",
         "repository": "mlx-community/LFM2.5-ColBERT-350M-4bit",
         "revision": "9763c9ae0b7e178fb458cfa3f72a7dd181fa48d6",
         "tensor_bytes": 198948592
@@ -135,6 +149,30 @@
         "revision": "01af461cdb9574acc09084a0ef94e216e142b085",
         "tensor_bytes": 1245868907
       },
+      "qwen3": {
+        "profile": "rerank",
+        "repository": "mlx-community/Qwen3-Reranker-0.6B-mxfp8",
+        "revision": "a82f9f1c5dcb88c1156492f4dafb22366c1178da",
+        "tensor_bytes": 614514180
+      },
+      "qwen3_5_text": {
+        "profile": "text",
+        "repository": "mlx-community/Qwen3.5-0.8B-4bit",
+        "revision": "da28692b5f139cb0ec58a356b437486b7dac7462",
+        "tensor_bytes": 625229487
+      },
+      "qwen3_embedding": {
+        "profile": "embedding",
+        "repository": "mlx-community/Qwen3-Embedding-0.6B-4bit-DWQ",
+        "revision": "6c3ae70858513f1a78e9cdca3cae330d9075cd2a",
+        "tensor_bytes": 335296756
+      },
+      "qwen3_omni_moe": {
+        "profile": "omni",
+        "repository": "mlx-community/Qwen3-Omni-30B-A3B-Instruct-4bit",
+        "revision": "93b3cbddd65ed4babff8f22fba491cdba7a21778",
+        "tensor_bytes": 21825077377
+      },
       "qwen3_vl": {
         "repository": "mlx-community/Qwen3-VL-2B-Instruct-4bit",
         "revision": "9c4f5209e57b31f4b9dfba735de3fb983739c9cc",
@@ -194,6 +232,44 @@
         "embedding_dim": 8
       },
       "checks": ["token_embeddings"]
+    },
+    {
+      "id": "qwen3",
+      "module": "qwen3",
+      "config": {
+        "model_type": "qwen3",
+        "hidden_size": 16,
+        "num_hidden_layers": 2,
+        "intermediate_size": 32,
+        "num_attention_heads": 4,
+        "rms_norm_eps": 1e-06,
+        "vocab_size": 32,
+        "num_key_value_heads": 2,
+        "max_position_embeddings": 128,
+        "rope_theta": 1000000.0,
+        "head_dim": 4,
+        "tie_word_embeddings": false
+      },
+      "checks": ["language"]
+    },
+    {
+      "id": "qwen3_embedding",
+      "module": "qwen3_embedding",
+      "config": {
+        "model_type": "qwen3",
+        "hidden_size": 16,
+        "num_hidden_layers": 2,
+        "intermediate_size": 32,
+        "num_attention_heads": 4,
+        "rms_norm_eps": 1e-06,
+        "vocab_size": 32,
+        "num_key_value_heads": 2,
+        "max_position_embeddings": 128,
+        "rope_theta": 1000000.0,
+        "head_dim": 4,
+        "tie_word_embeddings": false
+      },
+      "checks": ["sentence_embeddings"]
     },
     {
       "id": "indic_ocr",

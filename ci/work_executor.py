@@ -12,39 +12,6 @@ from typing import Any, Mapping, Sequence
 
 from ci.execution_security import ExecutionSecurityError, verify_execution
 
-MODEL_PROBE = r"""
-import importlib
-import importlib.util
-import json
-from pathlib import Path
-import sys
-import types
-
-class Mark:
-    def parametrize(self, *args, **kwargs):
-        return lambda function: function
-
-pytest = types.ModuleType("pytest")
-pytest.mark = Mark()
-pytest.raises = lambda *args, **kwargs: None
-sys.modules["pytest"] = pytest
-project, control, selectors = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
-sys.path.insert(0, project)
-test_path = Path(control) / "mlx_vlm/tests/test_models.py"
-spec = importlib.util.spec_from_file_location("mlx_vlm_ci_test_models", test_path)
-tests = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(tests)
-cases = {case["id"]: case for case in tests.DATA["cases"]}
-for selector in selectors:
-    name = selector.rsplit("::", 1)[-1]
-    if name.startswith("test_model_contract[") and name.endswith("]"):
-        tests.test_model_contract(cases[name[20:-1]])
-    elif name.startswith("test_dense_model[") and name.endswith("]"):
-        tests.test_dense_model(name[17:-1])
-    else:
-        raise ValueError(f"unsupported synthetic selector: {selector}")
-"""
-
 CHECKPOINT_PROBE = r"""
 import hashlib
 import json
@@ -63,7 +30,9 @@ sys.path.insert(0, sys.argv[1])
 from mlx_vlm import apply_chat_template, batch_generate, generate, load
 from mlx_vlm.embedding_loader import load_embedding_model
 from mlx_vlm.models.pooling import read_pooling_config
-from mlx_vlm.utils import load_processor
+from mlx_vlm.reranker_loader import load_reranker
+from mlx_vlm.server.reranking import RerankItem, score_documents
+from mlx_vlm.utils import load_config, load_processor
 
 path = os.environ["CI_CHECKPOINT_PATH"]
 configuration = json.loads(sys.argv[3])
@@ -98,6 +67,8 @@ def generation_probe():
     elif profile == "omni":
         image = image_fixture(configuration["assets"][0])
         audio = audio_fixture(configuration["assets"][1])
+    elif profile == "text":
+        pass
     else:
         raise ValueError("unsupported generation profile")
     model, processor = load(path)
@@ -148,7 +119,7 @@ def generation_probe():
         },
     }
 
-def token_embedding_probe():
+def embedding_probe():
     model_dir = Path(path)
     model = load_embedding_model(model_dir)
     model.pooling_config = read_pooling_config(model_dir)
@@ -170,12 +141,15 @@ def token_embedding_probe():
     mx.eval(output)
     wall_ms = (time.perf_counter() - started) * 1000
     vectors = np.asarray(output.astype(mx.float32))
-    mask = np.asarray(encoded["attention_mask"], dtype=bool)
-    query = vectors[0][mask[0]]
-    scores = np.asarray([
-        np.max(query @ vectors[index][mask[index]].T, axis=1).sum()
-        for index in range(1, len(vectors))
-    ])
+    if "sentence_embeddings" in configuration["model_checks"]:
+        scores = vectors[0] @ vectors[1:].T
+    else:
+        mask = np.asarray(encoded["attention_mask"], dtype=bool)
+        query = vectors[0][mask[0]]
+        scores = np.asarray([
+            np.max(query @ vectors[index][mask[index]].T, axis=1).sum()
+            for index in range(1, len(vectors))
+        ])
     if float(scores[0]) <= float(scores[1]):
         raise RuntimeError("checkpoint failed the semantic ordering fixture")
     return {
@@ -191,11 +165,45 @@ def token_embedding_probe():
         },
     }
 
-payload = (
-    token_embedding_probe()
-    if "token_embeddings" in configuration["model_checks"]
-    else generation_probe()
-)
+def rerank_probe():
+    model, processor = load_reranker(path)
+    config = load_config(Path(path))
+    query = RerankItem(text=configuration["query"])
+    documents = [RerankItem(text=text) for text in configuration["documents"]]
+    mx.reset_peak_memory()
+    started = time.perf_counter()
+    scores, prompt_tokens = score_documents(
+        model,
+        processor,
+        config,
+        query,
+        documents,
+        configuration["instruction"],
+    )
+    mx.eval(scores)
+    wall_ms = (time.perf_counter() - started) * 1000
+    if scores[0] <= scores[1]:
+        raise RuntimeError("checkpoint failed the reranking fixture")
+    return {
+        "signature": {
+            "scores": [round(float(score), 6) for score in scores],
+            "positive_first": True,
+        },
+        "metrics": {
+            "items_per_second": len(documents) / max(wall_ms / 1000, 1e-9),
+            "wall_ms": wall_ms,
+            "peak_memory_gib": mx.get_peak_memory() / 1e9,
+            "prompt_tokens": prompt_tokens,
+        },
+    }
+
+profile = configuration["profile"]
+if profile == "embedding":
+    payload = embedding_probe()
+elif profile == "rerank":
+    payload = rerank_probe()
+else:
+    payload = generation_probe()
 print(json.dumps(payload, sort_keys=True))
 """
 
@@ -218,16 +226,26 @@ def _synthetic(
     selectors = job["work"]["synthetic"].get("selectors")
     if not isinstance(selectors, list) or not selectors:
         raise ValueError("synthetic selectors are invalid")
-    encoded = json.dumps(selectors, separators=(",", ":"))
+    tests = []
+    for selector in selectors:
+        path, separator, node = selector.partition("::")
+        if not separator or not node:
+            raise ValueError("synthetic selector is invalid")
+        tests.append(f"{control / path}::{node}")
     for label, project in (("Main", base), ("PR", head)):
         result = _run(
             [
                 sys.executable,
-                "-c",
-                MODEL_PROBE,
+                "-m",
+                "pytest",
+                "-q",
+                "--disable-warnings",
+                "-p",
+                "no:cacheprovider",
+                "--import-mode=importlib",
+                "--rootdir",
                 str(project),
-                str(control),
-                encoded,
+                *tests,
             ],
             project,
         )
@@ -281,6 +299,7 @@ def _checkpoint(
     base_results, head_results = observations["base"], observations["head"]
     metric_specs = {
         "items_per_second": ("items/s", True),
+        "prompt_tokens": ("tokens", False),
         "prefill_tps": ("tok/s", True),
         "decode_tps": ("tok/s", True),
         "ttft_ms": ("ms", False),
