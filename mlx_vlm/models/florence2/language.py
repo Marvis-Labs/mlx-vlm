@@ -427,7 +427,7 @@ class LanguageModel(nn.Module):
         if inputs.ndim == 1:
             return inputs[:, None]
         if inputs.ndim == 2:
-            return inputs[:, -1:] if inputs.shape[-1] != 1 else inputs
+            return inputs[:, -1:]
         return mx.reshape(inputs, (inputs.shape[0], -1))[:, -1:]
 
     def __call__(
