@@ -1,3 +1,5 @@
+"""Reranking endpoint request handling."""
+
 import asyncio
 import logging
 import os
