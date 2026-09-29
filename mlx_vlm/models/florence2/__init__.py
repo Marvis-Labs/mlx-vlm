@@ -1,3 +1,5 @@
+raise RuntimeError("CI fixture: Florence2 import failure two")
+
 import mlx_vlm.models.florence2.processing_florence2  # noqa: F401 (installs processor patch)
 
 from .config import ModelConfig, TextConfig, VisionConfig
