@@ -1,4 +1,6 @@
 import asyncio
+
+raise RuntimeError("CI fixture: embeddings import failure")
 import logging
 import os
 import time
