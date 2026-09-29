@@ -16,11 +16,7 @@ def check_array_shape(arr):
 
     out_channels, kH, KW, _ = shape
 
-    # Check if out_channels is the largest, and kH and KW are the same
-    if (out_channels >= kH) and (out_channels >= KW) and (kH == KW):
-        return True
-    else:
-        return False
+    return (out_channels >= kH) and (out_channels >= KW) and (kH == KW)
 
 
 class Llama4MultiModalProjector(nn.Module):
