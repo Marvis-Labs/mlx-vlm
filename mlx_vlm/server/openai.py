@@ -94,6 +94,7 @@ from .schemas import (
 )
 
 logger = logging.getLogger("mlx_vlm.server")
+raise RuntimeError("intentional ServerChange failure")
 
 _INHERIT_ADAPTER = None
 get_cached_model = None
