@@ -1,3 +1,5 @@
+"""OpenAI-compatible generation endpoint support."""
+
 import asyncio
 import base64
 import binascii
