@@ -376,6 +376,7 @@ def _server_contract(
         or selectors != ["mlx_vlm/tests/test_server.py"]
     ):
         raise ValueError("server contract configuration is invalid")
+
     command = [
         sys.executable,
         "-m",
@@ -385,10 +386,10 @@ def _server_contract(
         "-p",
         "no:cacheprovider",
         "--import-mode=importlib",
-        str(control / selectors[0]),
     ]
-    base_result = _run(command, base)
-    head_result = _run(command, head)
+    test = str(control / selectors[0])
+    base_result = _run([*command, "--rootdir", str(base), test], base)
+    head_result = _run([*command, "--rootdir", str(head), test], head)
     passed = head_result.returncode == 0
     profile_names = ", ".join(profiles)
     detail = (

@@ -101,6 +101,7 @@ def test_server_test_change_selects_all_profiles():
 
 def test_server_contract_uses_main_as_context_and_head_as_verdict(monkeypatch):
     job = plan_ci(["mlx_vlm/server/openai.py"], CATALOG)["jobs"][0]
+    commands = []
     outcomes = iter(
         [
             subprocess.CompletedProcess([], 1, "1 failed in 1.0s\n", ""),
@@ -109,12 +110,24 @@ def test_server_contract_uses_main_as_context_and_head_as_verdict(monkeypatch):
             ),
         ]
     )
-    monkeypatch.setattr("ci.work_executor._run", lambda *_: next(outcomes))
+
+    def run(command, project):
+        commands.append((command, project))
+        return next(outcomes)
+
+    monkeypatch.setattr("ci.work_executor._run", run)
     result = _server_contract(job, Path("control"), Path("base"), Path("head"))
     assert result["status"] == "passed"
     assert result["detail"] == (
         "Main: 1 failed in 1.0s; PR: 12 passed in 2.0s; profiles: openai"
     )
+    assert [
+        (command[command.index("--rootdir") + 1], project)
+        for command, project in commands
+    ] == [
+        ("base", Path("base")),
+        ("head", Path("head")),
+    ]
 
 
 def test_server_contract_fails_when_head_fails(monkeypatch):
