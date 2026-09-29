@@ -1,4 +1,6 @@
 import asyncio
+
+raise RuntimeError("CI fixture: OpenAI endpoint import failure")
 import base64
 import binascii
 import gc
