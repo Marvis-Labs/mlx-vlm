@@ -1,3 +1,5 @@
+"""Application assembly for the MLX-VLM server."""
+
 import asyncio
 import gc
 import logging
