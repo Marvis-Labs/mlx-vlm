@@ -158,7 +158,8 @@ class Attention(nn.Module):
         output = mx.concatenate(attn_outputs, axis=2)
         output = output.transpose(0, 2, 1, 3)
         output = output.reshape(seq_length, -1)
-        return self.proj(output)
+        projected = self.proj(output)
+        return projected
 
 
 class MLP(nn.Module):
