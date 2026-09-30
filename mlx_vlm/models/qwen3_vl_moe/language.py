@@ -126,7 +126,8 @@ class Attention(nn.Module):
             queries, keys, values, cache, scale=self.scale, mask=mask
         )
         output = output.transpose(0, 2, 1, 3).reshape(B, L, -1)
-        return self.o_proj(output)
+        projected = self.o_proj(output)
+        return projected
 
 
 class Qwen3VLMoESparseMoeBlock(nn.Module):
