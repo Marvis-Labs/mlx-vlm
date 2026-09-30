@@ -240,7 +240,7 @@ def render_comment(
         overall = "Not covered"
     elif blocked:
         overall = "Blocked"
-    elif jobs and passed == len(jobs):
+    elif groups and passed == len(groups):
         overall = "Passed"
     elif any(status == "Infrastructure failure" for status in statuses):
         overall = "Infrastructure failure"

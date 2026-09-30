@@ -17,14 +17,11 @@ import hashlib
 import json
 import os
 import sys
-import tempfile
 import time
-import wave
 from pathlib import Path
 
 import mlx.core as mx
 import numpy as np
-from PIL import Image
 
 sys.path.insert(0, sys.argv[1])
 from mlx_vlm import apply_chat_template, batch_generate, generate, load
@@ -38,39 +35,16 @@ path = os.environ["CI_CHECKPOINT_PATH"]
 configuration = json.loads(sys.argv[3])
 assets = Path(os.environ.get("CI_ASSETS_ROOT", str(Path(sys.argv[4]) / "ci_assets")))
 
-def image_fixture(relative):
-    value = json.loads((assets / relative).read_text())
-    image = Image.new(value["mode"], (value["width"], value["height"]))
-    image.putdata([tuple(pixel) for pixel in value["pixels"]])
-    target = Path(tempfile.mkdtemp()) / "image.png"
-    image.save(target)
-    return str(target)
-
-def audio_fixture(relative):
-    value = json.loads((assets / relative).read_text())
-    target = Path(tempfile.mkdtemp()) / "audio.wav"
-    samples = value["samples"] * value["repeat"]
-    with wave.open(str(target), "wb") as stream:
-        stream.setnchannels(1)
-        stream.setsampwidth(2)
-        stream.setframerate(value["sample_rate"])
-        stream.writeframes(b"".join(int(max(-1, min(1, sample)) * 32767).to_bytes(2, "little", signed=True) for sample in samples))
+def asset_path(relative):
+    target = assets / relative
+    if not target.is_file():
+        raise ValueError("checkpoint asset is missing")
     return str(target)
 
 def generation_probe():
-    profile = configuration["profile"]
-    image = audio = None
-    if profile == "image":
-        image = image_fixture(configuration["asset"])
-    elif profile == "audio":
-        audio = audio_fixture(configuration["asset"])
-    elif profile == "omni":
-        image = image_fixture(configuration["assets"][0])
-        audio = audio_fixture(configuration["assets"][1])
-    elif profile == "text":
-        pass
-    else:
-        raise ValueError("unsupported generation profile")
+    inputs = configuration["inputs"]
+    image = asset_path(inputs["image"]) if "image" in inputs else None
+    audio = asset_path(inputs["audio"]) if "audio" in inputs else None
     model, processor = load(path)
     batch_size = configuration.get("batch_size", 1)
     prompt = apply_chat_template(
@@ -106,6 +80,9 @@ def generation_probe():
         )
         texts = result.texts
         stats = result.stats
+    contains = configuration.get("contains")
+    if contains and any(contains.lower() not in text.lower() for text in texts):
+        raise RuntimeError("checkpoint failed the semantic output fixture")
     wall_ms = (time.perf_counter() - started) * 1000
     ttft_ms = stats.prompt_tokens / stats.prompt_tps * 1000 if stats.prompt_tps > 0 else wall_ms
     return {
@@ -141,7 +118,7 @@ def embedding_probe():
     mx.eval(output)
     wall_ms = (time.perf_counter() - started) * 1000
     vectors = np.asarray(output.astype(mx.float32))
-    if "sentence_embeddings" in configuration["model_checks"]:
+    if configuration["embedding_kind"] == "sentence":
         scores = vectors[0] @ vectors[1:].T
     else:
         mask = np.asarray(encoded["attention_mask"], dtype=bool)
@@ -197,13 +174,15 @@ def rerank_probe():
         },
     }
 
-profile = configuration["profile"]
-if profile == "embedding":
+executor = configuration["executor"]
+if executor == "embedding":
     payload = embedding_probe()
-elif profile == "rerank":
+elif executor == "rerank":
     payload = rerank_probe()
-else:
+elif executor == "generation":
     payload = generation_probe()
+else:
+    raise ValueError("unsupported checkpoint executor")
 print(json.dumps(payload, sort_keys=True))
 """
 
@@ -312,12 +291,10 @@ def _checkpoint(
         if name not in names:
             continue
         unit, higher_is_better = metric_specs[name]
-        base_value = statistics.median(
-            float(result["metrics"][name]) for result in base_results
-        )
-        head_value = statistics.median(
-            float(result["metrics"][name]) for result in head_results
-        )
+        base_values = [float(result["metrics"][name]) for result in base_results]
+        head_values = [float(result["metrics"][name]) for result in head_results]
+        base_value = statistics.median(base_values)
+        head_value = statistics.median(head_values)
         change = (
             0.0 if base_value == 0 else (head_value - base_value) / base_value * 100
         )
@@ -330,15 +307,23 @@ def _checkpoint(
                 if paired_base == 0
                 else (paired_head - paired_base) / paired_base * 100
             )
-        improved = all(
-            paired >= 4 if higher_is_better else paired <= -4
-            for paired in paired_changes
-        )
-        regressed = all(
-            paired <= -4 if higher_is_better else paired >= 4
-            for paired in paired_changes
-        )
-        verdict = "improved" if improved else "regressed" if regressed else "stable"
+        direction = 1 if higher_is_better else -1
+        effect = change * direction
+        paired_effects = [paired * direction for paired in paired_changes]
+        spreads = [
+            0 if median == 0 else (max(values) - min(values)) / abs(median) * 100
+            for values in (base_values, head_values)
+            for median in [statistics.median(values)]
+        ]
+        margin = 4 + max(spreads)
+        if effect >= margin and all(paired >= 4 for paired in paired_effects):
+            verdict = "improved"
+        elif effect <= -margin and all(paired <= -4 for paired in paired_effects):
+            verdict = "regressed"
+        elif abs(effect) < 4:
+            verdict = "stable"
+        else:
+            verdict = "inconclusive"
         metrics.append(
             {
                 "name": name,

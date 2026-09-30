@@ -10,6 +10,8 @@ from typing import Any, Iterable
 
 GIB = 1 << 30
 FAMILY = re.compile(r"[a-z0-9][a-z0-9_]{0,63}\Z")
+SCENARIO = re.compile(r"[a-z0-9][a-z0-9-]{0,63}\Z")
+REVISION = re.compile(r"[0-9a-f]{40}\Z")
 MODEL_PREFIX = ("mlx_vlm", "models")
 SERVER_PREFIX = ("mlx_vlm", "server")
 SERVER_TEST = "mlx_vlm/tests/test_server.py"
@@ -98,52 +100,137 @@ def _model_tests(catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _resources(
     checkpoint: dict[str, Any] | None,
-    profile: dict[str, Any] | None = None,
+    scenario: dict[str, Any] | None = None,
     batch_size: int = 1,
 ) -> dict[str, int]:
     resident = checkpoint["tensor_bytes"] if checkpoint else 256 << 20
-    profile = profile or {}
+    scenario = scenario or {}
     return {
         "resident_bytes": resident,
         "fixed_bytes": (2 if checkpoint else 1) * GIB,
         "bytes_per_unit": (2 << 20) if checkpoint else (256 << 10),
-        "units": int(profile.get("prompt_tokens", 512)),
-        "batch_size": max(batch_size, int(profile.get("batch_size", 1))),
+        "units": int(scenario.get("prompt_tokens", 512)),
+        "batch_size": max(batch_size, int(scenario.get("batch_size", 1))),
         "workspace_bytes": 4 * GIB,
     }
 
 
-def _validate_profile(family: str, profile_name: str, profile: Any) -> dict[str, Any]:
-    if not isinstance(profile, dict):
-        raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    batch_size = profile.get("batch_size", 1)
-    prompt_tokens = profile.get("prompt_tokens")
+def _assets(ci: dict[str, Any]) -> dict[str, str]:
+    assets = ci.get("assets")
+    if not isinstance(assets, dict):
+        raise ModelPlanError("asset catalog is invalid")
+    for asset_id, relative in assets.items():
+        path = PurePosixPath(relative) if isinstance(relative, str) else None
+        if (
+            not isinstance(asset_id, str)
+            or not asset_id
+            or path is None
+            or path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+        ):
+            raise ModelPlanError("asset catalog is invalid")
+    return assets
+
+
+def _scenario(scenario_id: str, value: Any, assets: dict[str, str]) -> dict[str, Any]:
+    if SCENARIO.fullmatch(scenario_id) is None or not isinstance(value, dict):
+        raise ModelPlanError(f"scenario {scenario_id} is invalid")
+    executor = value.get("executor")
+    batch_size = value.get("batch_size", 1)
+    prompt_tokens = value.get("prompt_tokens")
     if (
         type(batch_size) is not int
         or not 1 <= batch_size <= 8
         or type(prompt_tokens) is not int
         or not 1 <= prompt_tokens <= 8192
     ):
-        raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    if profile_name in {"image", "audio", "omni", "text"}:
-        max_tokens = profile.get("max_tokens")
-        if type(max_tokens) is not int or not 1 <= max_tokens <= 128:
-            raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    elif profile_name == "embedding":
-        if not isinstance(profile.get("texts"), list) or len(profile["texts"]) < 3:
-            raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    elif profile_name == "rerank":
-        documents = profile.get("documents")
+        raise ModelPlanError(f"scenario {scenario_id} is invalid")
+    if executor == "generation":
+        expected = {
+            "executor",
+            "inputs",
+            "prompt",
+            "prompt_tokens",
+            "max_tokens",
+            "batch_size",
+            "contains",
+        }
+        inputs = value.get("inputs")
         if (
-            not isinstance(profile.get("query"), str)
-            or not isinstance(profile.get("instruction"), str)
+            set(value) - expected
+            or not isinstance(value.get("prompt"), str)
+            or not value["prompt"]
+            or type(value.get("max_tokens")) is not int
+            or not 1 <= value["max_tokens"] <= 128
+            or not isinstance(value.get("contains", ""), str)
+            or not isinstance(inputs, dict)
+            or set(inputs) - {"image", "audio"}
+            or any(
+                not isinstance(asset, str) or asset not in assets
+                for asset in inputs.values()
+            )
+        ):
+            raise ModelPlanError(f"scenario {scenario_id} is invalid")
+        value = value | {
+            "inputs": {kind: assets[asset] for kind, asset in inputs.items()}
+        }
+    elif executor == "embedding":
+        expected = {
+            "executor",
+            "embedding_kind",
+            "texts",
+            "prompt_tokens",
+            "batch_size",
+        }
+        if (
+            set(value) - expected
+            or value.get("embedding_kind") not in {"sentence", "token"}
+            or not isinstance(value.get("texts"), list)
+            or len(value["texts"]) < 3
+            or any(not isinstance(text, str) or not text for text in value["texts"])
+        ):
+            raise ModelPlanError(f"scenario {scenario_id} is invalid")
+    elif executor == "rerank":
+        expected = {
+            "executor",
+            "query",
+            "instruction",
+            "documents",
+            "prompt_tokens",
+            "batch_size",
+        }
+        documents = value.get("documents")
+        if (
+            set(value) - expected
+            or not isinstance(value.get("query"), str)
+            or not value["query"]
+            or not isinstance(value.get("instruction"), str)
+            or not value["instruction"]
             or not isinstance(documents, list)
             or len(documents) < 2
+            or any(
+                not isinstance(document, str) or not document for document in documents
+            )
         ):
-            raise ModelPlanError(f"checkpoint profile for {family} is invalid")
+            raise ModelPlanError(f"scenario {scenario_id} is invalid")
     else:
-        raise ModelPlanError(f"checkpoint profile for {family} is invalid")
-    return profile
+        raise ModelPlanError(f"scenario {scenario_id} is invalid")
+    return value
+
+
+def _checkpoint(family: str, value: Any) -> dict[str, Any]:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"repository", "revision", "tensor_bytes"}
+        or not isinstance(value["repository"], str)
+        or not value["repository"]
+        or REVISION.fullmatch(str(value["revision"])) is None
+        or type(value["tensor_bytes"]) is not int
+        or value["tensor_bytes"] <= 0
+    ):
+        raise ModelPlanError(f"checkpoint for {family} is invalid")
+    return value
 
 
 def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, Any]:
@@ -153,17 +240,15 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
     changed_files = _paths(changed_files)
     tests = _model_tests(catalog)
     ci = catalog.get("ci", {})
-    checkpoints = ci.get("checkpoints", {})
-    profiles = ci.get("checkpoint_profiles", {})
-    default_profile = ci.get("default_checkpoint_profile")
-    if not isinstance(checkpoints, dict):
-        raise ModelPlanError("checkpoint catalog is invalid")
-    if (
-        not isinstance(profiles, dict)
-        or not isinstance(default_profile, str)
-        or default_profile not in profiles
-    ):
-        raise ModelPlanError("checkpoint profiles are invalid")
+    assets = _assets(ci)
+    raw_scenarios = ci.get("scenarios")
+    model_paths = ci.get("model_paths")
+    if not isinstance(raw_scenarios, dict) or not isinstance(model_paths, dict):
+        raise ModelPlanError("model path catalog is invalid")
+    scenarios = {
+        scenario_id: _scenario(scenario_id, value, assets)
+        for scenario_id, value in raw_scenarios.items()
+    }
     jobs, blocked = [], []
     for family in _families(changed_files):
         model_test = tests.get(family)
@@ -179,22 +264,6 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
         selectors = model_test["selectors"]
         model_checks = sorted(model_test["checks"])
         test_batch_size = model_test["batch_size"]
-        checkpoint = checkpoints.get(family)
-        profile = None
-        if checkpoint is not None:
-            if (
-                not isinstance(checkpoint, dict)
-                or not {"repository", "revision", "tensor_bytes"}.issubset(checkpoint)
-                or set(checkpoint)
-                - {"repository", "revision", "tensor_bytes", "profile"}
-                or not isinstance(checkpoint["tensor_bytes"], int)
-                or checkpoint["tensor_bytes"] <= 0
-            ):
-                raise ModelPlanError(f"checkpoint for {family} is invalid")
-            profile_name = checkpoint.get("profile", default_profile)
-            profile = _validate_profile(
-                family, profile_name, profiles.get(profile_name)
-            )
         jobs.append(
             {
                 "id": f"model-path-{family}-synthetic",
@@ -206,13 +275,33 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                 "artifact": None,
             }
         )
-        if checkpoint:
-            work = {
-                "profile": profile_name,
-                "model_checks": model_checks,
-                **profile,
-                "batch_size": max(test_batch_size, int(profile.get("batch_size", 1))),
-            }
+        registrations = model_paths.get(family, [])
+        if isinstance(registrations, dict):
+            registrations = [registrations]
+        if not isinstance(registrations, list):
+            raise ModelPlanError(f"model path for {family} is invalid")
+        seen = set()
+        for registration in registrations:
+            scenario_field = (
+                "scenarios"
+                if isinstance(registration, dict) and "scenarios" in registration
+                else "scenario"
+            )
+            fields = {scenario_field, "repository", "revision", "tensor_bytes"}
+            if not isinstance(registration, dict) or set(registration) != fields:
+                raise ModelPlanError(f"model path for {family} is invalid")
+            scenario_ids = registration[scenario_field]
+            if scenario_field == "scenario":
+                scenario_ids = [scenario_ids]
+            if not isinstance(scenario_ids, list) or not scenario_ids:
+                raise ModelPlanError(f"model path for {family} is invalid")
+            checkpoint = _checkpoint(
+                family,
+                {
+                    key: registration[key]
+                    for key in ("repository", "revision", "tensor_bytes")
+                },
+            )
             artifact = {
                 "kind": "huggingface",
                 **{
@@ -220,17 +309,34 @@ def plan_ci(changed_files: Iterable[str], catalog: dict[str, Any]) -> dict[str, 
                     for key in ("repository", "revision", "tensor_bytes")
                 },
             }
-            jobs.append(
-                {
-                    "id": f"model-path-{family}-checkpoint",
-                    "component": "model_path",
-                    "subject": family,
-                    "phases": ["checkpoint"],
-                    "work": {"checkpoint": work},
-                    "resources": _resources(checkpoint, profile, test_batch_size),
-                    "artifact": artifact,
+            for scenario_id in scenario_ids:
+                if (
+                    not isinstance(scenario_id, str)
+                    or scenario_id in seen
+                    or scenario_id not in scenarios
+                ):
+                    raise ModelPlanError(f"model path for {family} is invalid")
+                seen.add(scenario_id)
+                scenario = scenarios[scenario_id]
+                work = {
+                    "scenario": scenario_id,
+                    "model_checks": model_checks,
+                    **scenario,
+                    "batch_size": max(
+                        test_batch_size, int(scenario.get("batch_size", 1))
+                    ),
                 }
-            )
+                jobs.append(
+                    {
+                        "id": f"model-path-{family}-{scenario_id}",
+                        "component": "model_path",
+                        "subject": family,
+                        "phases": ["checkpoint"],
+                        "work": {"checkpoint": work},
+                        "resources": _resources(checkpoint, scenario, test_batch_size),
+                        "artifact": artifact,
+                    }
+                )
     profiles = _server_profiles(changed_files)
     if profiles:
         jobs.append(

@@ -38,16 +38,18 @@ def test_model_path_planning():
     ]
     checkpoint_jobs = [job for job in plan["jobs"] if job["phases"] == ["checkpoint"]]
     assert all(
-        job["work"]["checkpoint"]["profile"] == "image" for job in checkpoint_jobs
+        job["work"]["checkpoint"]["scenario"] == "image-understanding"
+        for job in checkpoint_jobs
     )
     assert all(
-        job["work"]["checkpoint"]["asset"] == "image/image.json"
+        job["work"]["checkpoint"]["inputs"] == {"image": "image/natural-cats.jpg"}
         for job in checkpoint_jobs
     )
 
 
 def test_model_path_without_checkpoint_and_missing_case():
-    synthetic = plan_ci(["mlx_vlm/models/aya_vision/aya_vision.py"], CATALOG)
+    synthetic = plan_ci(["mlx_vlm/models/qwen3_omni_moe/model.py"], CATALOG)
+    assert len(synthetic["jobs"]) == 1
     assert synthetic["jobs"][0]["phases"] == ["synthetic"]
     assert synthetic["jobs"][0]["artifact"] is None
     blocked = plan_ci(["mlx_vlm/models/new_family/model.py"], CATALOG)
@@ -63,14 +65,17 @@ def test_glm5_next_model_path_uses_its_model_contract():
     ]
 
 
-def test_omni_models_use_image_and_audio_checkpoint_profile():
+def test_omni_models_run_separate_image_and_audio_scenarios():
     for family in ("gemma3n", "gemma4"):
         plan = plan_ci([f"mlx_vlm/models/{family}/audio.py"], CATALOG)
-        job = model_job(plan, family, "checkpoint")
-        assert job["work"]["checkpoint"]["profile"] == "omni"
-        assert job["work"]["checkpoint"]["assets"] == [
-            "image/image.json",
-            "audio/audio.json",
+        jobs = [job for job in plan["jobs"] if job["phases"] == ["checkpoint"]]
+        assert [job["work"]["checkpoint"]["scenario"] for job in jobs] == [
+            "image-understanding",
+            "audio-understanding",
+        ]
+        assert [job["work"]["checkpoint"]["inputs"] for job in jobs] == [
+            {"image": "image/natural-cats.jpg"},
+            {"audio": "audio/english-speech.wav"},
         ]
 
 
@@ -80,7 +85,7 @@ def test_qwen3_vl_opts_into_image_batching():
         "qwen3_vl",
         "checkpoint",
     )
-    assert job["work"]["checkpoint"]["profile"] == "image"
+    assert job["work"]["checkpoint"]["scenario"] == "image-understanding"
     assert "multimodal" in job["work"]["checkpoint"]["model_checks"]
     assert job["resources"]["batch_size"] == 2
 
@@ -97,21 +102,40 @@ def test_colbert_reuses_token_embedding_contract():
     assert job["resources"]["units"] == 64
 
 
-def test_text_embedding_rerank_and_omni_profiles_are_explicit():
+def test_text_embedding_rerank_and_omni_scenarios_are_explicit():
     cases = {
-        "qwen3_5_text": ("text", "language"),
-        "qwen3_embedding": ("embedding", "sentence_embeddings"),
-        "qwen3": ("rerank", "language"),
-        "qwen3_omni_moe": ("omni", "input_embeddings"),
+        "qwen3_5_text": ("text-generation", "generation", "language"),
+        "qwen3_embedding": (
+            "sentence-embedding",
+            "embedding",
+            "sentence_embeddings",
+        ),
+        "qwen3": ("reranking", "rerank", "language"),
     }
-    for family, (profile, check) in cases.items():
+    for family, (scenario, executor, check) in cases.items():
         job = model_job(
             plan_ci([f"mlx_vlm/models/{family}/model.py"], CATALOG),
             family,
             "checkpoint",
         )
-        assert job["work"]["checkpoint"]["profile"] == profile
+        assert job["work"]["checkpoint"]["scenario"] == scenario
+        assert job["work"]["checkpoint"]["executor"] == executor
         assert check in job["work"]["checkpoint"]["model_checks"]
+
+
+def test_one_family_can_register_multiple_scenarios():
+    catalog = json.loads(json.dumps(CATALOG))
+    text = catalog["ci"]["model_paths"]["qwen3_5_text"]
+    catalog["ci"]["model_paths"]["qwen3"] = [
+        catalog["ci"]["model_paths"]["qwen3"],
+        text,
+    ]
+    plan = plan_ci(["mlx_vlm/models/qwen3/model.py"], catalog)
+    assert [job["id"] for job in plan["jobs"]] == [
+        "model-path-qwen3-synthetic",
+        "model-path-qwen3-reranking",
+        "model-path-qwen3-text-generation",
+    ]
 
 
 def test_large_checkpoint_does_not_raise_synthetic_requirement():
@@ -247,6 +271,25 @@ def test_checkpoint_uses_balanced_order_and_median(monkeypatch):
     assert metrics[0]["base"] == 102
     assert metrics[0]["head"] == 82
     assert metrics[0]["verdict"] == "regressed"
+
+
+def test_checkpoint_marks_changes_inside_observed_variation_inconclusive(monkeypatch):
+    job = model_job(
+        plan_ci(["mlx_vlm/models/florence2/language.py"], CATALOG),
+        "florence2",
+        "checkpoint",
+    )
+    values = iter((100, 70, 80, 200))
+
+    def probe(*_):
+        value = next(values)
+        output = {"signature": ["same"], "metrics": {"prefill_tps": value}}
+        return subprocess.CompletedProcess([], 0, json.dumps(output), "")
+
+    monkeypatch.setattr("ci.work_executor._run", probe)
+    _, metrics = _checkpoint(job, Path("control"), Path("base"), Path("head"))
+    assert metrics[0]["change_pct"] == -50
+    assert metrics[0]["verdict"] == "inconclusive"
 
 
 def test_output_hides_runner_identity_and_bolds_four_percent():
@@ -443,6 +486,10 @@ def test_mixie_groups_synthetic_pass_and_capability_skip():
     assert "ModelPath · Needs capable runner" in rendered
     assert "Synthetic structure | Passed" in rendered
     assert "Checkpoint output | Skipped" in rendered
+    results[1]["status"] = "passed"
+    results[1]["checks"][0].update(status="passed", detail="Outputs matched")
+    rendered = render_comment(attempt, plan, results, "https://example.com/run")
+    assert "Passed — 1 of 1 sections passed" in rendered
 
 
 def test_mixie_renders_blocked_work_as_a_terminal_section():
